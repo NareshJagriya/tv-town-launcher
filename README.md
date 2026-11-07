@@ -1,0 +1,322 @@
+# TV Town Launcher
+
+**A glass home screen for Android TV and Google TV: what to watch, from every app you have, without the ads.**
+
+Version 1.0 · Android TV and Google TV 9 and later · runs well on a 1 GB TV · free and open source
+
+**[Install it on your TV →](INSTALL.md)** No computer needed. Updates come from Settings → Updates.
+
+![Home](media/screenshots/01-home/home.jpg)
+
+**[Watch the video](https://github.com/NareshJagriya/tv-town-launcher/releases/latest/download/TV-Town-Launcher-video.mp4)** · **[See every feature with pictures](FEATURES.md)**
+
+---
+
+## What makes it special
+
+- 🖼️ **A home like a cinema:** what's new on your apps fills the whole screen, with no ads.
+- ✨ **Smooth as glass:** frosted glass everywhere, and a highlight that glides as you move, in each app's own colour.
+- 📥 **YouTube downloads:** save what's playing, a song name or a link, as MP3 or MP4, right on your drive.
+- 🔄 **Share:** move songs and films between your phone and the TV's drive, both ways, with no cables or cloud.
+- 📱 **Your phone is the remote:** frosted glass, one screen per tab, voice search that looks inside the app you're in, your apps as big tiles, and nothing to install.
+- 🎮 **A game controller too:** hold your phone sideways for a thumb stick, A B X Y, L1 L2 R1 R2, Start and Select.
+- 🏏 **Sports:** live cricket, football, basketball, tennis and F1, with team badges, live scorecards, match stats, news and league tables.
+- 🎤 **Karaoke lyrics:** words fill in as they're sung, in Hindi script or English letters.
+- 🌈 **Eleven music effects** that move with your song, or moving scenes behind the words.
+- 🎲 **Surprise Me:** pick a mood, and get picks on the apps you actually have.
+- 🎬 **My Movies:** your drive becomes a cinema, with big covers, ratings and filters.
+
+---
+
+## Which TVs and Android versions work
+
+| Your TV or box | Works? |
+|---|---|
+| **Android TV or Google TV, Android 11 or later** (Sony, Philips, TCL, Xiaomi / Mi, OnePlus, Hisense Android models, Toshiba, Nvidia Shield, Chromecast with Google TV, Google TV Streamer, onn and others) | ✅ Everything |
+| Android 10 | ✅ Everything except My Music |
+| Android 9 | ✅ Everything except My Movies and My Music |
+| Android 13 and later | ✅ One extra step for permissions: see [INSTALL.md](INSTALL.md#if-a-switch-is-greyed-out-android-13-and-later) |
+| Android 8 or older | ❌ No |
+| Amazon Fire TV | ⚠️ Opens from the app list, but can't be the home screen |
+| Samsung (Tizen), LG (webOS), Roku, Vizio, Hisense VIDAA, Apple TV | ❌ No: they don't run Android apps |
+
+It was built on and tested on one TV: a 1 GB Philips with Android 11, at 720p. 1 GB of memory is enough, and 2 GB or more is smoother. To check your version, open *Settings → Device Preferences → About*.
+
+## How to install
+
+No computer or cables needed. **[The full guide is in INSTALL.md](INSTALL.md).**
+
+1. **Get the file:** download `TV-Town.apk` from [Releases](https://github.com/NareshJagriya/tv-town-launcher/releases/latest), then copy it to a USB stick and open it on the TV. Or use the free **Downloader** app on the TV with the download link.
+2. **Allow the install:** when the TV asks, choose **Settings**, switch it on, press **Back**, then **Install**.
+3. **Follow the Welcome screen:** pick your content style, country and languages, and switch on the *TV Town home helper* so the Home button brings you here.
+4. **Optional:** plug in a drive with your films and music, and connect your phone from *Settings → Phone and downloads → Connect my phone*. The first time you use the phone's arrow keys, choose **Allow** and tick *Always allow* on the TV.
+
+## How to add the free API keys
+
+Both are optional and free, and you type them on your phone by scanning the QR code on the TV. TV Town works without them, using JustWatch for film details.
+
+| Key | What it adds | Where to get it | Where to add it |
+|---|---|---|---|
+| **TMDB** | Film and series details, pictures, new titles, Discover and Surprise Me picks | Make a free account at [themoviedb.org](https://www.themoviedb.org/signup), then open *Settings → API* and copy your **API key** | *Settings → About and backup → Films and series info (TMDB key)* |
+| **OpenSubtitles** | Subtitle downloads in My Movies | Make a free account at [opensubtitles.com](https://www.opensubtitles.com/consumers), then create a consumer and copy its **API key** | *Settings → About and backup → Subtitle downloads (OpenSubtitles key)* |
+
+Weather needs no key: add your town in *Settings → Look → Weather beside the clock*.
+
+---
+
+## See it by feature
+
+### [Search](FEATURES.md#search)
+
+One place to look for anything, on a keyboard made for the remote.
+
+![Search](media/screenshots/02-search/search.jpg)
+
+### [Surprise Me](FEATURES.md#surprise-me)
+
+For when you can't decide what to watch or hear.
+
+![Surprise Me](media/screenshots/03-surprise-me/moods-movies.jpg)
+
+### [My Movies](FEATURES.md#my-movies)
+
+Plug in a drive and your films become a cinema.
+
+![My Movies](media/screenshots/04-my-movies/covers.jpg)
+
+### [My Music](FEATURES.md#my-music)
+
+Your songs as a record collection, with a player that keeps going on Home.
+
+![My Music](media/screenshots/05-my-music/collection.jpg)
+
+### [Music effects](FEATURES.md#music-effects)
+
+Eleven effects that move with the music. They can change by themselves as the song plays.
+
+![Music effects](media/screenshots/06-music-effects/effect-01.jpg)
+
+### [Discover and Must-Watch](FEATURES.md#discover-and-must-watch)
+
+Find something worth watching.
+
+![Discover and Must-Watch](media/screenshots/07-discover/discover.jpg)
+
+### [Control Center and Sports](FEATURES.md#control-center-and-sports)
+
+Live scores, scorecards, news and tables for the sports you follow, and the things you reach for one press away.
+
+![Sports](media/screenshots/08-sports/sports-home.jpg)
+
+### [Phone remote](FEATURES.md#phone-remote)
+
+Your phone becomes the remote and a game controller, with nothing to install.
+
+![Phone remote](media/screenshots/09-phone-remote/phone-remote.jpg)
+
+### [YouTube downloads](FEATURES.md#youtube-downloads)
+
+Save any song or video to your drive as audio or video: what's playing, a song name or a link.
+
+![YouTube downloads](media/screenshots/10-youtube-downloads/download.jpg)
+
+### [Share](FEATURES.md#share)
+
+Send songs and films from your phone to the TV's drive, and back again, over Wi-Fi.
+
+![Share](media/screenshots/11-share/share.jpg)
+
+### [Settings](FEATURES.md#settings)
+
+A small glass card, with the TV's own settings at the top.
+
+![Settings](media/screenshots/12-settings/look.jpg)
+
+### [Screensaver](FEATURES.md#screensaver)
+
+Beautiful when nobody is watching, and dimmed at night.
+
+![Screensaver](media/screenshots/13-screensaver/your-videos.jpg)
+
+---
+
+## All features
+
+### Home
+- **Full-picture home:** what's new this week on your apps fills the screen, with its title logo, summary, Watch now and More info. The picture changes by itself.
+- **Your apps and shortcuts** in one floating glass dock: your chosen apps, All apps, Surprise Me, My Movies (or My List), My Music (or your music app) and Discover.
+- **Continue watching** and **Continue listening:** press Down for up to 15 things you're in the middle of, from Netflix, YouTube, Prime Video, JioHotstar and other apps as well as your drive, with how much is left, and My List beside it.
+- **Top bar:** the time, date and weather, the live score of the sports you follow, Search, Inputs (HDMI), Control Center and Settings.
+- **Light on the TV:** made for a 1 GB TV, and it rests while an app is in front.
+
+### Search
+- A full-screen keyboard for films, series, songs, apps and YouTube together, with pictures in the results and your recent searches.
+- A small QR code beside every keyboard on the TV: scan it to type on your phone.
+
+### Surprise Me
+- **Movie, Series, Music and Extras** tabs, with a colourful tile and icon for each mood, in the languages you choose.
+- **Movie and series results:** one large pick and a row of more. Play in the app, More info, Trailer, New picks or Other moods.
+- **Customize:** switch kinds off, add singers, comedians, shows, channels or searches, and make cards of your own.
+- No repeats until a mood's whole pool has been shown.
+
+### My Movies
+- Films and series from any plugged-in drive, matched to their poster, year, rating and summary. **Fix match** corrects a wrong guess.
+- **Big covers** with name, year and rating, and a small preview with the full details beside them.
+- **Continue** row, favourites, watched marks, your own ratings, and automatic and custom tags.
+- **Film page:** Play or Resume, Start over, Episodes, Trailer, Favourite, Watched, Rate, Tags, Subtitles and Fix match.
+- **Filter** by Genre, Mood and Spoken in, plus **Sort** and **Search**. Audio and subtitle languages are read from each file.
+- **Plays in VLC** when installed (resume, and end credits count as watched), else the TV's own player. English subtitles from OpenSubtitles on request.
+- With no drive, it becomes **My List**.
+
+### My Music
+- Folders, Artists, All songs and Favourites, search as you type, Shuffle and Surprise me.
+- Song names and covers tidied from the iTunes catalogue, and you can edit any song's details.
+- **Player:** keeps playing on Home, with karaoke lyrics in Hindi script or English letters, effects that follow the music, background videos from a *TV Town Scenes* folder, a sleep timer and screen off.
+- What TV Town learns about your songs stays on the drive, so it moves with it.
+
+### Discover and Must-Watch
+- **Discover:** shelves of big covers with name, year and rating: My List, New on your apps, Popular on each app, Top rated, Award winners, Critics' picks and moods, with a small preview beside them. Choose Movies or Series, and a language.
+- **Must-Watch:** top rated, award winners and critics' picks, with IMDb and Rotten Tomatoes scores. Mark Watched or Want to Watch, and rate 1 to 10.
+- **Titles open on their own page in the app** when a link is known, else the app, else its Play Store page. Trailers are checked before they open.
+
+### Control Center
+- What's playing with play and pause, **Sleep timer**, **Speed test**, **Sound** (speakers and headphones), **Free memory**, **Sports** and **Turn off**, on one small glass card.
+
+### Sports
+- **Choose your sports:** cricket, football (Premier League, Champions League, ISL, La Liga, World Cup), basketball (NBA), tennis (ATP and WTA) and Formula 1.
+- **A sports home:** Live now, Coming up today, Results, News with photos, and league tables, in rows with each team's badge and colours.
+- **The match beside the rows:** move onto any match and its card shows on the right: the big score, the ground, and a **live scorecard** (cricket batting and bowling) or **match stats** (possession, shots, corners, fouls) with goals and cards as they happen. It refreshes every 30 seconds while it is live.
+- The live score sits in Home's top bar, and **Watch on** opens the app showing it.
+
+### Phone remote
+A web app on your home Wi-Fi for iPhone and Android, with nothing to install. Frosted glass, and every tab fits one screen:
+- **Always there:** a **Search** bar with a **mic** that searches inside the app on the TV (YouTube, Netflix, Prime Video, JioHotstar…) or in TV Town; what's playing with **⬇ Song** and **⬇ Video**; and at the bottom Back, a big Home, the arrows with OK, and volume with Mute.
+- **Remote:** your five main apps and All apps as big tiles, Surprise Me, My Movies and My Music, playback and the coloured buttons.
+- **Browse:** TV Town Home, every TV Town place, and the music player's and TV's buttons.
+- **Files:** save from YouTube (what's playing, or find a song), the folders it saves to, and **Send to TV** / **Get from TV** for songs, films and subtitles.
+- **Game:** a sideways controller with a thumb stick, D-pad, A B X Y, L1 L2 R1 R2, Select and Start. Several buttons can be held at once. Most casual, arcade, racing and emulator games work; a few only accept a Bluetooth controller.
+
+### Downloads
+- Download what's playing, a YouTube link or a search, as audio (MP3) or video (MP4), to your drive in the background. Start it from the phone (it keeps playing), press **OK twice** quickly while a YouTube video plays, or pause YouTube and press the red button. Choose the save folders on the phone or in Settings.
+
+### Voice and the remote
+- **The mic button:** "open Netflix", "random movie", "play Arijit Singh", or any title.
+- **Coloured buttons:** 🔴 My Movies, 🟢 My Music, 🟡 Random Movie, 🔵 Random Series. With the YouTube downloader on, red downloads what's playing.
+- **SUBTITLE** turns lyrics on and off and opens a film's subtitles. **TEXT** opens Search. **CH+ / CH−** jump four.
+
+### Settings
+A small glass card, with TV settings at the top:
+- **Look:** home style, how often the picture changes, screensaver, apps on Home, weather, live scores.
+- **Films and series:** content style (Indian, Global or Mixed), streaming country, languages, where picks come from, and skipping what you've watched.
+- **Music:** buttons for Hindi or English lyrics and for Find lyrics.
+- **Phone and downloads:** connect your phone, and the YouTube downloader.
+- **This TV:** Wi-Fi, Bluetooth, free memory, storage, TV Town at power-on, and making TV Town the default home.
+- **About and backup:** updates, back up or restore every setting in one file (to move your whole setup to another TV), and your free TMDB and OpenSubtitles keys, typed on your phone.
+- Switch to the TV's own home, and back.
+
+### Screensaver
+Your own videos from a *TV Town Screensaver* folder (Aquarium, Coral Reef…) with a drifting clock, or film pictures. It dims at night. Choose it in TV settings → Device Preferences → Screen saver.
+
+### Private and light
+No ads, no sponsored rows, no accounts, no tracking. Nothing plays by itself. HTTPS only, with an offline cache.
+
+---
+
+## Remote control
+
+| Where | Key | Does |
+|---|---|---|
+| Everywhere in TV Town | Arrows | Move to the nearest item that way |
+| Home | OK | Opens the app or title |
+| Home | Hold OK on an app | App info |
+| Home | Back | Closes what is open, else returns to your apps |
+| Home | Down from the dock | Continue watching and listening |
+| Surprise Me | Left / Right on the tabs | Movie, Series, Music, Extras |
+| Lists and rows | CH+ / CH− (or FF / RW) | Jump four |
+| Must-Watch, My Movies | Number keys while rating | Rate directly (0 = 10) |
+| Anywhere | Home | Back to TV Town |
+
+---
+
+## Setting it up for someone else
+
+See **[How to install](#how-to-install)** above, and **[INSTALL.md](INSTALL.md)** for every step. Setting it up for a friend? **[SHARE.md](SHARE.md)** has a message to send them (phone and
+TV only).
+
+## Privacy
+
+TV Town has no accounts, no analytics and no ads, and sends no personal data anywhere. See [PRIVACY.md](PRIVACY.md).
+
+---
+
+## For developers
+
+### Build
+Requirements: Android Studio (JDK 17+, Android SDK).
+```sh
+./gradlew assembleRelease            # signed, shrunk release, with your own keys built in (personal)
+./gradlew assembleRelease -Ppublic   # the same with no keys or accounts inside, to share
+./gradlew testDebugUnitTest          # unit tests
+```
+- **Signing key:** `~/.tvtown/keystore.properties` and the `.jks` it names. Keep a backup: Android only accepts an
+  update signed with the same key.
+- **Personal keys:** `~/.tvtown/api.properties` (`tmdb.apiKey=…`, `opensubtitles.apiKey=…`). Never committed.
+
+### Mac scripts (development)
+With adb and network debugging on the TV:
+- **Install or Update TV Town.command:** builds, installs, keeps your settings, makes TV Town the home.
+- **Apply TV Tune-up.command / Restore Default Home.command:** optional tweaks, and undoing everything.
+- **Send to TV.command:** songs, films or background videos to the TV's drive over Wi-Fi.
+- **Build for Friends.command:** `dist/TV-Town.apk` with no keys inside, to send to friends (see SHARE.md).
+
+Every change the scripts make is logged with its undo command in `~/.tvtown/tv-changes.log`.
+
+### Releases
+Raise `versionCode` / `versionName` in `app/build.gradle`, add the version to `CHANGELOG.md`, then tag it
+(`git tag vX.Y && git push origin vX.Y`). The Release workflow tests, builds the public APK, signs it with the key
+stored as repository secrets (see the workflow file) and publishes it; TVs find it within a day.
+
+### Project layout
+| Path | What it is |
+|---|---|
+| `HomeView`, `MainActivity` | Home, Settings, Customize, Welcome |
+| `RandomSheet`, `Picks`, `Songs` | Surprise Me: cards, picks, music and video search |
+| `MyMoviesView`, `MyMovies`, `Tags`, `Tracks`, `OpenSubtitles` | My Movies |
+| `MyMusicView`, `MyMusic`, `MusicPlayer`, `Lyrics` | My Music and its player |
+| `DiscoverActivity`, `MustWatchView`, `Library`, `Awards` | Discover, Must-Watch, your watched list |
+| `TvKeyboard`, `ControlCenter`, `SportsActivity`, `Cricket`, `Scores`, `TvTownDream` | Search, Control Center, Sports, the screensaver |
+| `Watched` | Continue watching for other apps |
+| `PhoneLink`, `PhoneRemote`, `YtSaver` | The phone remote and downloads |
+| `Tmdb`, `JustWatch`, `Catalog`, `DeepLinks`, `Services` | Where titles come from, and opening them in their app |
+| `Net`, `ImageCache`, `Work` | HTTPS-only networking with a cache; images; background threads |
+| `HomeKeyService`, `ServiceRepair` | The home helper |
+| `Updater`, `Backup`, `Weather`, `Style`, `Keys` | Updates, backup, weather, content style and languages, keys |
+| `scripts/` | Install, tune-up, restore, send to TV (macOS) |
+
+---
+
+## ❤️ Support TV Town
+
+**Happiness is creating something you love. Even better when someone loves it too!**
+Want to make a creator smile? You know what to do. 😁 No pressure! ❤️
+
+| | |
+|---|---|
+| 🇮🇳 **India (UPI)** | `nareshjagriya@okhdfcbank`, from GPay, PhonePe, Paytm or any bank app. ☕ ₹99 · 🥟 ₹199 · 🍿 ₹499 · 🎬 ₹999 · ✨ any amount |
+| 🌍 **Anywhere else** | [paypal.me/jagriya](https://paypal.me/jagriya): ☕ [$3](https://paypal.me/jagriya/3USD) · 🍕 [$5](https://paypal.me/jagriya/5USD) · 🍿 [$10](https://paypal.me/jagriya/10USD) · 🎬 [$25](https://paypal.me/jagriya/25USD) · ✨ [any amount](https://paypal.me/jagriya) |
+
+On the TV it has its own place in **Settings**, with a QR code for your phone.
+
+## The name and logo
+
+The code is free to use, change and share under the licence below. The name **TV Town** and its logo are this project's own: if you publish a changed copy, please give it a different name and logo, so people can tell the two apart.
+
+## Licence
+
+[GNU General Public License, version 3](LICENSE). You can use, change and share it, as long as anything you share stays under the same licence with its source code.
+The libraries it ships keep their own licences: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Copyright © 2026 Naresh Jagriya. Not affiliated with any streaming service; their names and logos belong to their
+owners. This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+What's in this version: [CHANGELOG.md](CHANGELOG.md).

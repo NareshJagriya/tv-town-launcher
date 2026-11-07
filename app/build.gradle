@@ -1,0 +1,93 @@
+plugins {
+    id 'com.android.application'
+}
+
+// Release signing key, kept outside the project (see README, "Signing key").
+def keyProps = new Properties()
+def keyFile = new File(System.getProperty('user.home'), '.tvtown/keystore.properties')
+if (keyFile.exists()) keyFile.withInputStream { keyProps.load(it) }
+
+// The TMDB key is read at build time and built into the APK, so the TV needs no setup. It lives outside git:
+// ~/.tvtown/api.properties (kept with the signing key) or local.properties, as tmdb.apiKey=...
+def localProps = new Properties()
+[rootProject.file('local.properties'), new File(System.getProperty('user.home'), '.tvtown/api.properties')].each { f ->
+    if (f.exists()) f.withInputStream { localProps.load(it) }
+}
+// A public build (./gradlew assembleRelease -Ppublic, for GitHub Releases) carries no keys and no account: each
+// person adds their own free keys on the TV (Settings, typed on a phone). A personal build carries yours.
+def publicBuild = project.hasProperty('public')
+def key = { String name -> publicBuild ? '' : (localProps.getProperty(name) ?: '').trim().replaceAll(/[^A-Za-z0-9._\-]/, '') }
+// A value as a Java string literal, for the ones that may hold any character (an OpenSubtitles password).
+def text = { String name -> publicBuild ? '' : (localProps.getProperty(name) ?: '').trim().replace('\\', '\\\\').replace('"', '\\"') }
+
+android {
+    namespace 'com.nareshjagriya.tvtown'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.nareshjagriya.tvtown'
+        minSdk 28
+        targetSdk 34
+        versionCode 6
+        versionName '1.0'
+        buildConfigField 'String', 'TMDB_API_KEY', "\"${key('tmdb.apiKey')}\""
+        // Subtitles from OpenSubtitles.com (optional): the API key, and an account to raise the daily limit.
+        buildConfigField 'String', 'OPENSUBTITLES_API_KEY', "\"${key('opensubtitles.apiKey')}\""
+        buildConfigField 'String', 'OPENSUBTITLES_USERNAME', "\"${text('opensubtitles.username')}\""
+        buildConfigField 'String', 'OPENSUBTITLES_PASSWORD', "\"${text('opensubtitles.password')}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    signingConfigs {
+        release {
+            if (keyFile.exists()) {
+                storeFile new File(System.getProperty('user.home'), '.tvtown/' + keyProps['storeFile'])
+                storePassword keyProps['storePassword']
+                keyAlias keyProps['keyAlias']
+                keyPassword keyProps['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            debuggable false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig keyFile.exists() ? signingConfigs.release : null
+        }
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
+
+    lint {
+        // Installed over adb, not through Google Play, so Play's target SDK rule does not apply.
+        disable 'ExpiredTargetSdkVersion'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+        coreLibraryDesugaringEnabled true   // NewPipeExtractor uses newer Java than Android 11 has
+    }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { outputFileName = "tv-town-launcher-${variant.versionName}-${variant.buildType.name}.apk" }
+    }
+}
+
+dependencies {
+    implementation 'androidx.annotation:annotation:1.8.0'
+    implementation 'com.google.zxing:core:3.5.3'   // QR codes for typing on a phone
+    // The red button's downloader. GPL-3: fine for a personal copy, not for a public release as it stands.
+    implementation 'com.github.TeamNewPipe:NewPipeExtractor:v0.26.5'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+}

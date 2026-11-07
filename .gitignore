@@ -1,0 +1,18 @@
+# Build output and local machine settings
+build/
+.gradle/
+local.properties
+.idea/
+*.iml
+captures/
+# Never commit signing keys
+*.jks
+*.keystore
+keystore.properties
+# Scripts remember the TV address here
+.tv-address
+# APKs include the TMDB key: keep them out of git (attach them to GitHub releases instead)
+dist/*.apk
+# macOS Finder files
+.DS_Store
+api.properties

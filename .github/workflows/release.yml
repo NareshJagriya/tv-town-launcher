@@ -1,0 +1,46 @@
+# Builds the public APK and publishes it as a GitHub Release when a version tag is pushed (git tag v1.3 && git push
+# origin v1.3). TV Town's Settings → Updates then offers it on every TV.
+#
+# The APK must be signed with the same key as the copies already installed, or Android refuses the update. Add the
+# key once, in the repository's Settings → Secrets and variables → Actions:
+#   TVTOWN_KEYSTORE_BASE64   base64 of the .jks file in ~/.tvtown   (on a Mac: base64 -i ~/.tvtown/<name>.jks | pbcopy)
+#   TVTOWN_KEYSTORE_PROPERTIES   the text of ~/.tvtown/keystore.properties
+# The build is public (-Ppublic): no TMDB or OpenSubtitles key or account goes into it.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Signing key
+        env:
+          KEYSTORE: ${{ secrets.TVTOWN_KEYSTORE_BASE64 }}
+          PROPS: ${{ secrets.TVTOWN_KEYSTORE_PROPERTIES }}
+        run: |
+          if [ -z "$KEYSTORE" ] || [ -z "$PROPS" ]; then echo "Add the signing key secrets first (see the top of this file)"; exit 1; fi
+          mkdir -p ~/.tvtown
+          echo "$PROPS" > ~/.tvtown/keystore.properties
+          FILE=$(grep '^storeFile' ~/.tvtown/keystore.properties | cut -d= -f2- | tr -d '[:space:]')
+          echo "$KEYSTORE" | base64 -d > ~/.tvtown/"${FILE:-tvtown-release.jks}"
+      - name: Test and build
+        run: ./gradlew --no-daemon testDebugUnitTest assembleRelease -Ppublic
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APK=$(ls app/build/outputs/apk/release/tv-town-launcher-*-release.apk)
+          cp "$APK" TV-Town.apk
+          awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## " v {on=1; next} /^## / {on=0} on' CHANGELOG.md > notes.md
+          gh release create "$GITHUB_REF_NAME" TV-Town.apk --title "TV Town $GITHUB_REF_NAME" --notes-file notes.md

@@ -1,0 +1,4 @@
+// TV Town Launcher - Android TV home screen by Naresh Jagriya.
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}

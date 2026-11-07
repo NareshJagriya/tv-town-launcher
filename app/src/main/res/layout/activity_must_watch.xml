@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Must-Watch: one drawn view. -->
+<com.nareshjagriya.tvtown.MustWatchView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/must_watch"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
