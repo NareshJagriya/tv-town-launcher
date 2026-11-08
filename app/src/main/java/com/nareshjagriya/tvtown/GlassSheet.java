@@ -132,6 +132,7 @@ final class GlassSheet {
     boolean inRail;
     private static final int PAGE_ROWS = 7;
     private static final float RAIL_ROW = 78;
+    private float railRow = RAIL_ROW;   // a little closer when there are many categories
 
     /** Starts a category; rows added next belong to it. */
     GlassSheet addSection(String name, Bitmap icon) {
@@ -172,7 +173,10 @@ final class GlassSheet {
     /** Lays the page out in the middle of the screen, with the focus on category `first`. */
     void layoutPage(float screenW, float screenH, int first) {
         screen.set(0, 0, screenW, screenH);
-        outer.set(240 * k, 170 * k, 1680 * k, 910 * k);
+        int n = sectionNames == null ? 0 : sectionNames.size();
+        railRow = n > 9 ? 72 : RAIL_ROW;
+        float h = Math.max(740, 104 + n * railRow + 24), top = (1080 - h) / 2;   // tall enough for every category
+        outer.set(240 * k, top * k, 1680 * k, (top + h) * k);
         panel.set(outer.left + 470 * k, outer.top, outer.right - 8 * k, outer.bottom);
         inRail = true;
         show(first);
@@ -358,7 +362,7 @@ final class GlassSheet {
         boolean page = sectionRows != null;
         if (page) {
             c.drawText(title, outer.left + 44 * k, outer.top + 72 * k, title_);
-            float rh = RAIL_ROW * k, ry = outer.top + 104 * k;
+            float rh = railRow * k, ry = outer.top + 104 * k;
             for (int i = 0; i < sectionNames.size(); i++) {
                 tmp.set(outer.left + 20 * k, ry + i * rh, outer.left + 450 * k, ry + i * rh + rh - 6 * k);
                 if (i == section) {

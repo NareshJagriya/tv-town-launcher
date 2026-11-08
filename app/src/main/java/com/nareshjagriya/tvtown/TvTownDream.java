@@ -37,12 +37,15 @@ public class TvTownDream extends DreamService {
         return c.getSharedPreferences("screensaver", Context.MODE_PRIVATE);
     }
 
-    static boolean pictures(Context c) {
-        return store(c).getBoolean("pictures", false);
+    static final String[] KINDS = {"Your videos", "Film pictures", "Scenes and clock"};
+
+    /** What TV Town's own screensaver shows: 0 your videos (else film pictures), 1 film pictures, 2 the scenes. */
+    static int kind(Context c) {
+        return store(c).getInt("kind", store(c).getBoolean("pictures", false) ? 1 : 0);
     }
 
-    static void setPictures(Context c, boolean on) {
-        store(c).edit().putBoolean("pictures", on).apply();
+    static void setKind(Context c, int k) {
+        store(c).edit().putInt("kind", Math.floorMod(k, KINDS.length)).apply();
     }
 
     /** Home's newest titles, for the film pictures. */
@@ -82,7 +85,9 @@ public class TvTownDream extends DreamService {
         readClips();
         clock = new ClockView(this);
         java.util.List<String[]> art = keptPictures(this);
-        if (!art.isEmpty() && (pictures(this) || clips.isEmpty())) {
+        int kind = kind(this);
+        if (kind == 2) clips.clear();
+        if (!art.isEmpty() && (kind == 1 || kind == 0 && clips.isEmpty())) {
             clips.clear();
             clock.art = art;
             setContentView(clock);

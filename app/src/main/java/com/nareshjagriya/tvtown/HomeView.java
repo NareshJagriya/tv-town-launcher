@@ -1060,6 +1060,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     }
 
     private List<Cont> conts = new ArrayList<>();
+    private List<Cont> ytConts = new ArrayList<>();   // half-watched YouTube videos: only in Show all, in their own tab
     private volatile int filmCount = -1;   // videos on the drive (My Movies tile)
     private boolean contLooking, contAgain;
 
@@ -1186,6 +1187,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 ct.at = w.at;
                 found.add(ct);
             }
+            List<Cont> yt = new ArrayList<>();
             for (Watched.Item w : Watched.list(ctx)) {   // what TV Town saw playing in other apps
                 boolean have = false;
                 for (Cont x : found) have |= x.title != null && x.title.equalsIgnoreCase(w.title);
@@ -1201,14 +1203,17 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 ct.meta = w.sub.isEmpty() ? ct.line : w.sub + " \u00B7 " + ct.line;
                 ct.frac = w.dur > 0 && w.pos > 0 ? Math.min(1, w.pos / (float) w.dur) : -1;
                 ct.at = w.at;
-                found.add(ct);
+                if (HomeKeyService.youTube(w.pkg)) yt.add(ct);   // YouTube would crowd out the films: kept for Show all
+                else found.add(ct);
             }
+            yt.sort((a, b) -> Long.compare(b.at, a.at));
             found.sort((a, b) -> Long.compare(b.at, a.at));
             while (found.size() > 15) found.remove(found.size() - 1);
             saveConts(ctx, found);
             post(() -> {
                 contLooking = false;
                 conts = found;
+                ytConts = yt;
                 contSel = Math.min(contSel, Math.max(0, conts.size() - 1));
                 invalidate();
                 if (contAgain) {
@@ -1243,7 +1248,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     /** OK on a film to continue: it carries on in VLC from where it stopped. */
     private void openContinue(int i) {
-        Cont ct = conts.get(i);
+        openContinue(conts.get(i));
+    }
+
+    private void openContinue(Cont ct) {
         if (ct.video == null && ct.pkg == null) return;   // kept from last time; the drive's scan fills it in a moment
         if (ct.video != null) {
             listener.onResumeFilm(ct.video, ct.from, ct.title);
@@ -2603,6 +2611,35 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     // pop-up to choose from. Left and Right move between the two cards.
 
     private static final int LIST_MAX = 5;
+    private int listTab;          // Show all (Continue watching): which tab
+    private int listTop;          // the first row showing
+    private boolean onTabs;       // the focus is on the tabs
+
+    /** Where a Continue item plays: My Movies for the drive, else its app's name. */
+    private String source(Cont c) {
+        if (c.video != null || c.pkg == null) return "My Movies";
+        String a = c.app != null && !c.app.isEmpty() ? c.app : appLabel(getContext(), c.pkg);
+        return a.isEmpty() ? "Apps" : a;
+    }
+
+    /** Show all's tabs: All, then each place there is something to continue, YouTube last. */
+    private List<String> listTabs() {
+        List<String> t = new ArrayList<>();
+        t.add("All");
+        for (Cont c : conts) if (!t.contains(source(c))) t.add(source(c));
+        if (!ytConts.isEmpty()) t.add("YouTube");
+        return t;
+    }
+
+    private List<Cont> listItems() {
+        List<String> tabs = listTabs();
+        String tab = tabs.get(Math.max(0, Math.min(listTab, tabs.size() - 1)));
+        if (tab.equals("All")) return conts;
+        if (tab.equals("YouTube")) return ytConts;
+        List<Cont> out = new ArrayList<>();
+        for (Cont c : conts) if (source(c).equals(tab)) out.add(c);
+        return out;
+    }
     private static final long ROTATE_MS = 6000;
 
     /** The song the Continue Listening card shows now: the one playing, else each recent one in turn. */
@@ -2633,6 +2670,9 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     private void openList(int which, int at) {
         listAll = which;
         listSel = at;
+        listTab = 0;
+        listTop = 0;
+        onTabs = false;
         invalidate();
     }
 
@@ -2640,31 +2680,69 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     private void glassListAll(Canvas c) {
         boolean watching = listAll == 1;
         List<MyMusic.Song> songs = watching ? null : listenList();
-        int n = watching ? Math.min(LIST_MAX, conts.size()) : songs.size();
-        if (n == 0) {
+        List<Cont> items = watching ? listItems() : null;
+        int total = watching ? items.size() : songs.size();
+        if (total == 0 && !(watching && (!conts.isEmpty() || !ytConts.isEmpty()))) {
             listAll = 0;
             return;
         }
-        listSel = Math.max(0, Math.min(n - 1, listSel));
+        listSel = Math.max(0, Math.min(Math.max(0, total - 1), listSel));
+        int shown = watching ? 5 : total;   // five rows at a time; the list scrolls
+        if (listSel < listTop) listTop = listSel;
+        if (listSel >= listTop + shown) listTop = listSel - shown + 1;
+        int n = Math.min(shown, total - listTop);
         screenRect.set(0, 0, getWidth(), getHeight());
         Frost.scrim(c, screenRect, 1, nImg);
-        float rowH = 124, w = 1180, h = 116 + n * rowH + 28;
+        float tabsH = watching ? 76 : 0;
+        float rowH = 124, w = 1180, h = 116 + tabsH + (watching ? shown : n) * rowH + 28;
         RectF p = gr((1920 - w) / 2, (1080 - h) / 2, w, h);
         Frost.panel(c, p, 40 * k, 1, k);
         float x = p.left + 20 * k, room = p.width() - 40 * k;
         Paint head = nk.inter(46, 500, -0.03f, Frost.INK);
         c.drawText(watching ? "Continue watching" : "Continue listening", p.left + 48 * k, p.top + 76 * k, head);
+        if (watching) {   // the tabs: All, then each app, YouTube last
+            Paint tp = nk.inter(26, 600, 0, Frost.INK);
+            List<String> tabs = listTabs();
+            listTab = Math.max(0, Math.min(listTab, tabs.size() - 1));
+            float tx = p.left + 40 * k, ty = p.top + 104 * k;
+            for (int i = 0; i < tabs.size(); i++) {
+                float tw2 = tp.measureText(tabs.get(i)) + 44 * k;
+                RectF tr2 = new RectF(tx, ty, tx + tw2, ty + 56 * k);
+                if (i == listTab) {
+                    if (onTabs) Frost.plate(c, tr2, 28 * k, k);
+                    else {
+                        Paint f2 = new Paint(Paint.ANTI_ALIAS_FLAG);
+                        f2.setColor(0x33FFFFFF);
+                        c.drawRoundRect(tr2, 28 * k, 28 * k, f2);
+                    }
+                }
+                tp.setAlpha(i == listTab ? 255 : 160);
+                c.drawText(tabs.get(i), tr2.left + 22 * k, tr2.centerY() + 9 * k, tp);
+                tx += tw2 + 10 * k;
+            }
+            if (total == 0) {
+                Paint e2 = nk.inter(28, 500, 0, Frost.MUTE);
+                c.drawText("Nothing here yet", p.left + 48 * k, p.top + (116 + tabsH + 60) * k, e2);
+                return;
+            }
+            if (total > shown) {
+                Paint e2 = nk.inter(22, 500, 0, Frost.MUTE);
+                String more = (listSel + 1) + " of " + total;
+                c.drawText(more, p.right - 48 * k - e2.measureText(more), p.top + 76 * k, e2);
+            }
+        }
         Paint rowName = nk.inter(34, 600, -0.016f, Frost.INK), rowLine = nk.inter(26, 500, 0, Frost.MUTE), pill = nk.inter(26, 600, 0, Frost.INK);
-        for (int i = 0; i < n; i++) {
-            RectF r = new RectF(x, p.top + (112 + i * rowH + 4) * k, x + room, p.top + (112 + i * rowH + rowH - 4) * k);
-            boolean f = i == listSel;
+        for (int v = 0; v < n; v++) {
+            int i = watching ? listTop + v : v;
+            RectF r = new RectF(x, p.top + (112 + tabsH + v * rowH + 4) * k, x + room, p.top + (112 + tabsH + v * rowH + rowH - 4) * k);
+            boolean f = i == listSel && !(watching && onTabs);
             String title, line;
             Bitmap img;
             float frac;
-            Cont cont = watching ? conts.get(i) : null;
+            Cont cont = watching ? items.get(i) : null;
             if (watching) {
                 title = cont.title;
-                line = cont.line;
+                line = listTab == 0 && cont.video == null && cont.pkg != null && !cont.line.startsWith(source(cont)) ? source(cont) + "  \u00B7  " + cont.line : cont.line;
                 frac = cont.frac;
                 img = cont.image != null ? ImageCache.get(cont.image, this::imageArrived, null, 320) : null;
             } else {
@@ -2700,23 +2778,50 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     private int listBtn;
 
     private boolean listAllKey(int keyCode) {
-        int n = listAll == 1 ? Math.min(LIST_MAX, conts.size()) : listenList().size();
+        if (listAll == 1) {
+            List<Cont> items = listItems();
+            int n = items.size();
+            if (onTabs) {
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    listTab = Math.max(0, Math.min(listTabs().size() - 1, listTab + (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1)));
+                    listSel = listTop = 0;
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && n > 0) onTabs = false;
+                else if (keyCode != KeyEvent.KEYCODE_DPAD_UP) return false;
+                invalidate();
+                return true;
+            }
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP && listSel == 0) {   // up from the first row: the tabs
+                onTabs = true;
+                listBtn = 0;
+            } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                listSel = Math.max(0, Math.min(n - 1, listSel + (keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1)));
+                if (listBtn == 1 && items.get(listSel).video == null) listBtn = 0;
+            } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) listBtn = listSel < n && items.get(listSel).video != null ? 1 : 0;
+            else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) listBtn = 0;
+            else return false;
+            invalidate();
+            return true;
+        }
+        int n = listenList().size();
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
             listSel = Math.floorMod(listSel + (keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? 1 : -1), Math.max(1, n));
-            if (listBtn == 1 && (listAll != 1 || conts.get(listSel).video == null)) listBtn = 0;
-        } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) listBtn = listAll == 1 && listSel < conts.size() && conts.get(listSel).video != null ? 1 : 0;
-        else if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) listBtn = 0;
-        else return false;
+        } else if (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return false;
         invalidate();
         return true;
     }
 
     private void listAllSelect() {
         int which = listAll, at = listSel;
-        if (which == 1 && listBtn == 1 && at < conts.size() && conts.get(at).video != null) {   // Mark watched: stays open
+        if (which == 1 && onTabs) {   // OK on a tab: into its list
+            onTabs = false;
+            invalidate();
+            return;
+        }
+        List<Cont> items = which == 1 ? listItems() : null;
+        if (which == 1 && listBtn == 1 && at < items.size() && items.get(at).video != null) {   // Mark watched: stays open
             Context ctx = getContext();
-            MyMovies.setSeen(ctx, conts.get(at).video, true);
-            conts.remove(at);
+            MyMovies.setSeen(ctx, items.get(at).video, true);
+            conts.remove(items.get(at));
             saveConts(ctx, conts);
             listBtn = 0;
             if (conts.isEmpty()) listAll = 0;
@@ -2726,7 +2831,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         }
         listAll = 0;
         if (which == 1) {
-            if (at < conts.size()) openContinue(at);
+            if (at < items.size()) openContinue(items.get(at));
             return;
         }
         List<MyMusic.Song> l = listenList();
@@ -3357,10 +3462,17 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         s.addSection("Look", kit.glyph(WheelArt.Glyph.FILM, 34));
         s.add(GlassSheet.VALUE, "Home style", kit.glyph(WheelArt.Glyph.FILM, 38), "appearance");
         s.add(GlassSheet.VALUE, "Top picture changes every", kit.glyph(WheelArt.Glyph.FILM, 38), "interval");
-        s.add(GlassSheet.VALUE, "Screensaver", kit.glyph(WheelArt.Glyph.TV, 38), "dreamkind");
         s.add(GlassSheet.ACTION, "Apps on Home", kit.glyph(WheelArt.Glyph.GRID, 38), "apps");
         s.add(GlassSheet.ACTION, c.getString(R.string.weather_row), kit.glyph(WheelArt.Glyph.SUN, 38), "weather");
         s.add(GlassSheet.VALUE, "Live scores", kit.glyph(WheelArt.Glyph.PULSE, 38), "cricketon");
+        s.addSection("Screensaver", kit.glyph(WheelArt.Glyph.TV, 34));
+        s.add(GlassSheet.VALUE, "Screensaver", kit.glyph(WheelArt.Glyph.TV, 38), "dreamapp");
+        s.add(GlassSheet.VALUE, "TV Town's shows", kit.glyph(WheelArt.Glyph.FILM, 38), "dreamkind");
+        s.add(GlassSheet.ACTION, "Try it now", kit.glyph(WheelArt.Glyph.PLAY, 38), "dreamtry");
+        if (!Screensavers.installed(c, Screensavers.AERIAL))
+            s.add(GlassSheet.ACTION, "Get Aerial Views", kit.glyph(WheelArt.Glyph.DOWN, 38), "dreamget");
+        s.add(GlassSheet.ACTION, "TV's screensaver settings", kit.glyph(WheelArt.Glyph.GEAR, 38), "dreamsys");
+        s.add(GlassSheet.NOTE, "Your videos: a TV Town Screensaver folder on the drive", null, null);
         s.addSection("Films and series", kit.glyph(WheelArt.Glyph.STAR, 34));
         s.add(GlassSheet.ACTION, c.getString(R.string.content_style), kit.glyph(WheelArt.Glyph.STAR, 38), "style");
         s.add(GlassSheet.ACTION, c.getString(R.string.streaming_country), kit.glyph(WheelArt.Glyph.TV, 38), "country");
@@ -3711,7 +3823,9 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             case "cricketon":
                 return c.getString(Cricket.on(c) ? R.string.on : R.string.off);
             case "dreamkind":
-                return TvTownDream.pictures(c) ? "Film pictures" : "My videos";
+                return TvTownDream.KINDS[TvTownDream.kind(c)];
+            case "dreamapp":
+                return Screensavers.currentName(c);
             case "mkscript":
                 return MyMusicView.MUSIC_KEYS[MyMusicView.musicKeyFor(c, MyMusicView.KEY_SCRIPT)];
             case "mkfind":
@@ -3775,8 +3889,26 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 Cricket.setOn(c, !Cricket.on(c));
                 return;
             case "dreamkind":
-                TvTownDream.setPictures(c, !TvTownDream.pictures(c));
+                TvTownDream.setKind(c, TvTownDream.kind(c) + dir);
                 return;
+            case "dreamapp": {
+                List<Screensavers.Saver> all = Screensavers.all(c);
+                if (all.isEmpty()) return;
+                android.content.ComponentName now = Screensavers.current(c);
+                int at = 0;
+                for (int i = 0; i < all.size(); i++) if (all.get(i).comp.equals(now)) at = i;
+                Screensavers.Saver next = all.get(Math.floorMod(at + dir, all.size()));
+                if (Screensavers.use(c, next.comp)) return;
+                Screensavers.askToAllow(c);   // the first time: TV Town asks to be allowed, then tries again
+                s.say("Switching\u2026");
+                postDelayed(() -> {
+                    if (Screensavers.use(c, next.comp)) {
+                        s.say(next.name + " is the screensaver");
+                        invalidate();
+                    } else s.say("Pick it in the TV's screensaver settings (or turn on network debugging)");
+                }, 1800);
+                return;
+            }
             case "mkscript":
                 MyMusicView.setMusicKey(c, MyMusicView.KEY_SCRIPT, MyMusicView.musicKeyFor(c, MyMusicView.KEY_SCRIPT) + dir);
                 return;
@@ -3874,6 +4006,18 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         }
         if (tag.equals("saver")) {
             openSaver(s);
+            return;
+        }
+        if (tag.equals("dreamtry")) {
+            if (!Screensavers.tryNow(getContext())) s.say("This TV can't start it from here: it starts on its own when the TV is idle");
+            return;
+        }
+        if (tag.equals("dreamget")) {
+            Screensavers.getFromStore(getContext(), Screensavers.AERIAL);
+            return;
+        }
+        if (tag.equals("dreamsys")) {
+            Screensavers.openTvSettings(getContext());
             return;
         }
         if (tag.equals("savephone")) {

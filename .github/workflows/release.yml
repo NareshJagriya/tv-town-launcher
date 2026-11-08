@@ -1,5 +1,5 @@
-# Builds the public APK and publishes it as a GitHub Release when a version tag is pushed (git tag v1.3 && git push
-# origin v1.3). TV Town's Settings → Updates then offers it on every TV.
+# Builds the public APK and publishes it as a GitHub Release for a version tag. Run it by hand from the Actions tab
+# (Run workflow, then give the tag, e.g. v1.3). TV Town's Settings → Updates then offers it on every TV.
 #
 # The APK must be signed with the same key as the copies already installed, or Android refuses the update. Add the
 # key once, in the repository's Settings → Secrets and variables → Actions:
@@ -9,8 +9,11 @@
 name: Release
 
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag, e.g. v1.3'
+        required: true
 
 permissions:
   contents: write
@@ -20,6 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -39,8 +44,9 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
         run: |
           APK=$(ls app/build/outputs/apk/release/tv-town-launcher-*-release.apk)
           cp "$APK" TV-Town.apk
-          awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## " v {on=1; next} /^## / {on=0} on' CHANGELOG.md > notes.md
-          gh release create "$GITHUB_REF_NAME" TV-Town.apk --title "TV Town $GITHUB_REF_NAME" --notes-file notes.md
+          awk -v v="${TAG#v}" '$0 ~ "^## " v {on=1; next} /^## / {on=0} on' CHANGELOG.md > notes.md
+          gh release create "$TAG" TV-Town.apk --title "TV Town $TAG" --notes-file notes.md

@@ -28,7 +28,7 @@ The newest titles on your apps, with their logos, a summary, Watch now and More 
 
 ### Continue watching
 
-Press Down for up to 15 things you're in the middle of, with the time left on each: films from your own drive, and what you were watching in Netflix, YouTube, Prime Video, JioHotstar and other apps. Music and short clips are left out, and anything you finish drops off.
+Press Down for up to 15 films and series you're in the middle of, with the time left on each: from your own drive, and from Netflix, Prime Video, JioHotstar and other apps. **Show all** sorts them into tabs by app (All, My Movies, Netflix…), with a YouTube tab for longer videos you left halfway (no shorts). Music and short clips are left out, and anything you finish drops off.
 
 ![Continue watching](media/screenshots/01-home/continue-watching.jpg)
 
@@ -263,7 +263,7 @@ A small glass card, with the TV's own settings at the top.
 
 ### Look
 
-Home style, how often the picture changes, screensaver, apps on Home, weather and live scores.
+Home style, how often the picture changes, apps on Home, weather and live scores. **Screensaver** has its own section.
 
 ![Look](media/screenshots/12-settings/look.jpg)
 
@@ -300,7 +300,7 @@ Updates, backup and restore, and your free keys.
 
 ## Screensaver
 
-Beautiful when nobody is watching, and dimmed at night.
+Beautiful when nobody is watching, and dimmed at night. In **Settings → Screensaver**, pick TV Town's own, [Aerial Views](https://play.google.com/store/apps/details?id=com.neilturner.aerialviews) or any screensaver you have, and what TV Town's shows: your videos, film pictures, or the scenes and clock. **Try it now** starts it straight away.
 
 ### Your videos
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1 (8 November 2026)
+
+- **Continue watching:** Home shows films and series only; **Show all** has tabs by app (All, My Movies, Netflix, Prime Video…) and a YouTube tab for longer videos (no shorts), and scrolls past five.
+- **Screensaver:** a new Settings section to pick TV Town's own, Aerial Views or any installed screensaver, choose what TV Town's shows (your videos, film pictures, or scenes and clock), and try it now.
+- **Home Assistant:** a guide to driving TV Town from Home Assistant or a script ([docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md)).
+- Tidier repository: the Mac helper scripts moved to `scripts/mac/`.
+
 ## 1.0 (7 November 2026)
 
 The first version of TV Town Launcher, with everything in it:

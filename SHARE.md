@@ -13,10 +13,6 @@ https://github.com/NareshJagriya/tv-town-launcher/releases/latest/download/TV-To
 
 It's long to type on a TV remote, so paste it into a free link shortener such as tinyurl.com, and send the short link instead. Their TV then updates itself from Settings → Updates.
 
-**Before that** (the project still private): the file itself. On your Mac, double-click **Build for Friends.command**:
-it makes `dist/TV-Town.apk` (with none of your keys inside) and opens the folder. Send that file on WhatsApp, Google
-Drive or email. For a new version later, send the new file the same way: their settings are kept.
-
 ## The message to send (copy and paste)
 
 > **TV Town: a new home screen for your Android TV** 📺

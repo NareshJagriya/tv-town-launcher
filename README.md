@@ -145,7 +145,7 @@ Beautiful when nobody is watching, and dimmed at night.
 ### Home
 - **Full-picture home:** what's new this week on your apps fills the screen, with its title logo, summary, Watch now and More info. The picture changes by itself.
 - **Your apps and shortcuts** in one floating glass dock: your chosen apps, All apps, Surprise Me, My Movies (or My List), My Music (or your music app) and Discover.
-- **Continue watching** and **Continue listening:** press Down for up to 15 things you're in the middle of, from Netflix, YouTube, Prime Video, JioHotstar and other apps as well as your drive, with how much is left, and My List beside it.
+- **Continue watching** and **Continue listening:** press Down for up to 15 films and series you're in the middle of, from Netflix, Prime Video, JioHotstar and other apps as well as your drive, with how much is left, and My List beside it. Show all sorts them by app, with a YouTube tab for longer videos.
 - **Top bar:** the time, date and weather, the live score of the sports you follow, Search, Inputs (HDMI), Control Center and Settings.
 - **Light on the TV:** made for a 1 GB TV, and it rests while an app is in front.
 
@@ -206,7 +206,8 @@ A web app on your home Wi-Fi for iPhone and Android, with nothing to install. Fr
 
 ### Settings
 A small glass card, with TV settings at the top:
-- **Look:** home style, how often the picture changes, screensaver, apps on Home, weather, live scores.
+- **Look:** home style, how often the picture changes, apps on Home, weather, live scores.
+- **Screensaver:** TV Town's own, Aerial Views or any other, and what TV Town's shows.
 - **Films and series:** content style (Indian, Global or Mixed), streaming country, languages, where picks come from, and skipping what you've watched.
 - **Music:** buttons for Hindi or English lyrics and for Find lyrics.
 - **Phone and downloads:** connect your phone, and the YouTube downloader.
@@ -215,7 +216,10 @@ A small glass card, with TV settings at the top:
 - Switch to the TV's own home, and back.
 
 ### Screensaver
-Your own videos from a *TV Town Screensaver* folder (Aquarium, Coral Reef…) with a drifting clock, or film pictures. It dims at night. Choose it in TV settings → Device Preferences → Screen saver.
+Your own videos from a *TV Town Screensaver* folder (Aquarium, Coral Reef…) with a drifting clock, film pictures, or the scenes and clock. It dims at night. Pick it, or Aerial Views or any other screensaver, in Settings → Screensaver.
+
+### Home Assistant
+The phone remote's addresses work from Home Assistant or a script too: press buttons, open apps, search. See [docs/HOME-ASSISTANT.md](docs/HOME-ASSISTANT.md).
 
 ### Private and light
 No ads, no sponsored rows, no accounts, no tracking. Nothing plays by itself. HTTPS only, with an offline cache.
@@ -264,6 +268,8 @@ Requirements: Android Studio (JDK 17+, Android SDK).
 
 ### Mac scripts (development)
 With adb and network debugging on the TV:
+These are in `scripts/mac/`; double-click one in Finder.
+
 - **Install or Update TV Town.command:** builds, installs, keeps your settings, makes TV Town the home.
 - **Apply TV Tune-up.command / Restore Default Home.command:** optional tweaks, and undoing everything.
 - **Send to TV.command:** songs, films or background videos to the TV's drive over Wi-Fi.

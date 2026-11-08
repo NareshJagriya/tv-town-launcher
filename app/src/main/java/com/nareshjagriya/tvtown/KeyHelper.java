@@ -42,6 +42,8 @@ public final class KeyHelper {
                 else if (p[0].equals("t")) type(new String(java.util.Base64.getDecoder().decode(p[1]), StandardCharsets.UTF_8));
                 else if (p[0].equals("gd")) pad(Integer.parseInt(p[1]), KeyEvent.ACTION_DOWN);
                 else if (p[0].equals("gu")) pad(Integer.parseInt(p[1]), KeyEvent.ACTION_UP);
+                else if (p[0].equals("grant") && p[1].matches("[a-z][a-z0-9_.]*"))   // lets TV Town switch the screensaver
+                    Runtime.getRuntime().exec(new String[]{"pm", "grant", p[1], "android.permission.WRITE_SECURE_SETTINGS"}).waitFor();
                 else if (p[0].equals("j")) {
                     String[] xy = p[1].split(",");
                     stick(Math.max(-100, Math.min(100, Integer.parseInt(xy[0]))) / 100f, Math.max(-100, Math.min(100, Integer.parseInt(xy[1]))) / 100f);
