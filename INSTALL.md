@@ -26,20 +26,29 @@ each; a 4K TV draws the menus at Full HD, as Android TV does.
 
 Pick one:
 
+**With the Downloader app (easiest: no computer, no USB stick)**
+1. On the TV, open the **Play Store**, search **Downloader** and install **Downloader by AFTVnews**.
+2. Open Downloader (choose **Allow** if it asks for access to files).
+3. In the box on its Home tab, type the code **9356599** and press **Go**. TV Town downloads. The code always gives
+   the latest version, so you can share it with anyone.
+
 **With a USB stick**
-1. Download `TV-Town.apk` from the Releases page on a computer and copy it to a USB stick.
+1. Download `TV-Town.apk` from the [Releases page](https://github.com/NareshJagriya/tv-town-launcher/releases/latest) on a computer and copy it to a USB stick.
 2. Plug the stick into the TV and open it in the TV's file manager (or install the free **File Commander** or **X-plore** from the Play Store).
 3. Select `TV-Town.apk`.
-
-**With the Downloader app (no USB stick)**
-1. On the TV, install the free **Downloader** app from the Play Store.
-2. Open it and type the download link from the Releases page.
 
 ## 2. Allow this one install
 
 The TV asks whether the app you used (file manager or Downloader) may install apps. Choose **Settings**, switch it **on**,
 press **Back**, then **Install**. This permission is only for that app; you can switch it off again afterwards in
 *Settings → Apps → Special app access → Install unknown apps*.
+
+### Google TV: if there's no switch to allow it
+
+On Google TV (Chromecast with Google TV, Google TV Streamer and newer TVs) the switch is hidden until Developer mode is
+on. Go to *Settings → System → About*, scroll to *Android TV OS build* and press OK on it **7 times** ("You are now a
+developer"). Then open *Settings → Apps → Security & restrictions → Unknown sources*, switch on **Downloader** (or your
+file manager), go back and press **Install** again.
 
 ### If Play Protect says "Blocked" or "Unsafe app"
 

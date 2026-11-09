@@ -4,7 +4,7 @@
 
 Version 1.1 · Android TV and Google TV 9 and later · runs well on a 1 GB TV · free and open source
 
-**[Install it on your TV →](INSTALL.md)** No computer needed. Updates come from Settings → Updates.
+**Install it in a minute:** on your TV, get **Downloader** from the Play Store and enter the code **9356599**. [Step-by-step guide →](INSTALL.md) Updates come from inside TV Town.
 
 ![Home](media/screenshots/01-home/home.jpg)
 
@@ -50,10 +50,15 @@ It was built on and tested on one TV: a 1 GB Philips with Android 11, at 720p. 1
 
 No computer or cables needed. **[The full guide is in INSTALL.md](INSTALL.md).**
 
-1. **Get the file:** download `TV-Town.apk` from [Releases](https://github.com/NareshJagriya/tv-town-launcher/releases/latest), then copy it to a USB stick and open it on the TV. Or use the free **Downloader** app on the TV with the download link.
-2. **Allow the install:** when the TV asks, choose **Settings**, switch it on, press **Back**, then **Install**.
-3. **Follow the Welcome screen:** pick your content style, country and languages, and switch on the *TV Town home helper* so the Home button brings you here.
-4. **Optional:** plug in a drive with your films and music, and connect your phone from *Settings → Phone and downloads → Connect my phone*. The first time you use the phone's arrow keys, choose **Allow** and tick *Always allow* on the TV.
+![Install in 3 easy steps](media/install-steps.jpg)
+
+1. **Get Downloader:** on the TV, open the Play Store, search **Downloader** and install **Downloader by AFTVnews**.
+2. **Enter the code:** open Downloader, type **9356599** in the box and press **Go**. TV Town downloads (the code always gives the latest version).
+3. **Allow the install:** when the TV asks, choose **Settings**, switch **Downloader** on, press **Back**, then **Install**.
+   - *Google TV* (e.g. Chromecast with Google TV), if there's no switch: press OK 7 times on *Settings → System → About → Android TV OS build*, then switch Downloader on in *Settings → Apps → Security & restrictions → Unknown sources*.
+   - *"Blocked by Play Protect"* or *"Unsafe app"*: choose **More details → Install anyway**. TV Town isn't from the Play Store, so the TV warns.
+4. **Follow the Welcome screen:** pick your content style, country and languages, and switch on the *TV Town home helper* so the Home button brings you here.
+5. **Optional:** plug in a drive with your films and music, and connect your phone from *Settings → Phone and downloads → Connect my phone*. The first time you use the phone's arrow keys, choose **Allow** and tick *Always allow* on the TV.
 
 ## How to add the free API keys
 
