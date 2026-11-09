@@ -189,6 +189,7 @@ final class SaveNote extends View {
 
     @Override
     protected void onDraw(Canvas c) {
+        Frost.frame(this);   // selections glide (Frost.plate)
         float rad = (mode == NOTE ? 26 : 34) * k, in = edge.getStrokeWidth();
         RectF box = new RectF(in, in, w - in, h - in);
         c.drawRoundRect(box, rad, rad, plate);

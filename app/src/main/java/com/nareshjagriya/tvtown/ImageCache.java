@@ -59,7 +59,7 @@ final class ImageCache {
         if (dir != null) return;
         maxWidth = Math.max(640, ctx.getResources().getDisplayMetrics().widthPixels);
         android.app.ActivityManager am = ctx.getSystemService(android.app.ActivityManager.class);
-        if (am != null && !am.isLowRamDevice()) memory.resize((int) Math.min(Integer.MAX_VALUE, Runtime.getRuntime().maxMemory() / 8));
+        if (am != null && !am.isLowRamDevice() && !Lite.on) memory.resize((int) Math.min(Integer.MAX_VALUE, Runtime.getRuntime().maxMemory() / 8));
         dir = new File(ctx.getCacheDir(), "img");
         //noinspection ResultOfMethodCallIgnored
         dir.mkdirs();
@@ -85,8 +85,9 @@ final class ImageCache {
      * little memory then holds many of them at once, instead of dropping and reloading large ones (flicker).
      */
     @Nullable
-    static Bitmap get(@Nullable String url, @Nullable Runnable ready, @Nullable File store, int width) {
+    static Bitmap get(@Nullable String url, @Nullable Runnable ready, @Nullable File store, int asked) {
         if (url == null) return null;
+        final int width = Lite.on ? (asked > 0 ? Math.max(160, asked * 3 / 4) : 960) : asked;   // Lite: smaller copies
         String key = width > 0 ? url + "@" + width : url;
         Bitmap hit = memory.get(key);
         if (hit == null && width > 0) hit = memory.get(url);   // put() keeps pictures at one size
@@ -113,6 +114,14 @@ final class ImageCache {
             if (waiting != null) for (Runnable r : waiting) main.post(r);
         });
         return null;
+    }
+
+    /** Lite on: fewer pictures kept in memory; off: as many as the TV allows. */
+    static void liteChanged(Context ctx) {
+        android.app.ActivityManager am = ctx.getSystemService(android.app.ActivityManager.class);
+        long max = Runtime.getRuntime().maxMemory();
+        memory.resize((int) Math.min(Integer.MAX_VALUE, Lite.on || am == null || am.isLowRamDevice() ? max / 16 : max / 8));
+        memory.evictAll();
     }
 
     /** A picture read elsewhere (an app's own artwork), kept under its address. */

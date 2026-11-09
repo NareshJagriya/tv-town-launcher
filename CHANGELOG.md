@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.1 (9 November 2026)
+
+### What's new
+
+- **Speed Up Your TV:** Close background apps and switch off safe-to-disable extras to free memory. Choose what to switch off, turn on Lite mode or undo everything, or press Speed it all up to do it all at once and see how much memory was freed.
+- **Continue Watching:** Progress bars on every cover, a quick peek at each app's titles from the dock, and a smaller See all that only appears when there's more to see.
+- **Discover, redesigned:** Browse New, Trending, Top rated and Hidden gems, plus more genres including Anime, K-Drama and genre mixes, with a row for each of your apps.
+- **Surprise Me, redesigned:** Bright cover art for every choice, 9 Extras per style, English and Hindi switches, more languages, Skip watched and a dice button. Results open in a pop-up.
+- **Search everywhere:** A new search bar on Home, Discover, My Music and My Movies, plus "Search in…" for apps that support it. Narrow the results to All, Your drive, Streaming, Music or Apps.
+- **Keyboard, redesigned:** A cleaner layout made for the remote.
+
+### More improvements
+
+- **A fresh look:** Shiny black pages and pop-ups, clearer focus, jewel-colour main buttons and green switches across the app.
+- **Control Center:** 8 tiles, the most-used first, with Storage and other TV settings moved in from Customize.
+- **Lite mode:** Lighter images, no animations, and soft pale colours instead of picture backgrounds.
+
+### Bug fixes
+
+- Fixed a freeze when pressing Back in My Music.
+- Fixed the speed test showing "Couldn't test".
+- My Music no longer lists the same song twice.
+
 ## 1.0.1 (8 November 2026)
 
 - **Continue watching:** Home shows films and series only; **Show all** has tabs by app (All, My Movies, Netflix, Prime Video…) and a YouTube tab for longer videos (no shorts), and scrolls past five.

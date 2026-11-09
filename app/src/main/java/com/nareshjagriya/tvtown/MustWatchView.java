@@ -565,6 +565,7 @@ public class MustWatchView extends View implements Choreographer.FrameCallback {
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
                 if (sel + COLS < items.size()) setSel(sel + COLS);
+                else if (sel / COLS < (items.size() - 1) / COLS) setSel(items.size() - 1);   // a shorter last row: its last one
                 else if (sel / COLS < (items.size() - 1) / COLS) setSel(items.size() - 1);
                 return true;
             case KeyEvent.KEYCODE_CHANNEL_DOWN: case KeyEvent.KEYCODE_PAGE_DOWN: setSel(sel + COLS * 2); return true;
@@ -729,6 +730,7 @@ public class MustWatchView extends View implements Choreographer.FrameCallback {
 
     @Override
     protected void onDraw(Canvas c) {
+        Frost.frame(this);   // selections glide (Frost.plate)
         if (kit == null) return;
         long now = SystemClock.uptimeMillis();
         bg.draw(c, now);

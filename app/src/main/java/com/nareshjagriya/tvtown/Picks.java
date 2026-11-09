@@ -173,7 +173,7 @@ final class Picks {
     }
 
     private static String group(int kind) {
-        return kind == SONG ? "songs" : "titles";
+        return kind == SONG ? "songs" : kind == EXTRAS ? "extras" : "titles";
     }
 
     private static List<String> readList(Context ctx, String key, List<String> fallback) {
@@ -203,17 +203,22 @@ final class Picks {
 
     /** The languages ticked (empty = Any), among those shown. Hindi at first (English for Global). */
     static List<String> ticked(Context ctx, int kind) {
-        List<String> on = readList(ctx, Style.key("pick_lang_on_" + group(kind)), defaultTicked());
+        List<String> on = readList(ctx, Style.key("pick_lang_on_" + group(kind)), kind == EXTRAS ? new ArrayList<>() : defaultTicked());
         List<String> out = new ArrayList<>();
         for (String l : shownLanguages(ctx, kind)) if (on.contains(l)) out.add(l);
         return out;
     }
 
     static void setTicked(Context ctx, int kind, String language, boolean on) {
-        List<String> l = readList(ctx, Style.key("pick_lang_on_" + group(kind)), defaultTicked());
+        List<String> l = readList(ctx, Style.key("pick_lang_on_" + group(kind)), kind == EXTRAS ? new ArrayList<>() : defaultTicked());
         l.remove(language);
         if (on) l.add(language);
         prefs(ctx).edit().putString(Style.key("pick_lang_on_" + group(kind)), String.join("\n", l)).apply();
+    }
+
+    /** Whether the viewer has chosen languages for a kind (else the defaults apply). */
+    static boolean languagesSet(Context ctx, int kind) {
+        return prefs(ctx).contains(Style.key("pick_lang_on_" + group(kind)));
     }
 
     static void clearTicked(Context ctx, int kind) {
@@ -648,6 +653,24 @@ final class Picks {
         }
     }
 
+    /** Named parts for one language (comedians who perform in Hindi…): shown when that language is ticked, or with Any. */
+    private static void langNamed(Entry card, String lang, java.util.function.Function<String, Tune> tune, String... names) {
+        for (String name : names) {
+            Entry p = new Entry(card.emoji, name, card.color);
+            p.tune = tune.apply(name).lang(lang);
+            card.parts.add(p);
+        }
+    }
+
+    /** Series trailers from each streaming app's own channel, as parts of the Trailers card. */
+    private static void appTrailers(Entry card, String... apps) {
+        for (String app : apps) {
+            Entry p = new Entry(card.emoji, app + " trailers", card.color);
+            p.tune = trailerTune(app).artist(app);
+            card.parts.add(p);
+        }
+    }
+
     /** A card made of phrases: what you type is searched as it is. */
     private static void phrases(Entry card, java.util.function.Function<String, Tune> tune) {
         card.adder = tune;
@@ -791,30 +814,25 @@ final class Picks {
 
     static List<Entry> extrasCards() {
         List<Entry> l = new ArrayList<>();
-        Entry c = card(l, "🎬", "New Trailers", 0xFFFF6A3D);
+        Entry c = card(l, "🎬", "Trailers", 0xFFFF6A3D);
         phrase(c, "Hindi trailers", "official trailer hindi|hindi movie trailer|hindi trailer {year}|official teaser hindi")
                 .lang("Hindi").must(TRAILER).never(NOT_TRAILER).length(30, 360).noTail().thisWeek();
         phrase(c, "English trailers", "official trailer|new movie trailer {year}|official teaser trailer")
                 .lang("English").must(TRAILER).never(NOT_TRAILER).length(30, 360).noTail().thisWeek();
         phrase(c, "Marathi trailers", "marathi movie official trailer|marathi movie trailer")
                 .lang("Marathi").must(TRAILER).never(NOT_TRAILER).length(30, 360).noTail().thisMonth();
+        appTrailers(c, "Netflix India", "Prime Video India", "JioHotstar", "SonyLIV", "ZEE5");
         phrases(c, Picks::trailerTune);
-        c.addHint = "A language or film, like \"Gujarati\"";
+        c.addHint = "A language, film or app, like \"Gujarati\"";
 
-        c = card(l, "🍿", "Web Series Trailers", 0xFF9D6BFF);
-        names(c, "A streaming app's channel, like \"MX Player\"", n -> trailerTune(n).artist(n),
-                "Netflix India", "Prime Video India", "JioHotstar", "SonyLIV", "ZEE5");
-
-        c = card(l, "🎤", "Hindi Stand-up", 0xFFFFC93C);
-        names(c, "A comedian, like \"Zakir Khan\"", Picks::comicTune, "Zakir Khan", "Abhishek Upmanyu",
+        c = card(l, "🎤", "Stand-up Comedy", 0xFFFFC93C);
+        langNamed(c, "Hindi", Picks::comicTune, "Zakir Khan", "Abhishek Upmanyu",
                 "Anubhav Singh Bassi", "Samay Raina", "Munawar Faruqui", "Harsh Gujral", "Ravi Gupta", "Aakash Gupta",
                 "Gaurav Kapoor", "Amit Tandon", "Kunal Kamra", "Vipul Goyal", "Appurv Gupta", "Pratyush Chaubey",
                 "Ashish Solanki", "Shashwat Maheshwari", "Vikas Kush Sharma", "Gaurav Gupta", "Nishant Tanwar",
                 "Inder Sahani", "Jaspreet Singh", "Swati Sachdeva", "Rajat Chauhan", "Sundeep Sharma", "Manik Mahna",
                 "Raju Srivastava", "Kapil Sharma", "Rahul Dua", "Prashasti Singh");
-
-        c = card(l, "🗣️", "English Stand-up", 0xFF36C8F4);
-        names(c, "A comedian, like \"Trevor Noah\"", Picks::comicTune,
+        langNamed(c, "English", Picks::comicTune,
                 // Indian, in English
                 "Kenny Sebastian", "Biswa Kalyan Rath", "Kanan Gill", "Vir Das", "Rahul Subramanian", "Varun Thakur",
                 "Sapan Verma", "Rohan Joshi", "Tanmay Bhat", "Atul Khatri", "Sorabh Pant", "Neeti Palta", "Aditi Mittal",
@@ -827,6 +845,8 @@ final class Picks {
                 "Nate Bargatze", "Taylor Tomlinson", "Tom Segura", "Matt Rife", "Iliza Shlesinger", "Michael McIntyre",
                 "James Acaster", "Eddie Izzard", "Jim Jefferies", "Bert Kreischer", "Ronny Chieng", "Jo Koy", "Daniel Sloss",
                 "Mark Normand", "Andrew Schulz", "Bo Burnham", "Amy Schumer", "Mike Birbiglia", "Ali Siddiq");
+        c.adder = Picks::comicTune;
+        c.addHint = "A comedian, like \"Zakir Khan\"";
 
         c = card(l, "📺", "Classic TV Shows", 0xFFFF9F43);
         names(c, "A show, like \"Sarabhai vs Sarabhai\"", Picks::showTune, "Maharashtrachi Hasyajatra", "Chala Hawa Yeu Dya",
@@ -847,6 +867,10 @@ final class Picks {
         c = card(l, "🎞️", "Free Full Movies", 0xFF5B8CFF);
         names(c, "A YouTube movie channel, like \"Shemaroo\"", Picks::movieChannelTune, "Goldmines", "Shemaroo",
                 "Rajshri", "Ultra Movie Parlour", "Pen Movies", "Venus Movies");
+
+        c = card(l, "🌍", "Documentaries", 0xFF5B8CFF);
+        names(c, "A channel, like \"Epic Channel\"", Picks::documentaryTune, "National Geographic", "BBC Earth",
+                "DW Documentary", "Free Documentary", "Epic Channel", "Real Stories");
 
         c = card(l, "🌧️", "Ambient & Relax", 0xFF36C8F4);
         phrase(c, "Rain sounds", "rain sounds for sleep|rain and thunder sounds").length(600, 43200).noTail();
@@ -992,19 +1016,16 @@ final class Picks {
 
     static List<Entry> globalExtrasCards() {
         List<Entry> l = new ArrayList<>();
-        Entry c = card(l, "🎬", "New Trailers", 0xFFFF6A3D);
+        Entry c = card(l, "🎬", "Trailers", 0xFFFF6A3D);
         phrase(c, "Movie trailers", "official trailer|new movie trailer {year}|official teaser trailer")
                 .must(TRAILER).never(NOT_TRAILER).length(30, 360).noTail().thisWeek();
         phrase(c, "Coming soon", "coming soon trailers {year}|new trailers this week")
                 .must(TRAILER).never(NOT_TRAILER).length(30, 600).noTail().thisMonth();
+        appTrailers(c, "Netflix", "HBO Max", "Prime Video", "Disney Plus", "Apple TV", "Hulu", "Peacock", "Paramount Plus");
         phrases(c, Picks::trailerTune);
-        c.addHint = "A film or studio, like \"Pixar\"";
+        c.addHint = "A film, studio or app, like \"Pixar\"";
 
-        c = card(l, "🍿", "Series Trailers", 0xFF9D6BFF);
-        names(c, "A streaming app's channel, like \"Crunchyroll\"", n -> trailerTune(n).artist(n),
-                "Netflix", "HBO Max", "Prime Video", "Disney Plus", "Apple TV", "Hulu", "Peacock", "Paramount Plus");
-
-        c = card(l, "🎤", "Stand-up", 0xFFFFC93C);
+        c = card(l, "🎤", "Stand-up Comedy", 0xFFFFC93C);
         names(c, "A comedian, like \"John Mulaney\"", Picks::comicTune, "Nate Bargatze", "John Mulaney", "Taylor Tomlinson",
                 "Jim Gaffigan", "Ali Wong", "Trevor Noah", "Kevin Hart", "Dave Chappelle", "Sebastian Maniscalco",
                 "Gabriel Iglesias", "Bill Burr", "Jerry Seinfeld", "Chris Rock", "Hasan Minhaj", "Matt Rife", "Tom Segura",
@@ -1012,14 +1033,13 @@ final class Picks {
                 "Ricky Gervais", "Michael McIntyre", "Jimmy Carr", "Russell Peters", "Robin Williams", "George Carlin",
                 "Dry Bar Comedy", "Netflix Is A Joke");
 
-        c = card(l, "🌙", "Late Night", 0xFF6A5BFF);
-        names(c, "A show, like \"Conan\"", Picks::lateNightTune, "Saturday Night Live", "Jimmy Fallon", "Jimmy Kimmel Live",
-                "Late Night with Seth Meyers", "Stephen Colbert", "Last Week Tonight", "The Daily Show", "Hot Ones");
-
-        c = card(l, "📺", "Classic Sitcoms", 0xFFFF9F43);
-        names(c, "A show, like \"Frasier\"", Picks::sitcomTune, "Friends", "The Office", "Seinfeld", "Parks and Recreation",
-                "Brooklyn Nine-Nine", "Frasier", "Modern Family", "How I Met Your Mother", "The Big Bang Theory",
-                "Cheers", "Mr Bean", "Fawlty Towers");
+        c = card(l, "📺", "TV Comedy", 0xFFFF9F43);
+        named(c, Picks::sitcomTune, "Friends", "The Office", "Seinfeld", "Parks and Recreation", "Brooklyn Nine-Nine",
+                "Frasier", "Modern Family", "How I Met Your Mother", "The Big Bang Theory", "Cheers", "Mr Bean", "Fawlty Towers");
+        named(c, Picks::lateNightTune, "Saturday Night Live", "Jimmy Fallon", "Jimmy Kimmel Live", "Late Night with Seth Meyers",
+                "Stephen Colbert", "Last Week Tonight", "The Daily Show", "Hot Ones");
+        c.adder = Picks::sitcomTune;
+        c.addHint = "A show, like \"Frasier\"";
 
         c = card(l, "🧸", "Cartoons", 0xFF3DDC97);
         names(c, "A cartoon, like \"Pokemon\"", Picks::kidsTune, "Bluey", "Peppa Pig", "Paw Patrol", "SpongeBob",
@@ -1134,23 +1154,22 @@ final class Picks {
 
     static List<Entry> mixedExtrasCards() {
         List<Entry> l = new ArrayList<>();
-        Entry c = card(l, "🎬", "New Trailers", 0xFFFF6A3D);
+        Entry c = card(l, "🎬", "Trailers", 0xFFFF6A3D);
         phrase(c, "Hindi trailers", "official trailer hindi|hindi movie trailer|hindi trailer {year}|official teaser hindi")
-                .must(TRAILER).never(NOT_TRAILER).length(30, 360).noTail().thisWeek();
+                .lang("Hindi").must(TRAILER).never(NOT_TRAILER).length(30, 360).noTail().thisWeek();
         phrase(c, "English trailers", "official trailer|new movie trailer {year}|official teaser trailer")
-                .must(TRAILER).never(NOT_TRAILER).length(30, 360).noTail().thisWeek();
+                .lang("English").must(TRAILER).never(NOT_TRAILER).length(30, 360).noTail().thisWeek();
+        appTrailers(c, "Netflix India", "Prime Video India", "JioHotstar", "Netflix", "HBO Max", "Disney Plus", "Apple TV");
         phrases(c, Picks::trailerTune);
-        c.addHint = "A language or film, like \"Tamil\"";
+        c.addHint = "A language, film or app, like \"Tamil\"";
 
-        c = card(l, "🍿", "Web Series Trailers", 0xFF9D6BFF);
-        names(c, "A streaming app's channel, like \"Hulu\"", n -> trailerTune(n).artist(n), "Netflix India",
-                "Prime Video India", "JioHotstar", "Netflix", "HBO Max", "Disney Plus", "Apple TV");
-
-        c = card(l, "🎤", "Stand-up", 0xFFFFC93C);
-        names(c, "A comedian, like \"Zakir Khan\"", Picks::comicTune, "Zakir Khan", "Abhishek Upmanyu", "Anubhav Singh Bassi",
-                "Samay Raina", "Kenny Sebastian", "Biswa Kalyan Rath", "Vir Das", "Rahul Subramanian", "Trevor Noah",
-                "Russell Peters", "Hasan Minhaj", "Nate Bargatze", "John Mulaney", "Kevin Hart", "Ali Wong",
+        c = card(l, "🎤", "Stand-up Comedy", 0xFFFFC93C);
+        langNamed(c, "Hindi", Picks::comicTune, "Zakir Khan", "Abhishek Upmanyu", "Anubhav Singh Bassi", "Samay Raina");
+        langNamed(c, "English", Picks::comicTune, "Kenny Sebastian", "Biswa Kalyan Rath", "Vir Das", "Rahul Subramanian",
+                "Trevor Noah", "Russell Peters", "Hasan Minhaj", "Nate Bargatze", "John Mulaney", "Kevin Hart", "Ali Wong",
                 "Jim Gaffigan", "Ronny Chieng");
+        c.adder = Picks::comicTune;
+        c.addHint = "A comedian, like \"Zakir Khan\"";
 
         c = card(l, "📺", "Classic TV", 0xFFFF9F43);
         named(c, Picks::showTune, "Taarak Mehta Ka Ooltah Chashmah", "Sarabhai vs Sarabhai", "CID", "Khichdi");

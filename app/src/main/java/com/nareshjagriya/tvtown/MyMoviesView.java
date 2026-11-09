@@ -190,6 +190,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         ImageCache.init(context);
         bg = new ArtBackdrop(context);
         stage = new ArtStage(this);
+        stage.black = true;
         edge.setStyle(Paint.Style.STROKE);
         edge.setColor(Color.WHITE);
         SharedPreferences p = prefs();
@@ -571,6 +572,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         if (kit != null) barPaint.setTypeface(kit.font(10, 500).getTypeface());
         barPaint.setTextSize(24 * k);
         if (t == BAR_KIND) return barPaint.measureText("Movies") + barPaint.measureText("Series") + barPaint.measureText("Videos") + 96 * k;
+        if (t == T_SEARCH) return 330 * k;   // the search bar, the same on every page
         return Math.min(240 * k, barPaint.measureText(tabWord(t))) + 56 * k;
     }
 
@@ -579,6 +581,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         float x = 1840 * k;
         for (int i = BAR.length - 1; i >= 0; i--) {
             x -= tabWidth(BAR[i]);
+            if (BAR[i] == T_SEARCH) x -= 16 * k;   // the search bar stands on its own
             if (BAR[i] == t) break;
         }
         return new RectF(x, 40 * k, x + tabWidth(t), 112 * k);
@@ -763,8 +766,12 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
                 hoverBuilt = false;
                 return true;
             }
-            case KeyEvent.KEYCODE_DPAD_DOWN:   // straight to the films; OK is what steps into an open menu
-                if (!shown.isEmpty()) inBar = false;
+            case KeyEvent.KEYCODE_DPAD_DOWN:   // into the menu that shows under All, Filter or Sort; else to the films
+                if (barSel == 0 || barSel == T_SORT) {
+                    menuOpen = true;
+                    menuSel = menuCurrent();
+                } else if (barSel == T_FILTER) openFilter();
+                else if (!shown.isEmpty()) inBar = false;
                 return true;
             case KeyEvent.KEYCODE_DPAD_UP: return true;
             default: return false;
@@ -1160,6 +1167,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
 
     @Override
     protected void onDraw(Canvas c) {
+        Frost.frame(this);   // selections glide (Frost.plate)
         if (kit == null) return;
         long now = SystemClock.uptimeMillis();
         boolean shelves = shelfOn() && !detailOpen;
@@ -1185,8 +1193,8 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
                 c.drawText(msg, getWidth() / 2f - sub.measureText(msg) / 2, getHeight() / 2f, sub);
             } else if (shelves) drawShelves(c, now);
             else drawGrid(c, now);
-            RectF bar = new RectF(tabRect(BAR[0]).left, 40 * k, 1840 * k, 112 * k);
-            Frost.liquid(c, bar, 36 * k, stage.frost(), stage.screen(), stage.bits(), k);
+            RectF bar = new RectF(tabRect(BAR[1]).left, 40 * k, 1840 * k, 112 * k);
+            Frost.surface(c, bar, 36 * k, k);
             for (int t : BAR) drawTab(c, t);
         }
         boolean quiet = !detailOpen && !episodesOpen && !rating && !fixing;
@@ -1234,7 +1242,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
 
     /** Covers for films and series, whichever view, filter or search you're on; your other videos keep the wide grid. */
     private boolean shelfOn() {
-        return !videosShown && scanned && !shelfList.isEmpty();
+        return false;   // one clean grid, four to a row, each with its name (the shelves had a details sidebar)
     }
 
     private void buildShelves() {
@@ -1390,17 +1398,16 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         return y + l.getHeight();
     }
 
-    private void drawName(Canvas c, Item it, float x, float bottom, float boxW, float boxH, float room) {
+    /** Its logo above the details; true when drawn (then the details leave the name out). */
+    private boolean drawName(Canvas c, Item it, float x, float bottom, float boxW, float boxH, float room) {
         String url = logos.get(it.key);
         Bitmap logo = url != null ? ImageCache.get(url, this::postInvalidate, null, 500) : null;
         if (logo != null && logo.getWidth() > 0 && !Frost.darkLogo(logo)) {
             float sc = Math.min(boxW / logo.getWidth(), boxH / logo.getHeight());
             c.drawBitmap(logo, null, new RectF(x, bottom - logo.getHeight() * sc, x + logo.getWidth() * sc, bottom), bmp);
-            return;
+            return true;
         }
-        heroName.setTextSize(88 * k);
-        while (heroName.getTextSize() > 48 * k && heroName.measureText(it.name()) > room) heroName.setTextSize(heroName.getTextSize() - 4 * k);
-        c.drawText(ellipsize(it.name(), heroName, room), x, bottom - 8 * k, heroName);
+        return false;   // no logo: the name is in the pop-up, beside the cover
     }
 
     private void ensureLogo(Item it) {
@@ -1422,8 +1429,12 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         RectF r = tabRect(t);
         boolean focused = inBar && !menuOpen && panel == 0 && barSel == t;
         float rad = r.height() / 2;
-        if (focused) Frost.plate(c, r, rad, k);
         barPaint.setTextSize(24 * k);
+        if (t == T_SEARCH) {
+            Frost.searchBar(c, r, k, focused, query.isEmpty() ? "Search your films" : query, query.isEmpty(), barPaint);
+            return;
+        }
+        if (focused) Frost.plate(c, r, rad, k);
         if (t == BAR_KIND) {   // all three words always visible; the one showing is bright
             String[] words = {"Movies", "Series", "Videos"};
             int showing = videosShown ? 2 : seriesShown ? 1 : 0;
@@ -1570,7 +1581,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         if (at > 0 && next.durationMs > 0) {
             fill.setColor(0xAA000000);
             c.drawRect(r.left, r.bottom - 8 * k, r.right, r.bottom, fill);
-            fill.setColor(Theme.ROSE_B);
+            fill.setColor(Frost.CYAN);   // how far you got: cyan, as on Home
             c.drawRect(r.left, r.bottom - 8 * k, r.left + r.width() * Math.min(1, at / (float) next.durationMs), r.bottom, fill);
         }
     }
@@ -1584,7 +1595,18 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
     private static final float D_W = 1500, D_H = 860, D_PIC_W = 720;
 
     private RectF detailRect() {
-        return new RectF(80 * k, 470 * k, 1240 * k, 1040 * k);
+        return new RectF(80 * k, 470 * k, 1560 * k, 1040 * k);
+    }
+
+    /** The cover at the left of the details, as tall as the box allows, 2:3. */
+    private RectF detailCover(RectF p) {
+        float h = p.height() - 72 * k;
+        return new RectF(p.left + 36 * k, p.top + 36 * k, p.left + 36 * k + h * 2 / 3, p.top + 36 * k + h);
+    }
+
+    /** Where the words and buttons of the details start: right of the cover. */
+    private float detailLeft(RectF p) {
+        return detailCover(p).right + 40 * k;
     }
 
     /** Where a card's buttons go in its details: in lines under the picture, each with its icon and name. */
@@ -1596,7 +1618,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         List<RectF> out = new ArrayList<>();
         if (it == null) return out;
         RectF p = detailRect();
-        float x = p.left + 36 * k, xs = p.left + 36 * k, rowB = p.bottom - 88 * k, rowA = rowB - 84 * k;
+        float x = detailLeft(p), xs = detailLeft(p), rowB = p.bottom - 88 * k, rowA = rowB - 84 * k;
         for (String name : buttons(it)) {
             if (mainButton(name)) {   // the main ones in a line, the rest as round icons under them
                 float w = button.measureText(buttonName(it, name)) + 96 * k;
@@ -1616,16 +1638,26 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         if (it == null) return;
         ensureLogo(it);
         RectF p = detailRect();
-        drawName(c, it, p.left, p.top - 28 * k, 720 * k, 230 * k, 1700 * k);
-        Frost.liquid(c, p, 44 * k, stage.frost(), stage.screen(), stage.bits(), k);
+        boolean logoShown = drawName(c, it, p.left, p.top - 28 * k, 720 * k, 230 * k, 1700 * k);
+        Frost.panel(c, p, 44 * k, 1, k);   // the shiny black pop-up, its cover on the left and its name on top
+        RectF cov = detailCover(p);
         c.save();
         android.graphics.Path round = new android.graphics.Path();
-        round.addRoundRect(p, 44 * k, 44 * k, android.graphics.Path.Direction.CW);
+        round.addRoundRect(cov, 24 * k, 24 * k, android.graphics.Path.Direction.CW);
         c.clipPath(round);
-        c.drawColor(0x33060607);
+        drawPicture(c, it, cov, false);
         c.restore();
         MyMovies.Match mt = it.match;
-        float x = p.left + 36 * k, right = p.right - 36 * k, y = p.top + 52 * k;
+        float x = detailLeft(p), right = p.right - 36 * k, y = p.top + 80 * k;
+        if (logoShown) y = p.top + 52 * k;   // its logo is right above: the name isn't said twice
+        else {
+            float was = heroName.getTextSize();
+            heroName.setTextSize(48 * k);
+            while (heroName.getTextSize() > 32 * k && heroName.measureText(it.name()) > right - x) heroName.setTextSize(heroName.getTextSize() - 2 * k);
+            c.drawText(ellipsize(it.name(), heroName, right - x), x, y, heroName);
+            heroName.setTextSize(was);
+            y += 48 * k;
+        }
         c.drawText(ellipsize((it.show() ? "Series  ·  " : "Film  ·  ") + cardLine(it, true), heroMeta, right - x), x, y, heroMeta);
         y += 18 * k;
         float pillsH = pills(c, it, x, y, right);
@@ -1648,8 +1680,11 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             boolean focused = i == btn, main = mainButton(name);
             boolean on = name.equals("watched") && seen || name.equals("fav") && fav;
             float h = r.height();
-            Frost.ghost(c, r, h / 2, focused, k);
+            boolean jewel = name.equals("play");   // the one main button: the jewel colour
+            if (jewel) Frost.hero(c, r, h / 2, focused, k);
+            else Frost.ghost(c, r, h / 2, focused, k);
             Bitmap ic = kit.glyph(buttonGlyph(name), main ? 30 : 30);
+            if (jewel) image.setColorFilter(new android.graphics.PorterDuffColorFilter(Frost.HERO_ICON, android.graphics.PorterDuff.Mode.SRC_IN));
             if (on) image.setColorFilter(new android.graphics.PorterDuffColorFilter(name.equals("fav") ? Frost.PINK : 0xFF5EE69A, android.graphics.PorterDuff.Mode.SRC_IN));
             float ix = main ? r.left + 26 * k : r.centerX() - ic.getWidth() / 2f, iy = r.centerY() - ic.getHeight() / 2f;
             c.drawBitmap(ic, ix, iy, image);
@@ -1786,7 +1821,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             cardMeta.setAlpha(210);
             c.drawText(info, r.left + 22 * k, r.top + 96 * k, cardMeta);
             if (pos > 0 && v.durationMs > 0) {
-                fill.setColor(Theme.ROSE_B);
+                fill.setColor(Frost.CYAN);
                 c.drawRect(r.left + 16 * k, r.bottom - 16 * k, r.left + 16 * k + (r.width() - 32 * k) * Math.min(1, pos / (float) v.durationMs),
                         r.bottom - 10 * k, fill);
             }
@@ -1974,6 +2009,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         if (c < 0) return true;
         if (up) {
             if (r > 0) focusChip = cols.get(c).get(r - 1);
+            else if (clear != null) focusChip = clear;   // Clear all, in the menu's top corner
             else closeToBar();
         } else if (down) {
             if (r + 1 < cols.get(c).size()) focusChip = cols.get(c).get(r + 1);

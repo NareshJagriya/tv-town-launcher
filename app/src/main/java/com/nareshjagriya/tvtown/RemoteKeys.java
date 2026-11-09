@@ -93,7 +93,7 @@ final class RemoteKeys {
         return true;
     }
 
-    private static KeyPair keys(Context c) throws Exception {
+    static KeyPair keys(Context c) throws Exception {
         SharedPreferences p = c.getSharedPreferences("remote_key", Context.MODE_PRIVATE);
         String priv = p.getString("private", null), pub = p.getString("public", null);
         KeyFactory f = KeyFactory.getInstance("RSA");

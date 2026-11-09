@@ -28,8 +28,8 @@ android {
         applicationId 'com.nareshjagriya.tvtown'
         minSdk 28
         targetSdk 34
-        versionCode 7
-        versionName '1.0.1'
+        versionCode 8
+        versionName '1.1'
         buildConfigField 'String', 'TMDB_API_KEY', "\"${key('tmdb.apiKey')}\""
         // Subtitles from OpenSubtitles.com (optional): the API key, and an account to raise the daily limit.
         buildConfigField 'String', 'OPENSUBTITLES_API_KEY', "\"${key('opensubtitles.apiKey')}\""

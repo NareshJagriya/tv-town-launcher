@@ -28,4 +28,6 @@ TV Town asks these services for information while you use it. Their content stay
 
 Some of these are public feeds without an official agreement; they may change or stop working at any time.
 
+**CleanYourTV** (MIT licence, © 2026 Gathin, https://github.com/Gathin23/cleanyourtv): its tested lists informed which apps Speed up your TV offers to switch off. No code or list is copied; TV Town's list and wording are its own.
+
 Streaming services', apps' and teams' names and logos belong to their owners, and only identify each one. This project has no affiliation with any of them.

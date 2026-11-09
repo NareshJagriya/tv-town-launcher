@@ -366,7 +366,7 @@ final class GlassSheet {
             for (int i = 0; i < sectionNames.size(); i++) {
                 tmp.set(outer.left + 20 * k, ry + i * rh, outer.left + 450 * k, ry + i * rh + rh - 6 * k);
                 if (i == section) {
-                    if (inRail) Frost.plate(c, tmp, 22 * k, k);
+                    if (inRail) Frost.lift(c, tmp, 22 * k, k);
                     else {
                         fill.setColor(0x2EFFFFFF);
                         c.drawRoundRect(tmp, 22 * k, 22 * k, fill);
@@ -417,9 +417,9 @@ final class GlassSheet {
             plateAt = now;
         }
         if (sel >= 0 && sel < rows.size() && rows.get(sel).selectable() && !(page && inRail)) {
-            float y = Frost.glide(plateFrom, plateTo, now, plateAt);
+            float y = plateTo;   // lands at once: no slide, so no trail behind the words
             tmp.set(panel.left + 20 * k, y + 4 * k, panel.right - 20 * k, y + rowH - 4 * k);
-            Frost.plate(c, tmp, 28 * k, k);
+            Frost.lift(c, tmp, 28 * k, k);
         }
         for (int v = 0; v < visible; v++) {
             int i = scroll + v;

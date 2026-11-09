@@ -11,7 +11,7 @@ import java.util.Random;
 /**
  * Pictures for the Random pop-up's cards: for movies and series, the artwork of a popular title of the card's first
  * kind (TMDB); for music and Extras, the thumbnail of the first video its first search finds (a news channel's
- * picture for Live News, a cartoon's for Cartoons). Found once a week per card and language, and kept. No two cards
+ * picture for Live News, a cartoon's for Cartoons). Found once per card, and kept. No two cards
  * of a pop-up share a picture: each takes the first one no other card has taken, trying its other parts if needed.
  */
 final class CardArt {
@@ -19,7 +19,10 @@ final class CardArt {
     private CardArt() {
     }
 
-    private static final long WEEK = 7L * 24 * 3600_000;
+    private static final long KEEP = 180L * 24 * 3600_000;   // a card's picture is found once and kept (half a year)
+
+    /** Cards have one picture each, whatever languages are ticked: found in the style's main language. */
+    static final String LANGUAGE = "";
 
     private static SharedPreferences prefs(Context ctx) {
         return ctx.getSharedPreferences("card_art", Context.MODE_PRIVATE);
@@ -46,7 +49,7 @@ final class CardArt {
     static String cached(Context ctx, int kind, Picks.Entry card, String language) {
         SharedPreferences p = prefs(ctx);
         String k = key(kind, card, language);
-        if (System.currentTimeMillis() - p.getLong(k + "@", 0) > WEEK) return null;
+        if (System.currentTimeMillis() - p.getLong(k + "@", 0) > KEEP) return null;
         String url = p.getString(k, null);
         if (url == null || !url.startsWith("https://")) return null;
         synchronized (CardArt.class) {
@@ -75,12 +78,25 @@ final class CardArt {
     /** Pictures that would suit a part, best first: backdrops of a TMDB page, or thumbnails of a YouTube search. */
     private static List<String> candidates(Context ctx, int kind, Picks.Entry part, String language, String label) {
         List<String> out = new java.util.ArrayList<>();
+        if (language.isEmpty()) language = Style.global() ? "English" : "Hindi";   // one picture per card: the style's main language
         try {
             if (part.category != null) {
                 String type = kind == Picks.SERIES ? "tv" : "movie";
                 String code = part.category.language != null ? "" : codeOf(language);
-                Tmdb.Page page = Tmdb.discover(ctx, part.category, null, type, 1, code);
+                Tmdb.Page page = null;
+                try {
+                    page = Tmdb.discover(ctx, part.category, null, type, 1, code);
+                } catch (Exception e) {
+                    android.util.Log.d("TVTown", "card art tmdb: " + e);
+                }
                 if (page != null) for (Tmdb.Title t : page.titles) if (t.backdropCard() != null) out.add(t.backdropCard());
+                if (out.isEmpty()) {   // no TMDB (or it failed): the same kind on the apps here, through Catalog
+                    List<Services.Service> apps = Services.installedOrPopular(ctx);
+                    for (int i = 0; i < Math.min(2, apps.size()) && out.isEmpty(); i++) {
+                        Tmdb.Page p2 = Catalog.discover(ctx, part.category, apps.get(i), type, 1, code);
+                        if (p2 != null) for (Tmdb.Title t : p2.titles) if (t.backdropCard() != null) out.add(t.backdropCard());
+                    }
+                }
             } else if (part.tune != null) {
                 String lang = part.tune.language != null ? part.tune.language : language;
                 String q = Picks.songQuery(part.tune, lang, false, new Random(label.hashCode()));
@@ -92,8 +108,8 @@ final class CardArt {
                     if (!out.contains(url) && out.size() < 12) out.add(url);
                 }
             }
-        } catch (Exception ignored) {
-            // nothing from this part
+        } catch (Exception e) {
+            android.util.Log.d("TVTown", "card art " + label + ": " + e);   // nothing from this part
         }
         return out;
     }

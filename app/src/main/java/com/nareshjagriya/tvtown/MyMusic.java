@@ -143,6 +143,28 @@ final class MyMusic {
             }
         }
         Collections.sort(out, (a, b) -> a.title.compareToIgnoreCase(b.title));
+        return withoutCopies(out);
+    }
+
+    /**
+     * The same song twice in one folder (same title and singer, lengths within two seconds: a file copied in again)
+     * shows once. Only the list changes; nothing on the drive is touched.
+     */
+    static List<Song> withoutCopies(List<Song> songs) {
+        List<Song> out = new ArrayList<>();
+        Map<String, List<Song>> seen = new java.util.HashMap<>();
+        for (Song s : songs) {
+            String id = s.folder + "|" + squash(s.title) + "|" + squash(s.artist);
+            List<Song> same = seen.get(id);
+            boolean copy = false;
+            if (same != null && !squash(s.title).isEmpty()) {
+                for (Song o : same) if (Math.abs(o.durationMs - s.durationMs) <= 2000) copy = true;
+            }
+            if (copy) continue;
+            if (same == null) seen.put(id, same = new ArrayList<>());
+            same.add(s);
+            out.add(s);
+        }
         return out;
     }
 

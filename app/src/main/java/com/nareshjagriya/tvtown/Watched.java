@@ -45,10 +45,10 @@ final class Watched {
 
     /** Notes what this app is playing now. Called when its title or its play state changes. */
     static synchronized void record(Context c, MediaController m) {
+        if (!Features.on(c, Features.APPS)) return;   // switched off in Settings → Features
         String pkg = m.getPackageName();
         if (pkg.equals(c.getPackageName()) || pkg.equals(MyMoviesActivity.VLC)) return;   // the drive's films are noted by My Movies
-        String low = pkg.toLowerCase(Locale.ROOT);
-        for (String w : MUSIC) if (low.contains(w)) return;
+        if (notWatching(c, pkg)) return;
         MediaMetadata md = m.getMetadata();
         PlaybackState ps = m.getPlaybackState();
         if (md == null || ps == null) return;
@@ -83,13 +83,29 @@ final class Watched {
         it.at = now;
         if (it.image == null) it.image = picture(c, md, key);
         all.remove(it);
-        if (it.dur > 0 && it.pos > it.dur * 0.93) {   // watched to the end: done
+        if (it.dur > 0 && it.pos > it.dur * 0.93) {   // watched to the end: done, and off the watchlist
             save(c, all);
+            Library.finished(c, it.title);
             return;
         }
         all.add(0, it);
         while (all.size() > KEEP) all.remove(all.size() - 1);
         save(c, all);
+    }
+
+    /**
+     * Music apps, and the TV's own parts (Live TV and its tuner run as the system and report test titles): never
+     * something to continue.
+     */
+    private static boolean notWatching(Context c, String pkg) {
+        String low = pkg.toLowerCase(Locale.ROOT);
+        for (String w : MUSIC) if (low.contains(w)) return true;
+        for (String w : new String[]{"tvcenter", "tvinput", "livetv", "tv.tuner", "mediatek.wwtv"}) if (low.contains(w)) return true;
+        try {
+            return c.getPackageManager().getApplicationInfo(pkg, 0).uid == android.os.Process.SYSTEM_UID;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /** The app's picture for it: its web address, or the picture itself kept in a small file. */
@@ -136,7 +152,7 @@ final class Watched {
                 it.pos = o.optLong("pos");
                 it.dur = o.optLong("dur");
                 it.at = o.optLong("at");
-                out.add(it);
+                if (!notWatching(c, it.pkg)) out.add(it);   // kept from before the TV's own parts were left out
             }
         } catch (Exception ignored) {
             // nothing kept yet

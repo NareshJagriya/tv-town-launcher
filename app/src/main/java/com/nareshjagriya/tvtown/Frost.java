@@ -1,5 +1,7 @@
 package com.nareshjagriya.tvtown;
 
+import java.util.List;
+
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
@@ -51,10 +53,170 @@ final class Frost {
         line.setStyle(Paint.Style.STROKE);
     }
 
-    /** The frosted plate, drawn behind what is selected. */
+    /** TV Town's own focus colours: royal violet, and the pink the main buttons blend into. */
+    static final int VIOLET = 0xFF7B5CF0, VIOLET_DEEP = 0xFF5B3FD1, VIOLET_PINK = 0xFFD9468F;
+
+    /**
+     * What's selected, everywhere but the dock: a pane of clear glass laid over it, landing at once (no slide, so no
+     * trail): see-through white, light falling on its top half, a crisp white edge all round, no glow.
+     */
     static void plate(Canvas c, RectF r, float rad, float k) {
-        plate(c, r, rad, k, accentNow);
+        fill.setColor(Color.WHITE);
+        fill.setShader(new LinearGradient(0, r.top, 0, r.bottom, 0x38FFFFFF, 0x1AFFFFFF, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        gloss(c, r, rad);
+        line.setShader(null);
+        line.setStrokeWidth(Math.max(1.5f, 1.6f * k));
+        line.setColor(0x8CFFFFFF);
+        float in = 0.8f * k;
+        c.drawRoundRect(r.left + in, r.top + in, r.right - in, r.bottom - in, rad - in, rad - in, line);
+        topEdge(c, r, rad, k, 0xF2FFFFFF);
     }
+
+    /**
+     * What's selected in a list going down (Customize, Discover's list, menus): the same clear glass, lifted a little
+     * toward you with a soft shadow under it, as if pulled out of the stack.
+     */
+    static void lift(Canvas c, RectF r, float rad, float k) {
+        float gx = r.width() * 0.015f, up = 2 * k;
+        RectF g = new RectF(r.left - gx, r.top - gx - up, r.right + gx, r.bottom + gx - up);
+        fill.setShader(null);   // the shadow: a few dark layers spreading down (no blur, which is slow on a small TV)
+        for (int i = 4; i >= 1; i--) {
+            float s = i * 3 * k;
+            fill.setColor(Color.argb(28, 0, 0, 0));
+            c.drawRoundRect(g.left - s * 0.5f, g.top + s, g.right + s * 0.5f, g.bottom + s * 1.6f, rad + s, rad + s, fill);
+        }
+        fill.setColor(0xF0101013);   // solid under the glass, so the shadow doesn't show through it
+        c.drawRoundRect(g, rad, rad, fill);
+        plate(c, g, rad, k);
+    }
+
+    /** The shine of glass: a bright top half that fades out, as light falls on a glass pane from above. */
+    private static void gloss(Canvas c, RectF r, float rad) {
+        fill.setColor(Color.WHITE);
+        fill.setShader(new LinearGradient(0, r.top, 0, r.top + r.height() * 0.55f, new int[]{0x4DFFFFFF, 0x14FFFFFF, 0x00FFFFFF},
+                new float[]{0, 0.6f, 1}, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        fill.setShader(null);
+    }
+
+    // ---- the selection glides, everywhere, like the dock's -------------------------------------------------
+    // Each view calls frame(this) as it starts drawing. A plate drawn this frame is matched to one of about the same
+    // size drawn last frame; when it has moved, it slides from where it was shown to where it is now (Frost.GLIDE_MS),
+    // and the view keeps drawing until it lands. Lite mode: no sliding.
+
+    private static final class Glide {
+        final RectF from = new RectF(), to = new RectF(), shown = new RectF();
+        long at;
+    }
+
+    private static android.view.View frameView;
+    private static List<Glide> lastFrame = new java.util.ArrayList<>(), thisFrame = new java.util.ArrayList<>();
+    private static final java.util.Map<android.view.View, List<Glide>> byView = new java.util.WeakHashMap<>();
+
+    /** Called by a view at the start of its onDraw, so its selections glide. */
+    static void frame(android.view.View v) {
+        if (frameView != null) byView.put(frameView, thisFrame);
+        frameView = v;
+        List<Glide> before = byView.get(v);
+        lastFrame = before != null ? before : new java.util.ArrayList<>();
+        thisFrame = new java.util.ArrayList<>();
+        byView.put(v, thisFrame);
+    }
+
+    /** True while a cached picture is recorded (HomeView.section): no sliding inside it. */
+    static boolean noGlide;
+
+    private static RectF glidePlate(RectF target) {
+        if (frameView == null || Lite.on || noGlide) return target;
+        long now = android.os.SystemClock.uptimeMillis();
+        Glide best = null;
+        float bestD = Float.MAX_VALUE;
+        for (Glide g : lastFrame) {   // the nearest one of about the same size, not taken yet
+            float rw = target.width() / Math.max(1, g.to.width()), rh = target.height() / Math.max(1, g.to.height());
+            if (rw < 0.6f || rw > 1.65f || rh < 0.6f || rh > 1.65f) continue;
+            float d = Math.abs(target.centerX() - g.to.centerX()) + Math.abs(target.centerY() - g.to.centerY());
+            if (d < bestD) {
+                bestD = d;
+                best = g;
+            }
+        }
+        Glide g = new Glide();
+        g.to.set(target);
+        float far = 1.6f * (target.width() + target.height());
+        if (best == null || best != null && bestD > far && !best.to.equals(target)) {
+            // New, or far away: a quick pop where it lands (from a little smaller) rather than a long slide.
+            if (best != null) lastFrame.remove(best);
+            float dx = target.width() * 0.04f, dy = target.height() * 0.04f;
+            g.from.set(target.left + dx, target.top + dy, target.right - dx, target.bottom - dy);
+            g.at = best == null && lastFrame.isEmpty() && thisFrame.isEmpty() ? 0 : now;
+        } else {
+            lastFrame.remove(best);
+            if (best.to.equals(target)) {   // still going where it was going
+                g.from.set(best.from);
+                g.at = best.at;
+            } else {   // a new place: from where it is shown now
+                g.from.set(best.shown);
+                g.at = now;
+            }
+        }
+        float f = g.at == 0 ? 1 : Math.max(0, Math.min(1, (now - g.at) / (float) FOCUS_MS));
+        f = 1 - (1 - f) * (1 - f) * (1 - f) * (1 - f);   // quick out of the start, soft landing
+        g.shown.set(g.from.left + (g.to.left - g.from.left) * f, g.from.top + (g.to.top - g.from.top) * f,
+                g.from.right + (g.to.right - g.from.right) * f, g.from.bottom + (g.to.bottom - g.from.bottom) * f);
+        thisFrame.add(g);
+        if (f < 1) frameView.postInvalidateOnAnimation();
+        return g.shown;
+    }
+
+    /** How long the selection takes to reach a new place. */
+    static final long FOCUS_MS = 120;
+
+    /**
+     * A soft light of the selection's colour round it, as on the dock: two faint rings outside it (no blur, which is
+     * slow on a small TV). None in Lite mode.
+     */
+    static void glow(Canvas c, RectF r, float rad, float k, int colour) {
+        if (Lite.on) return;
+        fill.setShader(null);
+        int rgb = colour & 0x00FFFFFF;
+        float a = 9 * k, b = 4 * k;
+        fill.setColor(rgb | 0x1F000000);
+        c.drawRoundRect(r.left - a, r.top - a, r.right + a, r.bottom + a, rad + a, rad + a, fill);
+        fill.setColor(rgb | 0x33000000);
+        c.drawRoundRect(r.left - b, r.top - b, r.right + b, r.bottom + b, rad + b, rad + b, fill);
+    }
+
+    /**
+     * The main button of a page (Play, Trailer, Speed it all up, Surprise me): deep jewel glass, dark violet into plum,
+     * a sharp shine on its top half and a fine lilac edge. No glow. Selected, it brightens and gains a white edge.
+     */
+    static void hero(Canvas c, RectF r, float rad, boolean selected, float k) {
+        fill.setColor(Color.WHITE);
+        fill.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, selected ? 0xFF5D45D6 : 0xFF4B34B8, selected ? 0xFF973A8C : 0xFF7A2A72,
+                Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        c.save();   // the shine: the top half, with a crisp line where it ends, like a glass bead
+        c.clipRect(r.left, r.top, r.right, r.top + r.height() * 0.48f);
+        fill.setShader(new LinearGradient(0, r.top, 0, r.top + r.height() * 0.48f, 0x38FFFFFF, 0x0AFFFFFF, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        c.restore();
+        fill.setShader(null);
+        line.setShader(null);
+        float in = 0.8f * k;
+        if (selected) {
+            line.setStrokeWidth(Math.max(1.5f, 2 * k));
+            line.setColor(0xD9FFFFFF);
+        } else {
+            line.setStrokeWidth(Math.max(1, 1.2f * k));
+            line.setColor(0x4DC8B4FF);
+        }
+        c.drawRoundRect(r.left + in, r.top + in, r.right - in, r.bottom - in, rad - in, rad - in, line);
+        topEdge(c, r, rad, k, selected ? 0xFFFFFFFF : 0x8CFFFFFF);
+    }
+
+    /** The colour of a main button's icon: a light lilac, so it reads as part of the jewel. */
+    static final int HERO_ICON = 0xFFE7DCFF;
 
     /** The colour of what's selected, everywhere: taken from the picture on Home, so every screen matches it. */
     static volatile int accentNow = 0xFF8C72F0;
@@ -73,17 +235,17 @@ final class Frost {
         rim(c, r, rad, k);
     }
 
-    /** The same light laid over a picture that is selected: a sheen fading down, a fine edge all round, brighter on top. */
+    /** Clear glass over a picture that is selected: a shine fading down from the top and a crisp white frame. */
     static void sheen(Canvas c, RectF r, float rad, float k) {
         fill.setColor(Color.WHITE);
-        fill.setShader(new LinearGradient(r.left, r.top, r.left + r.height() * 0.18f, r.top + r.height() * 0.44f, 0x33FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        fill.setShader(new LinearGradient(0, r.top, 0, r.top + r.height() * 0.45f, 0x47FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
         c.drawRoundRect(r, rad, rad, fill);
         fill.setShader(null);
         line.setShader(null);
-        line.setStrokeWidth(Math.max(1, k));
-        line.setColor(0x2EFFFFFF);
-        c.drawRoundRect(r, rad, rad, line);
-        topEdge(c, r, rad, k, 0x99FFFFFF);
+        line.setStrokeWidth(Math.max(2, 2 * k));
+        line.setColor(0xD9FFFFFF);
+        float in = k;
+        c.drawRoundRect(r.left + in, r.top + in, r.right - in, r.bottom - in, rad - in, rad - in, line);
     }
 
     /** One fine light edge across the top, following the corners and fading out down the sides. */
@@ -119,6 +281,14 @@ final class Frost {
      * picture was blurred once, so this is cheap on a small TV.
      */
     static void liquid(Canvas c, RectF r, float rad, @androidx.annotation.Nullable android.graphics.Bitmap frost, RectF screen, Paint bitmapPaint, float k) {
+        if (Lite.on) {   // Lite: no picture behind; a rich, soft tint of the picture's colour, lighter at the top
+            fill.setColor(Color.WHITE);
+            fill.setShader(new LinearGradient(0, r.top, 0, r.bottom, (0xE6 << 24) | (liteTone(0.36f) & 0xFFFFFF), (0xE6 << 24) | (liteTone(0.24f) & 0xFFFFFF), Shader.TileMode.CLAMP));
+            c.drawRoundRect(r, rad, rad, fill);
+            fill.setShader(null);
+            rim(c, r, rad, k);
+            return;
+        }
         c.save();
         clip.reset();
         clip.addRoundRect(r, rad, rad, Path.Direction.CW);
@@ -299,35 +469,134 @@ final class Frost {
 
     /** A menu dropping from a bar: the blurred screen inside it, a veil, a fine edge. */
     static void dropdown(Canvas c, RectF r, float rad, RectF screen, Paint bitmapPaint, float k) {
-        c.save();
-        clip.reset();
-        clip.addRoundRect(r, rad, rad, Path.Direction.CW);
-        c.clipPath(clip);
-        if (behind != null) c.drawBitmap(behind, null, screen, bitmapPaint);
-        else c.drawColor(0xFF111114);
-        c.drawColor(0xD90C0C0E);
-        c.restore();
-        topEdge(c, r, rad, k, 0x57FFFFFF);
+        fill.setShader(null);   // solid underneath: nothing of the covers shows through a menu
+        fill.setColor(0xFF060607);
+        c.drawRoundRect(r, rad, rad, fill);
+        panel(c, r, rad, 1, k);   // the same shiny black as every pop-up
     }
 
-    /** A pop-up, only as large as it needs: dark see-through glass and one fine light edge. */
+    /**
+     * A pop-up, only as large as it needs: polished black, like a piano lid. Deep black, a touch lighter at the top, a
+     * faint band of light across it and one fine light edge. Black in Lite mode too (it costs nothing).
+     */
     static void panel(Canvas c, RectF r, float rad, float e, float k) {
-        Bitmap frost = behind != null ? behind : GlassSheet.frost;
         int a = Math.round(255 * e);
         int saved = a < 255 ? c.saveLayerAlpha(r.left - 4 * k, r.top - 4 * k, r.right + 4 * k, r.bottom + 4 * k, a) : -1;
-        panelScreen.set(0, 0, c.getWidth(), c.getHeight());
-        liquid(c, r, rad, frost, panelScreen, panelBits, k);
-        c.save();
-        clip.reset();
-        clip.addRoundRect(r, rad, rad, Path.Direction.CW);
-        c.clipPath(clip);
-        c.drawColor(0x66060607);   // a pop-up holds a lot of words: a little darker than the glass on Home
-        c.restore();
+        fill.setColor(Color.WHITE);
+        fill.setShader(new LinearGradient(0, r.top, 0, r.bottom, new int[]{0xF71A1A1F, 0xF70C0C0F, 0xF7060607},
+                new float[]{0, 0.55f, 1}, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        float w = r.width(), h = r.height();   // the band of light, from top left to bottom right
+        fill.setShader(new LinearGradient(r.left + w * 0.30f, r.top, r.left + w * 0.30f + h * 0.55f, r.top + h * 0.55f,
+                new int[]{0x00FFFFFF, 0x10FFFFFF, 0x00FFFFFF}, new float[]{0, 0.5f, 1}, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        fill.setShader(null);
+        line.setShader(null);
+        line.setStrokeWidth(Math.max(1, k));
+        line.setColor(0x24FFFFFF);
+        c.drawRoundRect(r.left + 0.5f * k, r.top + 0.5f * k, r.right - 0.5f * k, r.bottom - 0.5f * k, rad, rad, line);
+        topEdge(c, r, rad, k, 0x66FFFFFF);
         if (saved >= 0) c.restoreToCount(saved);
     }
 
-    private static final RectF panelScreen = new RectF();
-    private static final Paint panelBits = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+
+    /** A whole page in polished black: a little lighter at the top, a faint band of light across it. */
+    static void page(Canvas c, RectF s) {
+        fill.setColor(Color.WHITE);
+        fill.setShader(new LinearGradient(0, s.top, 0, s.bottom, new int[]{0xFF141418, 0xFF0A0A0C, 0xFF050506},
+                new float[]{0, 0.5f, 1}, Shader.TileMode.CLAMP));
+        c.drawRect(s, fill);
+        fill.setShader(new LinearGradient(s.left + s.width() * 0.25f, s.top, s.left + s.width() * 0.25f + s.height() * 0.6f, s.top + s.height() * 0.6f,
+                new int[]{0x00FFFFFF, 0x0AFFFFFF, 0x00FFFFFF}, new float[]{0, 0.5f, 1}, Shader.TileMode.CLAMP));
+        c.drawRect(s, fill);
+        fill.setShader(null);
+    }
+
+    /** A bar or an empty card on a black page: smoky glass, a little lighter than the black, with a fine edge. */
+    static void surface(Canvas c, RectF r, float rad, float k) {
+        fill.setShader(null);
+        fill.setColor(0x14FFFFFF);
+        c.drawRoundRect(r, rad, rad, fill);
+        sheenFrom(c, r, rad, 0x1FFFFFFF);
+        line.setShader(null);
+        line.setStrokeWidth(Math.max(1, k));
+        line.setColor(0x1FFFFFFF);
+        c.drawRoundRect(r.left + 0.5f * k, r.top + 0.5f * k, r.right - 0.5f * k, r.bottom - 0.5f * k, rad, rad, line);
+        topEdge(c, r, rad, k, 0x4DFFFFFF);
+    }
+
+    /**
+     * The search bar, the same on every page: smoked glass a step lighter than what's around it (a black box looked
+     * like a hole on a TV), the magnifier in a small jewel circle, then the words: what was searched in white, or a
+     * hint. Selected: clear glass with a white edge, a typing line and an "OK to type" tag on the right.
+     * `words` gives the font and size; its colour is set here and put back.
+     */
+    static void searchBar(Canvas c, RectF r, float k, boolean selected, String text, boolean isHint, Paint words) {
+        float rad = r.height() / 2;
+        fill.setShader(null);   // a dark base first, so the words read over a bright picture too
+        fill.setColor(0x73000000);
+        c.drawRoundRect(r, rad, rad, fill);
+        fill.setColor(Color.WHITE);
+        fill.setShader(new LinearGradient(0, r.top, 0, r.bottom, selected ? 0x47FFFFFF : 0x29FFFFFF, selected ? 0x29FFFFFF : 0x17FFFFFF,
+                Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        fill.setShader(null);
+        line.setShader(null);
+        float in = 0.8f * k;
+        line.setStrokeWidth(selected ? Math.max(2, 2.2f * k) : Math.max(1, 1.2f * k));
+        line.setColor(selected ? 0xE6FFFFFF : 0x38FFFFFF);
+        c.drawRoundRect(r.left + in, r.top + in, r.right - in, r.bottom - in, rad - in, rad - in, line);
+        topEdge(c, r, rad, k, selected ? 0xFFFFFFFF : 0x73FFFFFF);
+        // the magnifier in a jewel circle
+        float d = r.height() - 16 * k, cx = r.left + 8 * k + d / 2, cy = r.centerY();
+        RectF disc = new RectF(cx - d / 2, cy - d / 2, cx + d / 2, cy + d / 2);
+        fill.setShader(new LinearGradient(disc.left, disc.top, disc.right, disc.bottom, 0xFF4B34B8, 0xFF7A2A72, Shader.TileMode.CLAMP));
+        c.drawOval(disc, fill);
+        fill.setShader(null);
+        line.setStrokeWidth(Math.max(1, k));
+        line.setColor(0x4DC8B4FF);
+        c.drawOval(disc, line);
+        Bitmap mag = searchIcon(Math.round(d * 0.5f));
+        iconPaint.setColorFilter(new android.graphics.PorterDuffColorFilter(HERO_ICON, android.graphics.PorterDuff.Mode.SRC_IN));
+        c.drawBitmap(mag, cx - mag.getWidth() / 2f, cy - mag.getHeight() / 2f, iconPaint);
+        // the words, and when selected the typing line and what OK does
+        float x = disc.right + 14 * k, right = r.right - rad * 0.6f;
+        if (selected) {
+            tagPaint.setTextSize(17 * k);
+            String tag = "OK to type";
+            float tw = tagPaint.measureText(tag) + 22 * k, th = 30 * k;
+            RectF t = new RectF(r.right - 12 * k - tw, cy - th / 2, r.right - 12 * k, cy + th / 2);
+            fill.setColor(0x59000000);
+            c.drawRoundRect(t, th / 2, th / 2, fill);
+            c.drawText(tag, t.left + 11 * k, cy + 6 * k, tagPaint);
+            right = t.left - 10 * k;
+            fill.setColor(Color.WHITE);
+            c.drawRect(x, cy - 13 * k, x + 2 * k, cy + 13 * k, fill);
+            x += 8 * k;
+        }
+        int was = words.getColor();
+        if (isHint && selected && words.measureText(text) > right - x) text = "Search";   // the tag needs the room
+        words.setColor(isHint ? (selected ? 0xE6FFFFFF : 0xC7FFFFFF) : Color.WHITE);
+        String fitted = android.text.TextUtils.ellipsize(text, new android.text.TextPaint(words), Math.max(0, right - x),
+                android.text.TextUtils.TruncateAt.END).toString();
+        c.drawText(fitted, x, cy + words.getTextSize() * 0.36f, words);
+        words.setColor(was);
+    }
+
+    private static final Paint iconPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+    private static final Paint tagPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    static {
+        tagPaint.setColor(Color.WHITE);
+        tagPaint.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
+    }
+
+    private static Bitmap searchIconBmp;
+
+    private static Bitmap searchIcon(int px) {
+        if (searchIconBmp == null || searchIconBmp.getWidth() != px && searchIconBmp.getHeight() != px) searchIconBmp = LineIcon.icon("search", px);
+        return searchIconBmp;
+    }
 
     /** The one tick of the app: a small green circle with a white tick. */
     static void tick(Canvas c, float cx, float cy, float r, float k) {
@@ -351,8 +620,21 @@ final class Frost {
         c.drawCircle(cx, cy, r, line);
     }
 
+    /**
+     * Lite mode's colour: the picture's own colour, softened (gentle saturation) at the given brightness (0-1), so plain
+     * glass still feels like the picture behind it: deep enough for white words, never grey.
+     */
+    static int liteTone(float brightness) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(accentNow, hsv);
+        hsv[1] = Math.min(hsv[1], 0.42f);
+        hsv[2] = brightness;
+        return Color.HSVToColor(hsv);
+    }
+
     /** The eased position of a glide from a to b, started at `at`. */
     static float glide(float a, float b, long now, long at) {
+        if (Lite.on) return b;   // Lite: straight there
         float f = Math.max(0, Math.min(1, (now - at) / (float) GLIDE_MS));
         f = 1 - (1 - f) * (1 - f) * (1 - f);
         return a + (b - a) * f;

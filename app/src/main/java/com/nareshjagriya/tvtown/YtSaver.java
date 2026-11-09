@@ -104,7 +104,7 @@ final class YtSaver {
 
     /** The small "press to save" note when a YouTube video is paused. */
     static boolean offerOnPause(Context c) {
-        return c.getSharedPreferences("save", Context.MODE_PRIVATE).getBoolean("offer_on_pause", true);
+        return false;   // removed: the note on every pause got in the way; OK twice and the phone save instead
     }
 
     static void setOfferOnPause(Context c, boolean on) {

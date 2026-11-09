@@ -96,6 +96,7 @@ public class HomeKeyService extends AccessibilityService {
                     endSaveWindow(true);
                     // OK pressed twice: paused and playing again within a moment. Save it, on any remote, with no
                     // button watched (watching them would stop held volume repeating).
+                    if (!Features.on(HomeKeyService.this, Features.YT_SAVE)) pausedAt = 0;   // switched off in Settings → Features
                     if (pausedAt > 0 && now - pausedAt < QUICK_MS && now - lastQuickSave > 8000 && youTube(front)) {
                         lastQuickSave = now;
                         if (TvTools.seesPlaying(HomeKeyService.this)) {
@@ -116,7 +117,7 @@ public class HomeKeyService extends AccessibilityService {
     private void tipOnce() {
         android.content.SharedPreferences sp = getSharedPreferences("save", MODE_PRIVATE);
         long day = System.currentTimeMillis() / 86_400_000L;
-        if (!youTube(front) || sp.getInt("quick_used", 0) >= 3 || sp.getLong("tip_day", -1) == day) return;
+        if (!youTube(front) || !Features.on(this, Features.YT_SAVE) || sp.getInt("quick_used", 0) >= 3 || sp.getLong("tip_day", -1) == day) return;
         sp.edit().putLong("tip_day", day).apply();
         main.postDelayed(() -> note("Tip: press OK twice to save this song", 4500), 2500);
     }
@@ -132,7 +133,7 @@ public class HomeKeyService extends AccessibilityService {
      * while a small note offers the save; the rest of the time holding volume and the arrows work as normal.
      */
     private void offerSave() {
-        if (!youTube(front) || !YtSaver.offerOnPause(this) || (saveNote != null && saveNote.wantsKeys())) return;
+        if (!youTube(front) || !Features.on(this, Features.YT_SAVE) || !YtSaver.offerOnPause(this) || (saveNote != null && saveNote.wantsKeys())) return;
         saveWindow = true;
         filterKeys();
         card().note("↓  Press " + YtSaver.BUTTON_NAMES[YtSaver.button(this)] + " to save", SAVE_WINDOW_MS);
@@ -286,6 +287,10 @@ public class HomeKeyService extends AccessibilityService {
     }
 
     private void openPhone() {
+        if (!Features.on(this, Features.PHONE)) {
+            note("The phone remote is off: turn it on in Settings \u2192 Features", 6000);
+            return;
+        }
         String url = PhoneLink.url(this);
         android.graphics.Bitmap code = url == null ? null : PhoneKeyboard.qrFor(url, 480);
         if (code == null) {
@@ -501,7 +506,7 @@ public class HomeKeyService extends AccessibilityService {
         instance = this;
         filterKeys();
         startWatchingSessions();
-        PhoneLink.start(this);
+        if (Features.on(this, Features.PHONE)) PhoneLink.start(this);
         ServiceRepair.connected(this);
         // Connected at start-up (or when switched on): show TV Town straight away if it is the chosen home.
         if (tvTownIsHome(this)) openTvTown();

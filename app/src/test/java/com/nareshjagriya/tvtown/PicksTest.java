@@ -147,12 +147,13 @@ public class PicksTest {
 
     @Test
     public void trailerCardsAreRecentTrailersOnly() {
-        Picks.Tune hindi = card(Picks.cards(Picks.EXTRAS), "New Trailers").parts.get(0).tune;
+        Picks.Tune hindi = card(Picks.cards(Picks.EXTRAS), "Trailers").parts.get(0).tune;
+        assertEquals("Hindi", hindi.language);
         assertEquals("EgQIAxAB", hindi.filter);
         assertTrue(hindi.must.matcher("Akka | Official Trailer | Netflix India").find());
         assertTrue(hindi.never.matcher("Ramayana Trailer 2 Review | Yogi Bolta Hai").find());
-        Picks.Tune zakir = card(Picks.cards(Picks.EXTRAS), "Hindi Stand-up").parts.get(0).tune;
-        assertTrue(zakir.verified && zakir.maxSeconds >= 3600 && "Zakir Khan".equals(zakir.artist));
+        Picks.Tune zakir = card(Picks.cards(Picks.EXTRAS), "Stand-up Comedy").parts.get(0).tune;
+        assertTrue(zakir.verified && zakir.maxSeconds >= 3600 && "Zakir Khan".equals(zakir.artist) && "Hindi".equals(zakir.language));
     }
 
     @Test
@@ -269,7 +270,8 @@ public class PicksTest {
             Style.use(Style.GLOBAL, "US");
             List<String> extras = new java.util.ArrayList<>();
             for (Picks.Entry c : Picks.cards(Picks.EXTRAS)) extras.add(c.label);
-            assertTrue(extras.containsAll(java.util.Arrays.asList("Late Night", "Classic Sitcoms", "Sports Highlights")));
+            assertTrue(extras.containsAll(java.util.Arrays.asList("Trailers", "Stand-up Comedy", "TV Comedy", "Sports Highlights")));
+            assertEquals(9, extras.size());   // three by three
             assertTrue(!extras.contains("Classic TV Shows"));
             assertEquals(java.util.Arrays.asList("English", "Hindi", "Korean"), Picks.allLanguages(Picks.MOVIE).subList(0, 3));
             Picks.Entry classics = card(Picks.cards(Picks.MOVIE), "Classics");

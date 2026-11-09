@@ -219,6 +219,32 @@ final class PhoneRemote {
         return "typed";
     }
 
+    /**
+     * The apps on this TV a search can go into, as {package, name}: the big ones TV Town knows the way into, then any
+     * app that takes Android's own search (Nuvio, Stremio, Plex, Jellyfin, Zee5…), in the order of the TV's app list.
+     */
+    static List<String[]> searchableApps(Context c) {
+        PackageManager pm = c.getPackageManager();
+        java.util.LinkedHashMap<String, String> out = new java.util.LinkedHashMap<>();
+        java.util.Set<String> takes = new java.util.HashSet<>();
+        for (String action : new String[]{Intent.ACTION_SEARCH, "android.search.action.GLOBAL_SEARCH"}) {
+            try {
+                for (ResolveInfo r : pm.queryIntentActivities(new Intent(action), 0)) takes.add(r.activityInfo.packageName);
+            } catch (RuntimeException ignored) {
+                // a TV that won't say
+            }
+        }
+        for (ResolveInfo r : tvApps(c)) {
+            String p = r.activityInfo.packageName;
+            if (p.equals(c.getPackageName()) || hidden(p) || p.equals("com.android.tv.settings") || p.equals("com.android.vending")) continue;
+            boolean known = HomeKeyService.youTube(p) || p.contains("netflix") || p.contains("amazon") || p.contains("hotstar");
+            if (known || takes.contains(p)) out.put(p, r.loadLabel(pm).toString());
+        }
+        List<String[]> l = new ArrayList<>();
+        for (java.util.Map.Entry<String, String> e : out.entrySet()) l.add(new String[]{e.getKey(), e.getValue()});
+        return l;
+    }
+
     /** Opens this app's own search results for the words, when it offers a way in; false when it doesn't. */
     static boolean searchApp(Context c, String pkg, String q) {
         String w = Uri.encode(q);
@@ -264,7 +290,13 @@ final class PhoneRemote {
         else if (id.equals("tvtown:movies")) i = new Intent(c, MyMoviesActivity.class);
         else if (id.equals("tvtown:music")) i = new Intent(c, MyMusicActivity.class);
         else if (id.equals("tvtown:player")) i = new Intent(c, MyMusicActivity.class).putExtra(MyMusicActivity.EXTRA_PLAYER, true);
-        else if (id.equals("tvtown:discover")) i = new Intent(c, DiscoverActivity.class);
+        else if (id.equals("tvtown:discover")) {   // q: a kind ("anime", "top rated") opens there; other words search
+            i = new Intent(c, DiscoverActivity.class);
+            if (q != null && !q.trim().isEmpty()) {
+                if (DiscoverKinds.find(q) != null) i.putExtra(DiscoverActivity.EXTRA_KIND, q.trim());
+                else i.putExtra(DiscoverActivity.EXTRA_QUERY, q.trim());
+            }
+        }
         else if (id.equals("tvtown:must")) i = new Intent(c, MustWatchActivity.class);
         else if (id.equals("tvtown:cricket")) i = new Intent(c, SportsActivity.class);
         else {

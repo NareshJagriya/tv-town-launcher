@@ -24,27 +24,59 @@ final class Screensavers {
     static final class Saver {
         final String name;
         final ComponentName comp;
+        final int kind;   // for TV Town's own: what it shows (TvTownDream.kind); -1 for another app's
 
-        Saver(String name, ComponentName comp) {
+        Saver(String name, ComponentName comp, int kind) {
             this.name = name;
             this.comp = comp;
+            this.kind = kind;
         }
     }
 
     private Screensavers() {
     }
 
-    /** Every installed screensaver, TV Town's first. */
+    /**
+     * One list to pick from, nothing to set up: TV Town's film pictures (from Home's picks) and clock, your own
+     * videos only when a drive has some, then every other screensaver installed (Aerial Views…).
+     */
+    private static List<Saver> cached;
+    private static long cachedAt;
+
     static List<Saver> all(Context c) {
+        long now = android.os.SystemClock.uptimeMillis();   // Settings asks on every frame: look again every 10 s
+        if (cached != null && now - cachedAt < 10_000) return cached;
+        cached = find(c);
+        cachedAt = now;
+        return cached;
+    }
+
+    private static List<Saver> find(Context c) {
         PackageManager pm = c.getPackageManager();
         List<Saver> out = new ArrayList<>();
+        ComponentName mine = new ComponentName(c, TvTownDream.class);
+        out.add(new Saver("Film pictures", mine, 1));
+        out.add(new Saver("Clock", mine, 2));
+        if (TvTownDream.hasVideos(c)) out.add(new Saver("Your videos", mine, 0));
         for (ResolveInfo ri : pm.queryIntentServices(new Intent(DreamService.SERVICE_INTERFACE), PackageManager.GET_META_DATA)) {
-            ComponentName cn = new ComponentName(ri.serviceInfo.packageName, ri.serviceInfo.name);
-            String name = String.valueOf(ri.loadLabel(pm));
-            if (cn.getPackageName().equals(c.getPackageName())) out.add(0, new Saver("TV Town", cn));
-            else out.add(new Saver(name, cn));
+            if (ri.serviceInfo.packageName.equals(c.getPackageName())) continue;
+            out.add(new Saver(String.valueOf(ri.loadLabel(pm)), new ComponentName(ri.serviceInfo.packageName, ri.serviceInfo.name), -1));
         }
         return out;
+    }
+
+    /** Where the TV's screensaver is in that list; -1 when it's none of them. */
+    static int currentIndex(Context c, List<Saver> all) {
+        ComponentName now = current(c);
+        int kind = TvTownDream.kind(c);
+        int fallback = -1;
+        for (int i = 0; i < all.size(); i++) {
+            Saver s = all.get(i);
+            if (!s.comp.equals(now)) continue;
+            if (s.kind < 0 || s.kind == kind) return i;
+            if (s.kind == 1) fallback = i;   // "your videos" with none on the drive shows the film pictures
+        }
+        return fallback;
     }
 
     static boolean installed(Context c, String pkg) {
@@ -65,9 +97,9 @@ final class Screensavers {
     }
 
     static String currentName(Context c) {
-        ComponentName now = current(c);
-        if (now != null) for (Saver s : all(c)) if (s.comp.equals(now)) return s.name;
-        return "TV's own";
+        List<Saver> all = all(c);
+        int i = currentIndex(c, all);
+        return i >= 0 ? all.get(i).name : "None";
     }
 
     static boolean allowed(Context c) {
@@ -91,11 +123,14 @@ final class Screensavers {
         }
     }
 
-    static void openTvSettings(Context c) {
+    /** Opens the TV's screensaver screen; false when this TV only has its main settings (the screensaver is inside). */
+    static boolean openTvSettings(Context c) {
         try {
             c.startActivity(new Intent(Settings.ACTION_DREAM_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return true;
         } catch (Exception e) {
             c.startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+            return false;
         }
     }
 

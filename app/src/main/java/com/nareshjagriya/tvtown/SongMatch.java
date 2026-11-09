@@ -77,6 +77,9 @@ final class SongMatch {
 
     /** Writes what is waiting to the drive, then lets go of the TV's copies of what was moved there. */
     static void flush(Context ctx) {
+        synchronized (moved) {
+            if (moved.isEmpty()) return;   // nothing new: the drive isn't touched
+        }
         java.io.File vol = DriveStore.anyDrive(ctx);
         if (vol == null || !DriveStore.save(vol, "songs")) return;
         synchronized (moved) {

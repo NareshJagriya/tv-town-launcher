@@ -151,6 +151,7 @@ public class SaveFolderActivity extends Activity {
 
         @Override
         protected void onDraw(Canvas c) {
+            Frost.frame(this);   // selections glide (Frost.plate)
             c.drawColor(0x8C000000);
             float pw = 720 * k, rh = 64 * k, pad = 30 * k;
             int n = Math.min(ROWS, rows.size());

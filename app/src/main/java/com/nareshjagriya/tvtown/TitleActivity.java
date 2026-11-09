@@ -103,7 +103,7 @@ public class TitleActivity extends Activity {
     private static final class Page extends View {
 
         private static final int B_PLAY = 0, B_TRAILER = 1, B_LIST = 2, B_WATCHED = 3, B_RATE = 4;
-        private static final float BOX_L = 80, BOX_T = 500, BOX_W = 1080, BOX_H = 540, BTN_Y = 950, BTN_H = 68;
+        private static final float BOX_L = 80, BOX_T = 500, BOX_W = 1340, BOX_H = 540, BTN_Y = 950, BTN_H = 68;
 
         private final TitleActivity act;
         private final Tmdb.Title t;
@@ -111,7 +111,9 @@ public class TitleActivity extends Activity {
         private final ArtStage stage;
         private final NoirKit nk;
         private final GlassKit kit;
-        private final Paint title, meta, body, label, btn;
+        private final Paint iconPaint = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+        private final Paint title, name, meta, body, label, btn;
+        private static final float POSTER_W = 300, TEXT_L = BOX_L + 36 + POSTER_W + 40;   // the cover on the left, the words beside it
         private List<Services.Service> where = new ArrayList<>();
         private String cast = "";
         private boolean whereKnown;
@@ -129,6 +131,7 @@ public class TitleActivity extends Activity {
             nk = new NoirKit(act, k);
             kit = new GlassKit(act, null, k);
             title = shade(nk.inter(88, 700, 0, Color.WHITE));
+            name = nk.inter(46, 700, -0.01f, Color.WHITE);
             meta = nk.inter(24, 500, 0, Color.WHITE);
             body = nk.inter(30, 400, 0, Color.WHITE);
             label = nk.inter(24, 400, 0, Frost.MUTE);
@@ -194,24 +197,43 @@ public class TitleActivity extends Activity {
         }
 
         private RectF buttonRect(int b) {
-            float x = BOX_L + 36;
-            for (int i = 0; i < b; i++) x += btn.measureText(buttonText(i)) / k + 64 + 12;
-            return new RectF(x * k, BTN_Y * k, (x + btn.measureText(buttonText(b)) / k + 64) * k, (BTN_Y + BTN_H) * k);
+            float x = TEXT_L;
+            for (int i = 0; i < b; i++) x += btnW(i) + 12;
+            return new RectF(x * k, BTN_Y * k, (x + btnW(b)) * k, (BTN_Y + BTN_H) * k);
+        }
+
+        /** The one main button, in the jewel colour with an icon: Play, or Trailer when it isn't streaming anywhere. */
+        private boolean main(int b) {
+            return where.isEmpty() ? b == B_TRAILER : b == B_PLAY;
+        }
+
+        private float btnW(int b) {
+            return btn.measureText(buttonText(b)) / k + 64 + (main(b) ? 38 : 0);
         }
 
         @Override
         protected void onDraw(Canvas c) {
+            Frost.frame(this);   // selections glide (Frost.plate)
             long now = SystemClock.uptimeMillis();
             stage.draw(c, now);
-            drawName(c);
+            boolean logoShown = drawName(c);
             RectF box = new RectF(BOX_L * k, BOX_T * k, (BOX_L + BOX_W) * k, (BOX_T + BOX_H) * k);
-            Frost.liquid(c, box, 44 * k, stage.frost(), stage.screen(), stage.bits(), k);
+            Frost.panel(c, box, 44 * k, 1, k);   // the shiny black pop-up
 
-            float x = (BOX_L + 36) * k, room = (BOX_W - 72) * k, y = (BOX_T + 52) * k;
+            drawCover(c);
+            float x = TEXT_L * k, room = (BOX_L + BOX_W - 36 - TEXT_L) * k, y = (BOX_T + 72) * k;
+            if (logoShown) y = (BOX_T + 56) * k;   // its logo is right above: the name isn't said twice
+            else {
+                float was = name.getTextSize();
+                if (name.measureText(t.title) > room) name.setTextSize(Math.max(was * 0.7f, was * room / name.measureText(t.title)));
+                c.drawText(fit(t.title, name, room), x, y, name);
+                name.setTextSize(was);
+                y += 46 * k;
+            }
             c.drawText(fit(metaLine(), meta, room), x, y, meta);
             String ov = t.overview == null ? "" : t.overview;
             if (story == null) {
-                story = StaticLayout.Builder.obtain(ov, 0, ov.length(), new TextPaint(body), Math.round(room)).setMaxLines(where.size() > 1 ? 5 : 7)
+                story = StaticLayout.Builder.obtain(ov, 0, ov.length(), new TextPaint(body), Math.round(room)).setMaxLines(where.size() > 1 ? 4 : 6)
                         .setEllipsize(TextUtils.TruncateAt.END).setLineSpacing(6 * k, 1).build();
             }
             c.save();
@@ -225,10 +247,17 @@ public class TitleActivity extends Activity {
             for (int b = 0; b < 5; b++) {
                 RectF r = buttonRect(b);
                 boolean on = row == 1 && sel == b;
-                if (on) Frost.plate(c, r, r.height() / 2, k);
+                float tx = r.left + 32 * k;
+                if (main(b)) {
+                    Frost.hero(c, r, r.height() / 2, on, k);
+                    Bitmap ic = kit.glyph(b == B_PLAY ? WheelArt.Glyph.PLAY : WheelArt.Glyph.TRAILER, 28);
+                    iconPaint.setColorFilter(new android.graphics.PorterDuffColorFilter(Frost.HERO_ICON, android.graphics.PorterDuff.Mode.SRC_IN));
+                    c.drawBitmap(ic, tx, r.centerY() - ic.getHeight() / 2f, iconPaint);
+                    tx += 38 * k;
+                } else if (on) Frost.plate(c, r, r.height() / 2, k);
                 else Frost.ghost(c, r, r.height() / 2, false, k);
                 btn.setAlpha(b == B_PLAY && where.isEmpty() ? 150 : 255);
-                c.drawText(buttonText(b), r.left + 32 * k, r.centerY() + 9 * k, btn);
+                c.drawText(buttonText(b), tx, r.centerY() + 9 * k, btn);
                 btn.setAlpha(255);
             }
             if (stage.moving(now) || logoWaiting()) postInvalidateOnAnimation();
@@ -239,19 +268,40 @@ public class TitleActivity extends Activity {
             return !t.logoDone || t.logoUrl != null && ImageCache.get(t.logoUrl, this::postInvalidate, null, 500) == null;
         }
 
+        /** Its cover (poster) at the panel's left, rounded; a plain glass card with its initial until it comes. */
+        private void drawCover(Canvas c) {
+            RectF r = new RectF((BOX_L + 36) * k, (BOX_T + 36) * k, (BOX_L + 36 + POSTER_W) * k, (BOX_T + BOX_H - 36) * k);
+            Bitmap p = t.poster() != null ? ImageCache.get(t.poster(), this::postInvalidate, null, Math.round(POSTER_W * k)) : null;
+            android.graphics.Path clip = new android.graphics.Path();
+            clip.addRoundRect(r, 24 * k, 24 * k, android.graphics.Path.Direction.CW);
+            c.save();
+            c.clipPath(clip);
+            if (p != null) {   // fill the card, cropping the sides or the ends
+                float sc = Math.max(r.width() / p.getWidth(), r.height() / p.getHeight());
+                float w = p.getWidth() * sc, h = p.getHeight() * sc;
+                c.drawBitmap(p, null, new RectF(r.centerX() - w / 2, r.centerY() - h / 2, r.centerX() + w / 2, r.centerY() + h / 2), stage.bits());
+            } else {
+                c.drawColor(0x22FFFFFF);
+                String i = t.title.isEmpty() ? "" : t.title.substring(0, 1).toUpperCase(Locale.ROOT);
+                title.setTextAlign(Paint.Align.CENTER);
+                c.drawText(i, r.centerX(), r.centerY() + 30 * k, title);
+                title.setTextAlign(Paint.Align.LEFT);
+            }
+            c.restore();
+        }
+
         /** The film's logo above the panel, or its name; nothing for the moment while the logo may still come. */
-        private void drawName(Canvas c) {
-            if (logoWaiting()) return;
+        /** Draws the logo above the panel; true when it did (then the panel leaves the name out). */
+        private boolean drawName(Canvas c) {
+            if (logoWaiting()) return false;
             float x = BOX_L * k, bottom = (BOX_T - 28) * k;
             Bitmap logo = t.logoUrl != null ? ImageCache.get(t.logoUrl, this::postInvalidate, null, 500) : null;
             if (logo != null && logo.getWidth() > 0 && !Frost.darkLogo(logo)) {
                 float sc = Math.min(720 * k / logo.getWidth(), 230 * k / logo.getHeight());
                 c.drawBitmap(logo, null, new RectF(x, bottom - logo.getHeight() * sc, x + logo.getWidth() * sc, bottom), stage.bits());
-                return;
+                return true;
             }
-            float size = 88;
-            while (size > 48 && title.measureText(t.title) > 1500 * k) title.setTextSize((size -= 4) * k);
-            c.drawText(fit(t.title, title, 1700 * k), x, bottom - 8 * k, title);
+            return false;   // no logo: the name is in the panel, beside the cover
         }
 
         private String metaLine() {
@@ -267,7 +317,7 @@ public class TitleActivity extends Activity {
 
         /** Where else it streams, as a row of app marks above the buttons; choosing one changes what Play opens. */
         private void drawApps(Canvas c) {
-            float x = (BOX_L + 36) * k, y = (BTN_Y - 84) * k, h = 68 * k, w = 148 * k;
+            float x = TEXT_L * k, y = (BTN_Y - 84) * k, h = 68 * k, w = 148 * k;
             for (int i = 0; i < where.size() && i < 6; i++) {
                 RectF r = new RectF(x + i * (w + 12 * k), y, x + i * (w + 12 * k) + w, y + h);
                 boolean on = row == 0 && app == i;

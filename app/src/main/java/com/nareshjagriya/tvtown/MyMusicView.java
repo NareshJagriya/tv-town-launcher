@@ -36,8 +36,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
 /**
- * My Music. Browsing: tabs at the top (Folders, Artists, All songs, Favourites, then Shuffle and Surprise me, and
- * Now playing while a song is on), folders and artists as a grid of cards with their covers, songs as a list (OK
+ * My Music. Browsing: Search and Browse at the top (Browse's menu: Folders, Artists, All songs, Favourites,
+ * Downloaded; and Now playing while a song is on), folders and artists as a grid of cards with their covers, songs as a list (OK
  * plays from that song; ❤ and ✏ at the end of each line). Playing: a full-screen player over a moving background
  * (videos from "TV Town Scenes" on the drive, chosen to suit the folder, changed with each song; drawn scenes when
  * there are none), karaoke lyrics that light up as each line is sung, music bars that move with the song (a calm
@@ -198,7 +198,8 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             changed();
             if (permission && scanned) rescan();   // songs added or the drive changed while away
         } else {
-            SongMatch.flush(getContext());   // song details still waiting to be written to the drive
+            Context app = getContext().getApplicationContext();   // song details still waiting: written to the drive in the
+            new Thread(() -> SongMatch.flush(app), "song-flush").start();   // background (a slow drive froze Back)
             player.unwatch(this);
             releaseViz();
             bg.release();
@@ -634,7 +635,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
     /** Reads the sound being played (the Visualizer); a gentle made-up motion when that is not allowed. */
     private void readBars() {
         int session = player.sessionId();
-        if (!vizBroken && (vis != VIS_OFF || effectNow() >= 0) && session != 0 && (viz == null || session != vizSession)) {
+        if (!vizBroken && !Lite.on && (vis != VIS_OFF || effectNow() >= 0) && session != 0 && (viz == null || session != vizSession)) {
             releaseViz();
             try {
                 viz = new Visualizer(session);
@@ -821,7 +822,15 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
     }
 
     private int lastTab() {
-        return player.active() ? B_NOW : B_SURPRISE;
+        return player.active() ? B_NOW : 0;
+    }
+
+    /** The views in Browse's menu, top to bottom: Downloaded is one of them. */
+    private static final int[] VIEWS = {T_FOLDERS, T_ARTISTS, T_SONGS, T_FAVS, B_DOWNLOADED};
+
+    private static int viewIndex(int t) {
+        for (int i = 0; i < VIEWS.length; i++) if (VIEWS[i] == t) return i;
+        return 0;
     }
 
     private boolean barKey(int key, boolean ok) {
@@ -834,11 +843,11 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             }
             switch (key) {
                 case KeyEvent.KEYCODE_DPAD_UP:
-                    if (viewSel > T_FOLDERS) viewSel--;
+                    if (viewIndex(viewSel) > 0) viewSel = VIEWS[viewIndex(viewSel) - 1];
                     else viewOpen = false;
                     return true;
                 case KeyEvent.KEYCODE_DPAD_DOWN:
-                    viewSel = Math.min(T_FAVS, viewSel + 1);
+                    viewSel = VIEWS[Math.min(VIEWS.length - 1, viewIndex(viewSel) + 1)];
                     return true;
                 case KeyEvent.KEYCODE_DPAD_LEFT: case KeyEvent.KEYCODE_DPAD_RIGHT:
                     viewOpen = false;
@@ -849,27 +858,23 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         if (ok) {
             if (barSel == 0) {
                 viewOpen = true;
-                viewSel = Math.min(tab, T_FAVS);
+                viewSel = VIEWS[viewIndex(tab)];
             } else if (barSel == T_SEARCH) openSearch();
-            else if (barSel == B_DOWNLOADED) {
-                setTab(B_DOWNLOADED);
-                if (hasContent()) inBar = false;
-            } else if (barSel == B_SHUFFLE) {
-                List<MyMusic.Song> l = tab == T_FAVS ? favourites() : tab == B_DOWNLOADED ? downloaded() : all;
-                play(l, -1, true, tab == T_FAVS ? "Favourites" : tab == B_DOWNLOADED ? "Downloaded" : "All songs");
-            } else if (barSel == B_SURPRISE) surprise();
             else showPlayer(true);
             return true;
         }
         switch (key) {
-            case KeyEvent.KEYCODE_DPAD_LEFT:
-                barSel = barSel == 0 ? T_SEARCH : barSel == T_SEARCH ? T_SEARCH : barSel == B_DOWNLOADED ? 0 : barSel - 1;
+            case KeyEvent.KEYCODE_DPAD_LEFT:   // Search, Browse, then Now playing while a song is on
+                barSel = barSel == B_NOW ? 0 : T_SEARCH;
                 return true;
             case KeyEvent.KEYCODE_DPAD_RIGHT:
-                barSel = barSel == T_SEARCH ? 0 : barSel == 0 ? B_DOWNLOADED : Math.min(lastTab(), barSel + 1);
+                barSel = barSel == T_SEARCH ? 0 : lastTab();
                 return true;
-            case KeyEvent.KEYCODE_DPAD_DOWN:   // straight to the songs; OK is what steps into the open menu
-                if (hasContent()) inBar = false;
+            case KeyEvent.KEYCODE_DPAD_DOWN:   // on Browse: into its menu; elsewhere: down to the songs
+                if (barSel == 0) {
+                    viewOpen = true;
+                    viewSel = VIEWS[viewIndex(tab)];
+                } else if (hasContent()) inBar = false;
                 return true;
             case KeyEvent.KEYCODE_DPAD_UP: return true;
             default: return false;
@@ -915,7 +920,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 if (gridSel >= cols()) gridMove(gridSel - cols());
                 else {
                     inBar = true;
-                    barSel = T_SEARCH;
+                    barSel = 0;
                 }
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
@@ -969,6 +974,11 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         switch (key) {
             case KeyEvent.KEYCODE_DPAD_UP:
                 if (rowSel > first) listMove(rowSel - 1);
+                else {   // the top of the list: up to the bar
+                    inBar = true;
+                    barSel = 0;
+                    return true;
+                }
                 col = Math.min(col, rowSel < 0 ? (tab == T_FOLDERS ? 2 : 1) : 2);
                 return true;
             case KeyEvent.KEYCODE_DPAD_DOWN:
@@ -1597,6 +1607,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
 
     @Override
     protected void onDraw(Canvas c) {
+        Frost.frame(this);   // selections glide (Frost.plate)
         if (kit == null) return;
         long now = SystemClock.uptimeMillis();
         if (playerShown) {
@@ -1766,8 +1777,8 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             WheelArt.Glyph.SEARCH, WheelArt.Glyph.DRIVE, WheelArt.Glyph.SHUFFLE, WheelArt.Glyph.PLAY, WheelArt.Glyph.NOTE};
 
     private String tabWord(int t) {
-        if (t == 0) return tab > T_FAVS ? "Browse" : SIDE_NAMES[tab];
-        if (t == T_SEARCH) return query.isEmpty() ? "Search" : query;
+        if (t == 0) return tab == T_SEARCH ? "Folders" : SIDE_NAMES[tab];
+        if (t == T_SEARCH) return query.isEmpty() ? "Search songs" : query;
         String label = SIDE_NAMES[t];
         if (t == B_NOW) {
             MyMusic.Song cur = player.current();
@@ -1777,20 +1788,24 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         return label;
     }
 
-    /** The views from the left; Search, Shuffle all and Surprise me (and what's playing) from the right. */
+    /** From the right: Now playing (while a song is on), Show, then the search bar, with a small gap between. */
     private RectF tabRect(int t) {
-        float x = 1840 * k;
-        for (int i = lastTab(); i >= B_DOWNLOADED; i--) {
-            x -= capWidth(i);
-            if (i == t) return new RectF(x, 40 * k, x + capWidth(i), 112 * k);
+        float x = 1840 * k + 16 * k;
+        if (lastTab() == B_NOW) {
+            x -= capWidth(B_NOW) + 16 * k;
+            if (t == B_NOW) return new RectF(x, 40 * k, x + capWidth(B_NOW), 112 * k);
         }
-        x -= capWidth(0);
+        x -= capWidth(0) + 16 * k;
         if (t == 0) return new RectF(x, 40 * k, x + capWidth(0), 112 * k);
-        x -= capWidth(T_SEARCH);
+        x -= capWidth(T_SEARCH) + 16 * k;
         return new RectF(x, 40 * k, x + capWidth(T_SEARCH), 112 * k);
     }
 
+    private static final String SHOW = "Show  ";
+
     private float capWidth(int t) {
+        if (t == T_SEARCH) return 360 * k;   // a search bar, not a button
+        if (t == 0) return chip.measureText(SHOW) + chipBold.measureText(tabWord(0) + "  \u25BE") + 60 * k;
         return Math.min(260 * k, chipBold.measureText(tabWord(t))) + 56 * k;
     }
 
@@ -1801,6 +1816,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             case T_ARTISTS: return String.valueOf(artists.size());
             case T_SONGS: return String.valueOf(all.size());
             case T_FAVS: return String.valueOf(favourites().size());
+            case B_DOWNLOADED: return String.valueOf(downloaded().size());
             default: return "";
         }
     }
@@ -1808,22 +1824,34 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
     /** The sidebar: the views with their counts (the open one lit), the actions, what's playing. */
     private void drawBar(Canvas c) {
         if (gTitle == null) neonPaints();
-        Frost.ghost(c, new RectF(tabRect(T_SEARCH).left, 40 * k, 1840 * k, 112 * k), 36 * k, false, k);
-        for (int t = 0; t <= lastTab(); t++) {
-            if (t > 0 && t < T_SEARCH) continue;
+        // Left to right: the search bar, Show (the view, as a drop-down), and Now playing while a song is on.
+        for (int t : lastTab() == B_NOW ? new int[]{T_SEARCH, 0, B_NOW} : new int[]{T_SEARCH, 0}) {
             RectF r = tabRect(t);
-            boolean focused = inBar && editing == null && !viewOpen && barSel == t;
+            boolean focused = inBar && editing == null && (barSel == t && (!viewOpen || t != 0));
+            if (t == T_SEARCH) {   // the search bar, the same on every page
+                Frost.searchBar(c, r, k, focused, tabWord(t), query.isEmpty(), query.isEmpty() ? chip : chipBold);
+                continue;
+            }
             if (focused) Frost.plate(c, r, r.height() / 2, k);
+            else Frost.ghost(c, r, r.height() / 2, false, k);
             chipBold.setColor(Color.WHITE);
-            c.drawText(ellipsize(tabWord(t), chipBold, r.width() - 40 * k), r.left + 28 * k, r.centerY() + 9 * k, chipBold);
+            if (t == 0) {   // Show  Folders ▾
+                int was = chip.getColor();
+                chip.setColor(0xB4FFFFFF);
+                c.drawText(SHOW, r.left + 30 * k, r.centerY() + 9 * k, chip);
+                chip.setColor(was);
+                c.drawText(tabWord(0) + "  \u25BE", r.left + 30 * k + chip.measureText(SHOW), r.centerY() + 9 * k, chipBold);
+            } else c.drawText(ellipsize(tabWord(t), chipBold, r.width() - 40 * k), r.left + 28 * k, r.centerY() + 9 * k, chipBold);
         }
-        if (inBar && editing == null && barSel == 0) {   // on the view button: its menu is already open
+        if (inBar && editing == null && barSel == 0 && viewOpen) {   // Show's menu, open
             float rowH = 76 * k;
-            RectF box = new RectF(tabRect(0).left, 124 * k, tabRect(0).left + 480 * k, 124 * k + 4 * rowH + 24 * k);
+            RectF box = new RectF(tabRect(0).left, 124 * k, tabRect(0).left + 480 * k, 124 * k + VIEWS.length * rowH + 24 * k);
+            if (box.right > 1880 * k) box.offset(1880 * k - box.right, 0);
             RectF screen = new RectF(0, 0, getWidth(), getHeight());
             Frost.dropdown(c, box, 30 * k, screen, bmp, k);
-            for (int t = T_FOLDERS; t <= T_FAVS; t++) {
-                RectF r = new RectF(box.left + 12 * k, box.top + 12 * k + t * rowH, box.right - 12 * k, box.top + 12 * k + (t + 1) * rowH);
+            for (int vi = 0; vi < VIEWS.length; vi++) {
+                int t = VIEWS[vi];
+                RectF r = new RectF(box.left + 12 * k, box.top + 12 * k + vi * rowH, box.right - 12 * k, box.top + 12 * k + (vi + 1) * rowH);
                 boolean focused = viewOpen && viewSel == t;
                 if (focused) Frost.plate(c, r, 20 * k, k);
                 Bitmap g = kit.glyph(SIDE_GLYPHS[t], 32);
@@ -2143,23 +2171,13 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             fill.setShader(null);
             Frost.topEdge(c, r, 28 * k, k, 0x33FFFFFF);
         }
-        // An album sleeve with its record sliding out; the one you're on comes out further and turns.
-        float size = Math.min(r.height() - 56 * k, 190 * k), cy = r.centerY(), left = r.left + 24 * k;
-        RectF sleeve = new RectF(left, cy - size / 2, left + size, cy + size / 2);
-        float rad = size * 0.47f, peek = size * (cardFocused ? 0.46f : 0.36f), cx = sleeve.right + peek - rad;
+        // The record alone, its cover as the round label; the one you're on turns.
+        float size = Math.min(r.height() - 48 * k, 200 * k), cy = r.centerY(), rad = size / 2, cx = r.left + 28 * k + rad;
         long now = SystemClock.uptimeMillis();
         Bitmap label = labelOf(g);
-        if (cardFocused) vinyl(c, cx, cy, rad, (now % 6000) / 6000f * 360, label, col);
+        if (cardFocused && !Lite.on) vinyl(c, cx, cy, rad, (now % 6000) / 6000f * 360, label, col);
         else restingDisc(c, g.name, cx, cy, rad, label, col);
-        if (label != null) drawImage(c, label, sleeve, 18 * k, 255);
-        else {
-            fill.setShader(new LinearGradient(sleeve.left, sleeve.top, sleeve.right, sleeve.bottom, col, darker(col), Shader.TileMode.CLAMP));
-            c.drawRoundRect(sleeve, 18 * k, 18 * k, fill);
-            fill.setShader(null);
-            Bitmap note = kit.glyph(WheelArt.Glyph.NOTE, 80);
-            c.drawBitmap(note, sleeve.centerX() - note.getWidth() / 2f, sleeve.centerY() - note.getHeight() / 2f, bmp);
-        }
-        float tx = sleeve.right + size * 0.46f + 18 * k, tw = r.right - tx - 14 * k;
+        float tx = cx + rad + 28 * k, tw = r.right - tx - 14 * k;
         String name = g.name.isEmpty() ? "" : g.name.substring(0, 1).toUpperCase(Locale.ROOT) + g.name.substring(1);
         float ns = 34 * k;
         np.setTextSize(ns);
@@ -2269,7 +2287,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             tp.clearShadowLayer();
             tp.setTextSize(40 * k);
             float maxName = 900 * k;
-            vinyl(c, L + 46 * k, top + 48 * k, 46 * k, (now % 6000) / 6000f * 360, labelOf(group), NEON[Math.abs(group.name.hashCode()) % NEON.length]);
+            vinyl(c, L + 46 * k, top + 48 * k, 46 * k, Lite.on ? 0 : (now % 6000) / 6000f * 360, labelOf(group), NEON[Math.abs(group.name.hashCode()) % NEON.length]);
             c.drawText(ellipsize(group.name, tp, maxName), L + 116 * k, top + 44 * k, tp);
             mutedRow().setColor(0xD9FFFFFF);
             c.drawText(group.songs.size() + " songs  ·  " + MyMusic.length(group.durationMs()), L + 116 * k, top + 82 * k, mutedRow());
@@ -2279,7 +2297,9 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             for (int i = b.length - 1; i >= 0; i--) {
                 float w = chipBold.measureText(b[i]) + 56 * k;
                 RectF r = new RectF(bx - w, top + 14 * k, bx, top + 82 * k);
-                Frost.ghost(c, r, r.height() / 2, !inBar && rowSel < 0 && col == i && editing == null, k);
+                boolean sel = !inBar && rowSel < 0 && col == i && editing == null;
+                if (i == 0) Frost.hero(c, r, r.height() / 2, sel, k);   // Play all: the main button's jewel
+                else Frost.ghost(c, r, r.height() / 2, sel, k);
                 c.drawText(b[i], r.left + 28 * k, r.centerY() + 9 * k, chipBold);
                 bx -= w + 12 * k;
             }
@@ -2548,14 +2568,14 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         int tint = tintColour;
         boolean videos = listener != null && listener.hasVideos();
         boolean neonLook = GlassKit.neon(getContext());
-        int fx = effectNow();
+        int fx = Lite.on ? -1 : effectNow();   // Lite: no effects
         if (fx >= 0) {
             effects.draw(c, fx, getWidth(), getHeight(), k, now, bands, energy, beat);
             // Side effects leave the middle clear; the others are dimmed so the words stay readable.
             if (fx >= MusicEffects.SIDE && lyricsOn && !lyrics.isEmpty()) c.drawColor(0x80000000);
         } else if (!videos) calmPage(c, now, cov != null ? tint : NEON[Math.abs(s.folder.hashCode()) % NEON.length]);
         else if (lyricsOn && !lyrics.isEmpty()) c.drawColor(0x59000000);
-        if (vis != VIS_OFF && fx < 0 && !videos) drawGlowLine(c);
+        if (vis != VIS_OFF && !Lite.on && fx < 0 && !videos) drawGlowLine(c);
         if (lyricsOn) drawLyrics(c, s, tint, now);
         drawPlayerUi(c, s, now);
         if (moreOpen) drawMoreNeon(c);

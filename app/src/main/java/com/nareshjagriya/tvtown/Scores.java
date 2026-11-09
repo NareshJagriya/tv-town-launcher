@@ -25,8 +25,8 @@ import java.util.TimeZone;
 final class Scores {
 
     static final String CRICKET = "cricket", FOOTBALL = "football", BASKETBALL = "basketball", TENNIS = "tennis", F1 = "f1";
-    static final String[] SPORTS = {CRICKET, FOOTBALL, BASKETBALL, TENNIS, F1};
-    static final String[] NAMES = {"Cricket", "Football", "Basketball", "Tennis", "F1"};
+    static final String[] SPORTS = {CRICKET, FOOTBALL, BASKETBALL, TENNIS};   // F1 left out: a race is 20 drivers, not a score
+    static final String[] NAMES = {"Cricket", "Football", "Basketball", "Tennis"};
 
     private static final String FEED = "https://site.api.espn.com/apis/site/v2/sports/";
 
@@ -52,7 +52,9 @@ final class Scores {
             s.add(CRICKET);
             s.add(FOOTBALL);
         }
-        return new HashSet<>(s);
+        Set<String> out = new HashSet<>(s);
+        out.retainAll(java.util.Arrays.asList(SPORTS));   // a sport since left out (F1) is dropped
+        return out;
     }
 
     static void toggle(Context c, String sport) {

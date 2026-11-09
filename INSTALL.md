@@ -71,8 +71,8 @@ option, a computer can allow it once: `adb shell appops set com.nareshjagriya.tv
 
 Plug in a pen drive or hard disk (FAT32 or NTFS) with films and songs; My Movies and My Music find them by themselves.
 
-No drive? Nothing stands empty: the My Movies tile becomes **My List** (films and series you mark 🔖 Want to Watch in
-Must-Watch, opened on your apps), and My Music opens your music app (YouTube Music, Spotify and others).
+No drive? Nothing stands empty: the My Movies tile becomes **My List** (films and series you save with + My List on
+their page, opened on your apps), and My Music opens your music app (YouTube Music, Spotify and others).
 
 ## Updates
 
@@ -100,4 +100,4 @@ Android asks you to allow TV Town to install apps (switch it on, press Back, cho
 
 ## Going back to the TV's own home
 
-Settings (the gear on TV Town's home) → *Switch to the TV's own home*. Or uninstall TV Town in *Settings → Apps*.
+Customize TV Town (the sliders at the top of TV Town's home) → Control Center → *Home screen* (press OK twice). Or uninstall TV Town in *Settings → Apps*.

@@ -85,6 +85,9 @@ final class ArtStage {
      * For pages with a lot to read: the blurred picture behind everything, kept dark enough for white words on any
      * film, and the sharp picture in its own window.
      */
+    /** drawSoft gives the shiny black page (Frost.page) instead of the blurred picture: My Movies, Discover. */
+    boolean black;
+
     void drawSoft(Canvas c, long now, RectF window, float rad) {
         bake();
         c.drawColor(0xFF050506);
@@ -92,13 +95,16 @@ final class ArtStage {
         boolean fading = old != null && now - fadeAt < FADE_MS;
         if (!fading) old = null;
         int a = fading ? Math.round(255f * (now - fadeAt) / FADE_MS) : 255;
-        if (fading && oldFrost != null) c.drawBitmap(oldFrost, null, s, bits);
-        if (frost != null) {
-            bits.setAlpha(a);
-            c.drawBitmap(frost, null, s, bits);
-            bits.setAlpha(255);
+        if (black) Frost.page(c, s);   // the shiny black page, no picture behind
+        else {
+            if (fading && oldFrost != null) c.drawBitmap(oldFrost, null, s, bits);
+            if (frost != null) {
+                bits.setAlpha(a);
+                c.drawBitmap(frost, null, s, bits);
+                bits.setAlpha(255);
+            }
+            c.drawColor(0x8C060607);
         }
-        c.drawColor(0x8C060607);
         c.save();
         clip.reset();
         clip.addRoundRect(window, rad, rad, android.graphics.Path.Direction.CW);

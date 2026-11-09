@@ -44,6 +44,13 @@
 
     <!-- Android 11 shows an app only the apps it says it looks for: every TV app with a launcher entry. -->
     <queries>
+        <!-- Search in an app: the apps that take Android's own search (Nuvio, Stremio, Plex and others). -->
+        <intent>
+            <action android:name="android.intent.action.SEARCH" />
+        </intent>
+        <intent>
+            <action android:name="android.search.action.GLOBAL_SEARCH" />
+        </intent>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
@@ -106,6 +113,12 @@
             android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode"
             android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustNothing|stateHidden" />
+
+        <activity
+            android:name=".CleanupActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboard|keyboardHidden|uiMode"
+            android:screenOrientation="landscape" />
 
         <activity
             android:name=".SportsActivity"

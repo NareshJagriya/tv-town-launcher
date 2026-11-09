@@ -8,7 +8,7 @@ Watch [the video](https://github.com/NareshJagriya/tv-town-launcher/releases/lat
 - [My Movies](#my-movies)
 - [My Music](#my-music)
 - [Music effects](#music-effects)
-- [Discover and Must-Watch](#discover-and-must-watch)
+- [Discover](#discover)
 - [Control Center and Sports](#control-center-and-sports)
 - [Phone remote](#phone-remote)
 - [YouTube downloads](#youtube-downloads)
@@ -28,14 +28,14 @@ The newest titles on your apps, with their logos, a summary, Watch now and More 
 
 ### Continue watching
 
-Press Down for up to 15 films and series you're in the middle of, with the time left on each: from your own drive, and from Netflix, Prime Video, JioHotstar and other apps. **Show all** sorts them into tabs by app (All, My Movies, Netflix…), with a YouTube tab for longer videos you left halfway (no shorts). Music and short clips are left out, and anything you finish drops off.
+Press Down for up to 15 films and series you're in the middle of, with the time left on each: from your own drive, and from Netflix, Prime Video, JioHotstar and other apps. Each cover shows how far you've got, and on the dock an app with something half-watched shows its latest above it. When there are more than fit, **See all** opens one low row of cards that slides sideways. YouTube, music and short clips are left out, and anything you finish drops off.
 
 ![Continue watching](media/screenshots/01-home/continue-watching.jpg)
 
 
 ### Glass and smooth movement
 
-Every panel is frosted glass over the picture behind it. The highlight glides from item to item as you move: red on Netflix, blue on Prime Video, and each app in its own colour. Menus pick up their colour from the picture behind them.
+Pop-ups and pages are shiny black, and whatever you are on is a pane of clear glass that lands at once, with no trail. Lists lift the chosen row a little. Main buttons (Play, Speed it all up, Surprise me) are a deep violet jewel, and every tick and switch is green. On the dock the highlight glides from app to app in each app's own colour: red on Netflix, blue on Prime Video.
 
 ![Glass and smooth movement](media/screenshots/01-home/glass.jpg)
 
@@ -45,7 +45,7 @@ One place to look for anything, on a keyboard made for the remote.
 
 ### Search everything
 
-Films, series, songs, apps and YouTube together, with pictures in the results and your recent searches. You can also type on your phone.
+Films, series, songs, apps and YouTube together, with pictures in the results and your recent searches. A row above the results narrows them to All, Your drive, Streaming, Music or Apps, and "Search in Netflix" (and every other app that takes a search) sends your words straight to that app. The keyboard has Delete, Space and Search on top, Clear all, capitals and Search at the foot, and **Type on your phone** to type with your phone instead.
 
 ![Search everything](media/screenshots/02-search/search.jpg)
 
@@ -101,12 +101,6 @@ Every film and series with its poster, name, year and rating, and a small previe
 
 ![Big covers](media/screenshots/04-my-movies/covers.jpg)
 
-### Continue, and everything else
-
-What you started comes first, with a bar showing how far you got.
-
-![Continue, and everything else](media/screenshots/04-my-movies/continue-row.jpg)
-
 ### Film page
 
 Audio and subtitle languages from the file, Play, Trailer, Favourite, Watched, Rate, Tags, Subtitles and Fix match.
@@ -126,7 +120,7 @@ Your songs as a record collection, with a player that keeps going on Home.
 
 ### Your collection
 
-Every folder as a record with its cover, plus Search, Downloaded, Shuffle all and Surprise me.
+Every folder as a record with its cover as the label. A search bar at the top, and Show for Folders, Artists, All songs, Favourites and Downloaded.
 
 ![Your collection](media/screenshots/05-my-music/collection.jpg)
 
@@ -166,21 +160,13 @@ Eleven effects that move with the music. They can change by themselves as the so
 <img src="media/screenshots/06-music-effects/effect-09.jpg" width="49%" alt="A music effect"> <img src="media/screenshots/06-music-effects/effect-10.jpg" width="49%" alt="A music effect">
 
 
-## Discover and Must-Watch
+## Discover
 
 Find something worth watching.
 
-### Discover
-
-Shelves of big covers for New on your apps, Popular on each app, Top rated, Award winners, Critics' picks and moods, with a small preview. Choose movies or series, and a language.
+One list down the left: New, Trending, Top rated and Hidden gems, then the genres, Anime and K-Drama among them, and mixes like Action comedy. On the right, a row for each of your apps: four covers in view, each with its name, year and rating, sliding sideways for more. Right always goes to the covers and Left back to the list. Movies, series or both, and a language, drop down from the top.
 
 ![Discover](media/screenshots/07-discover/discover.jpg)
-
-### Must-Watch
-
-The best rated and award-winning titles, with IMDb and Rotten Tomatoes scores, and which app has each one.
-
-![Must-Watch](media/screenshots/07-discover/must-watch.jpg)
 
 
 ## Control Center and Sports
@@ -189,13 +175,26 @@ Live scores for the sports you follow, and the things you reach for one press aw
 
 ### Control Center
 
-What's playing, Sleep timer, Speed test, Sound, Free memory, Sports and Turn off, on one small card.
+The TV's quick controls, most needed first: Home screen (set TV Town up as the home, or go back to the TV's own), Sound (Bluetooth speakers and headphones), Inputs, Speed up TV; then Speed test, Sleep timer, At power-on and Sports. First in Customize TV Town (the sliders at the top of Home).
 
 ![Control Center](media/screenshots/08-sports/control-center.jpg)
 
+### Speed up your TV
+
+How much memory is available, one big **Speed it all up** button, and its parts on their own:
+
+- **Close apps left running:** apps you left, and Google's own Home, which keeps running behind TV Town. The TV itself, its inputs and the app playing are never touched. A few, like the Play Store, the TV starts again by itself.
+- **Switch off what the TV doesn't need:** only safe ones (feedback senders, setup leftovers, ad services, sponsored rows). Right shows every app to choose one by one, with what it uses now; Google Assistant, Chromecast built-in, YouTube Music and a few more are there too, each saying what stops working.
+- **Lite mode:** TV Town drawn the quick way: glass in a soft tint of the picture's own colour instead of the blurred picture, no animations, Home's picture in a card that changes only when you move, smaller pictures, and My Music's effects off. Nothing is removed.
+- **Turn everything back on:** the apps TV Town switched off, and Lite mode off.
+
+Nothing is uninstalled: switching off uses Android's own "disable", and **Turn all back on** undoes everything TV Town switched off. Only apps on TV Town's own short list can be switched off, never what the TV needs (its Live TV and inputs, keyboard, setup, Google Play, the remote's pairing, its settings), and the TV is asked again before each one. It needs USB debugging on once, like the phone remote's arrows. The list was informed by the [CleanYourTV](https://github.com/Gathin23/cleanyourtv) project's tested lists for hundreds of TVs.
+
+![Speed up your TV](media/screenshots/08-sports/speed-up.jpg)
+
 ### Sports home
 
-Pick your sports at the top: cricket, football (Premier League, Champions League, ISL, La Liga, World Cup), basketball (NBA), tennis and Formula 1. Rows show what's live now, coming up today, and results, each card in the two teams' colours with their badges or flags. The card on the right follows you as you move.
+Pick your sports at the top: cricket, football (Premier League, Champions League, ISL, La Liga, World Cup), basketball (NBA), and tennis. Rows show what's live now, coming up today, and results, each card in the two teams' colours with their badges or flags. The card on the right follows you as you move; OK (or Right at the end of a row) steps onto it, to **Watch on** the app showing it or open the **Full scorecard**.
 
 ![Sports home](media/screenshots/08-sports/sports-home.jpg)
 
@@ -204,12 +203,6 @@ Pick your sports at the top: cricket, football (Premier League, Champions League
 A match's card has the big score, the ground and the latest: cricket's batting and bowling cards, or football's possession, shots, corners and fouls, with goals and cards as they happen. It refreshes every 30 seconds while the match is live. Watch on opens the app showing it.
 
 ![Live scorecard](media/screenshots/08-sports/match-scorecard.jpg)
-
-### News and tables
-
-Headlines with photos from the sports you follow, shown large as you move onto them, and the top of each league's table with badges and points.
-
-![News and tables](media/screenshots/08-sports/news-and-tables.jpg)
 
 
 ## Phone remote
@@ -223,7 +216,7 @@ Your phone becomes the remote and a game controller, with nothing to install. Fr
 - **Browse:** TV Town Home, every TV Town place, and the music player's and TV's buttons.
 - **Files:** save from YouTube and share with the TV (see below), with a Folders button for where saves go.
 
-Works on iPhone and Android, on your home Wi-Fi. Every keyboard on the TV also shows a small QR code to type on your phone.
+Works on iPhone and Android, on your home Wi-Fi. Every keyboard on the TV has a **Type on your phone** key that shows a QR code to type on your phone.
 
 ![Phone remote](media/screenshots/09-phone-remote/phone-remote.jpg)
 
@@ -241,7 +234,7 @@ Save any song or video to your own drive, from your phone or with the TV remote,
 - **Audio or video:** MP3 for songs, MP4 to keep the picture.
 - **What's playing, a name or a link:** tap Song or Video while YouTube plays on the TV, or Find a song to search by name or paste a YouTube link.
 - **Your choice of folder:** songs and videos each go where you choose, ready in My Music and My Movies.
-- **On the TV too:** press **OK twice** quickly while a YouTube video plays (it blinks and carries on), or pause it and press the red button. It saves in the background, even with your phone closed.
+- **On the TV too:** press **OK twice** quickly while a YouTube video plays (it blinks and carries on). It saves in the background, even with your phone closed.
 - **Help** is one tap away on the page.
 
 ![YouTube downloads](media/screenshots/10-youtube-downloads/download.jpg)
@@ -259,58 +252,44 @@ Move files between your phone and the drive plugged into the TV, over Wi-Fi, wit
 
 ## Settings
 
-A small glass card, with the TV's own settings at the top.
+**Customize TV Town** opens from the sliders at the top of Home; the gear opens the TV's own settings. Lists with more than two choices open as a small pop-up.
 
-### Look
+![Customize TV Town](media/screenshots/12-settings/customize.jpg)
 
-Home style, how often the picture changes, apps on Home, weather and live scores. **Screensaver** has its own section.
+### Home
 
-![Look](media/screenshots/12-settings/look.jpg)
+Top picture (full screen or in a card), apps on Home, weather and live scores.
 
-### Films and series
+### Features
+
+Switch off the parts that keep running while you're in other apps: the phone remote, Continue watching from apps, and saving from YouTube with OK twice. Everything else only loads when you open it.
+
+### Films and music
 
 Content style, streaming country, languages and where picks come from.
 
-![Films and series](media/screenshots/12-settings/films-and-series.jpg)
-
-### Music
-
-Buttons for lyrics.
-
-![Music](media/screenshots/12-settings/music.jpg)
-
 ### Phone and downloads
 
-Connect your phone, and set up the YouTube downloader.
+Connect your phone, choose where songs and videos are saved, and see how much storage is free.
 
-![Phone and downloads](media/screenshots/12-settings/phone-and-downloads.jpg)
-
-### This TV
-
-Wi-Fi, Bluetooth, memory, storage and what opens at power-on.
-
-![This TV](media/screenshots/12-settings/this-tv.jpg)
-
-### About and backup
+### Updates and backup
 
 Updates, backup and restore, and your free keys.
-
-![About and backup](media/screenshots/12-settings/about-and-backup.jpg)
 
 
 ## Screensaver
 
-Beautiful when nobody is watching, and dimmed at night. In **Settings → Screensaver**, pick TV Town's own, [Aerial Views](https://play.google.com/store/apps/details?id=com.neilturner.aerialviews) or any screensaver you have, and what TV Town's shows: your videos, film pictures, or the scenes and clock. **Try it now** starts it straight away.
-
-### Your videos
-
-From a folder on your drive, with a drifting clock.
-
-![Your videos](media/screenshots/13-screensaver/your-videos.jpg)
+Beautiful when nobody is watching, and dimmed at night. In **Settings → Screensaver**, one list: TV Town's **film pictures** (from what's new on your apps) or **clock**, nothing to set up; [Aerial Views](https://play.google.com/store/apps/details?id=com.neilturner.aerialviews) (free, one button to get it); or any other screensaver you have. **Try it now** starts it straight away.
 
 ### Film pictures
 
-Or the pictures from what's new on your apps.
+The pictures from what's new on your apps. Works straight away.
 
 ![Film pictures](media/screenshots/13-screensaver/film-pictures.jpg)
+
+### Your videos (optional)
+
+Put videos in a *TV Town Screensaver* folder on a drive and they appear in the list, with a drifting clock.
+
+![Your videos](media/screenshots/13-screensaver/your-videos.jpg)
 

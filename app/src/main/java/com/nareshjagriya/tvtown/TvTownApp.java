@@ -19,6 +19,7 @@ public class TvTownApp extends Application {
         app = this;
         Style.init(this);
         Frost.init(this);
+        Lite.init(this);
         ServiceRepair.restore(this);   // the home helper, if a force stop switched it off
         freeOldLookups();
     }

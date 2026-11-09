@@ -25,6 +25,7 @@ All are `POST` with a form body (`application/x-www-form-urlencoded`).
 | `/open` | `id=com.netflix.ninja` | opens an app by its package name |
 | `/open` | `id=tvtown:home` | TV Town pages: `home`, `surprise`, `search`, `settings`, `movies`, `music`, `player`, `discover`, `must`, `cricket` |
 | `/open` | `id=tvtown:search&q=dune` | TV Town search with words |
+| `/open` | `id=tvtown:discover&q=anime` | Discover at a kind: `new`, `trending`, `top-rated`, `hidden-gems` or a genre (`k-drama`, `action-comedy`…); other words search Discover |
 | `/find` | `q=interstellar` | searches inside the app that's open (YouTube, Netflix, Prime, Hotstar…) |
 | `/text` | `t=hello` | types into the box on screen |
 | `/save` | `url=https://youtu.be/…&video=1` | saves a YouTube link (`video=0` for MP3) |

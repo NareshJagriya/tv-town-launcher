@@ -115,6 +115,20 @@ final class Library {
     }
 
     /** Your rating, 1 to 10 (0 clears it). Rating a title also marks it watched. */
+    /** Watched to the end in an app: off the watchlist (its Want to Watch becomes Watched). */
+    static void finished(Context ctx, String title) {
+        String t = title.trim().toLowerCase(java.util.Locale.ROOT);
+        if (t.isEmpty()) return;
+        for (Entry e : all(ctx)) {
+            if (e.status != WANT || e.title == null) continue;
+            String mine = e.title.trim().toLowerCase(java.util.Locale.ROOT);
+            if (mine.equals(t) || t.startsWith(mine + ":") || t.startsWith(mine + " -")) {
+                e.status = WATCHED;
+                save(ctx, e);
+            }
+        }
+    }
+
     static void rate(Context ctx, Tmdb.Title t, int rating) {
         Entry e = entryFor(ctx, t);
         e.rating = Math.max(0, Math.min(10, rating));

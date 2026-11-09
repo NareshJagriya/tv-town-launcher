@@ -37,15 +37,29 @@ public class TvTownDream extends DreamService {
         return c.getSharedPreferences("screensaver", Context.MODE_PRIVATE);
     }
 
-    static final String[] KINDS = {"Your videos", "Film pictures", "Scenes and clock"};
-
     /** What TV Town's own screensaver shows: 0 your videos (else film pictures), 1 film pictures, 2 the scenes. */
     static int kind(Context c) {
         return store(c).getInt("kind", store(c).getBoolean("pictures", false) ? 1 : 0);
     }
 
     static void setKind(Context c, int k) {
-        store(c).edit().putInt("kind", Math.floorMod(k, KINDS.length)).apply();
+        store(c).edit().putInt("kind", Math.floorMod(k, 3)).apply();
+    }
+
+    /** Whether any drive has videos in a "TV Town Screensaver" folder. */
+    static boolean hasVideos(Context c) {
+        if (android.os.Build.VERSION.SDK_INT < 30 || !Perms.media(c)) return false;
+        for (String vol : android.provider.MediaStore.getExternalVolumeNames(c)) {
+            if (android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY.equals(vol)) continue;
+            try (android.database.Cursor q = c.getContentResolver().query(android.provider.MediaStore.Video.Media.getContentUri(vol),
+                    new String[]{android.provider.MediaStore.Video.Media._ID}, android.provider.MediaStore.Video.Media.RELATIVE_PATH + " LIKE ?",
+                    new String[]{"%TV Town Screensaver%"}, null)) {
+                if (q != null && q.moveToFirst()) return true;
+            } catch (Exception ignored) {
+                // not readable
+            }
+        }
+        return false;
     }
 
     /** Home's newest titles, for the film pictures. */
@@ -329,6 +343,7 @@ public class TvTownDream extends DreamService {
 
         @Override
         protected void onDraw(Canvas c) {
+            Frost.frame(this);   // selections glide (Frost.plate)
             long now = SystemClock.uptimeMillis();
             if (art != null) {
                 if (stage == null) stage = new ArtStage(this);

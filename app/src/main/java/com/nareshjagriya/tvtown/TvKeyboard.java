@@ -74,10 +74,10 @@ final class TvKeyboard extends View {
         void onClosed();
     }
 
-    private static final int COLS = 10, ROWS = 5, MAX_LOCAL = 30, MAX_ONLINE = 6;
+    private static final int COLS = 10, ROWS = 7, MAX_LOCAL = 30, MAX_ONLINE = 6;
     private static final String[] LETTER_ROWS = {"qwertyuiop", "asdfghjkl'", "zxcvbnm,."};
     private static final String[] SYMBOL_ROWS = {"!@#$%^&*()", "_=+[]{};:\"", "/?\\|<>~-\u20B9"};
-    private static final int K_SPACE = 0x10000, K_DELETE = 0x10001, K_PHONE = 0x10003, K_SEARCH = 0x10004, K_SHIFT = 0x10005, K_SYMBOLS = 0x10006;   // past every character's code
+    private static final int K_SPACE = 0x10000, K_DELETE = 0x10001, K_PHONE = 0x10003, K_SEARCH = 0x10004, K_SHIFT = 0x10005, K_SYMBOLS = 0x10006, K_CLEAR = 0x10007;   // past every character's code
     private static final long ONLINE_DELAY_MS = 400;
 
     private static TvKeyboard current;
@@ -130,8 +130,8 @@ final class TvKeyboard extends View {
 
     // ---- Search: the whole screen ------------------------------------------------------------------------
 
-    private static final float PAGE_T = 200, PAGE_B = 944;
-    private static final int RECENT = 9, MAX_RECENT = 6;
+    private static final float PAGE_T = 190, PAGE_B = 1024;
+    private static final int RECENT = 9, MAX_RECENT = 6, IN_APP = 10;   // IN_APP: "Search in Nuvio": the words, in that app
     private boolean page, searching;
     private final ArtStage stage = new ArtStage(this);
     private final Paint sprite = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG), slot = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -163,8 +163,8 @@ final class TvKeyboard extends View {
             }
         });
         v.page = true;
-        v.keyW = 88;
-        v.keyH = 104;
+        v.keyW = 96;   // a little wider than the small keyboard
+        v.keyH = 96;
         v.rowH = 118;
         v.rowLabel.setTextSize(24 * v.k);
         v.heading.setTextSize(40 * v.k);
@@ -254,6 +254,7 @@ final class TvKeyboard extends View {
             case SONG:
                 return h.song == null ? null : MyMusic.cover(getContext(), h.song, this::invalidate);
             case APP:
+            case IN_APP:
                 return appPicture(h.key);
             default:
                 return h.picture == null ? null : ImageCache.get(h.picture, this::invalidate, null, 200);
@@ -272,6 +273,7 @@ final class TvKeyboard extends View {
             case YOUTUBE:
                 return "play";
             case RECENT:
+            case IN_APP:
                 return "search";
             default:
                 return "music";
@@ -280,11 +282,7 @@ final class TvKeyboard extends View {
 
     private void drawPage(Canvas c) {
         long now = android.os.SystemClock.uptimeMillis();
-        if (stage.frost() != null) {
-            stage.drawSoft(c, now, empty, 0);
-            if (stage.moving(now)) postInvalidateOnAnimation();
-        } else if (blurReady) Frost.blurBehind(c, getWidth(), getHeight(), picture);
-        else c.drawColor(0xFF050506);
+        Frost.page(c, new RectF(0, 0, getWidth(), getHeight()));   // the shiny black page, as My Movies and Discover
         heading.setColor(Color.WHITE);
         c.drawText("Search", 64 * k, 170 * k, heading);
         r.set(panelL * k, panelT * k, panelR * k, panelB * k);
@@ -293,25 +291,25 @@ final class TvKeyboard extends View {
         Frost.panel(c, r, 44 * k, 1, k);
         drawField(c);
         drawKeys(c);
-        help.setColor(Frost.FAINT);
-        c.drawText(inBox ? "\u25C4 \u25BA move the cursor    \u25BC back to the keys" : "Hold OK on a letter for a space    \u25B2 from the top row to edit your text",
-                left * k, (panelB - PAD) * k, help);
         if (qr != null) {
             drawPhone(c);
             return;
         }
-        drawMini(c);
+        // (no QR code under the keys: "Type on phone" shows it when wanted)
         if (list >= 0 && hits.size() > rowsShown) {
             note.setColor(Frost.MUTE);
             note.setTextAlign(Paint.Align.RIGHT);
             c.drawText((list + 1) + " of " + hits.size(), 1856 * k, 170 * k, note);
             note.setTextAlign(Paint.Align.LEFT);
         }
-        float listT = panelT + 18;
+        boolean places = whereShown();
+        if (places) drawWhere(c);
+        float listT = panelT + 18 + (places ? 76 : 0);
         if (hits.isEmpty()) {
             note.setColor(Frost.MUTE);
             String typed = text.toString().trim();
             String say = typed.isEmpty() ? "Films, songs, apps and YouTube appear here as you type"
+                    : where != 0 && !allHits.isEmpty() ? "Nothing in " + WHERE[where] + " for \u201C" + typed + "\u201D"
                     : index == null ? "Reading your drive" : searching ? "Searching" : "Nothing found for \u201C" + typed + "\u201D";
             c.drawText(String.valueOf(TextUtils.ellipsize(say, tp(note), (listR - listX - 44) * k, TextUtils.TruncateAt.END)), (listX + 22) * k, (listT + 60) * k, note);
             return;
@@ -425,7 +423,7 @@ final class TvKeyboard extends View {
         this.textOnly = textOnly;
         this.capWords = capWords;
         this.title = title;
-        this.okLabel = okLabel == null ? "Search" : okLabel;
+        this.okLabel = "Search";   // the same key everywhere: Search, with the magnifier
         this.hint = hint;
         this.withOnline = withOnline;
         this.listener = listener;
@@ -441,18 +439,23 @@ final class TvKeyboard extends View {
         heading = plain(ctx, 34, 700);
         help = plain(ctx, 22, 400);
         for (int c = 0; c < COLS; c++) {
-            grid[0][c] = c < 3 ? K_SPACE : c < 5 ? K_DELETE : c == 5 && textOnly ? K_SHIFT : c < 7 ? K_PHONE : K_SEARCH;
-            grid[1][c] = "1234567890".charAt(c);
+            // Space, Delete and Search on top; the letters; the numbers; then Clear all, Space, Type on phone and Search
+            // again at the foot, so the common keys are near wherever you are.
+            grid[0][c] = c < 3 ? K_DELETE : c < 7 ? K_SPACE : K_SEARCH;
+            grid[4][c] = "1234567890".charAt(c);
+            grid[5][c] = c < 2 ? K_CLEAR : c == 2 ? K_SHIFT : c < 7 ? K_SPACE : K_SEARCH;   // Aa (capitals) on every keyboard
+            grid[PHONE_ROW][c] = K_PHONE;   // a low, wide button across the foot
         }
         fillLetters();
+        row = 1;   // start on the letters
         place();
     }
 
     /** The three lower rows: letters, or all the symbols. */
     private void fillLetters() {
         String[] from = symbols ? SYMBOL_ROWS : LETTER_ROWS;
-        for (int y = 0; y < from.length; y++) for (int c = 0; c < from[y].length(); c++) grid[y + 2][c] = from[y].charAt(c);
-        grid[4][COLS - 1] = K_SYMBOLS;   // hardly used: out of the way, bottom corner
+        for (int y = 0; y < from.length; y++) for (int c = 0; c < from[y].length(); c++) grid[y + 1][c] = from[y].charAt(c);
+        grid[3][COLS - 1] = K_SYMBOLS;   // hardly used: out of the way, bottom corner
     }
 
     private Paint plain(Context ctx, float size, int weight) {
@@ -652,17 +655,108 @@ final class TvKeyboard extends View {
 
     /** The list: what is on this TV first, then streaming titles not already listed. */
     private void merge() {
-        List<Hit> all = new ArrayList<>(local);
+        // The best few of this TV's own, then streaming, then the rest: so streaming titles show without scrolling.
+        int head = Math.min(3, local.size());
+        List<Hit> all = new ArrayList<>(local.subList(0, head));
         Set<String> have = new HashSet<>();
         for (Hit h : local) if (h.kind == FILM || h.kind == SERIES) have.add(h.plain);
         for (Hit h : online) if (!have.contains(h.plain)) all.add(h);
+        all.addAll(local.subList(head, local.size()));
         all.addAll(videos);
-        if (page && text.toString().trim().isEmpty()) all = recentHits();
-        hits = all;
+        String q = text.toString().trim();
+        if (page && q.length() >= 2) {   // then every app that takes a search: Netflix, Prime Video, Nuvio, Stremio…
+            for (String[] app : PhoneRemote.searchableApps(getContext())) {
+                Hit h = new Hit(IN_APP, "Search in " + app[1], "\u201C" + q + "\u201D in the app");
+                h.key = app[0];
+                all.add(h);
+            }
+        }
+        if (page && q.isEmpty()) all = recentHits();
+        allHits = all;
+        hits = page && !q.isEmpty() && where != 0 ? only(all, where) : all;
+        rowsShown = page ? (q.isEmpty() ? 6 : 5) : rowsShown;   // the places' row takes the room of one result
         if (page) artSoon();
         if (list >= hits.size()) list = hits.isEmpty() ? -1 : hits.size() - 1;
         keepInView();
         invalidate();
+    }
+
+    // ---- where to look: All, Your drive, Streaming, Music, Apps (the full search page) ----
+    private static final String[] WHERE = {"All", "Your drive", "Streaming", "Music", "Apps"};
+    private int where;               // the place chosen
+    private boolean inWhere;         // the remote is on the places' row
+    private List<Hit> allHits = new ArrayList<>();
+
+    private static int placeOf(Hit h) {
+        switch (h.kind) {
+            case FILM: case SERIES: case FOLDER: return 1;
+            case STREAM: case YOUTUBE: return 2;
+            case SONG: case SINGER: case ALBUM: return 3;
+            default: return 4;   // apps, and Search in an app
+        }
+    }
+
+    private static List<Hit> only(List<Hit> all, int place) {
+        List<Hit> out = new ArrayList<>();
+        for (Hit h : all) if (placeOf(h) == place) out.add(h);
+        return out;
+    }
+
+    private void chooseWhere(int w) {
+        where = w;
+        hits = w == 0 ? allHits : only(allHits, w);
+        list = -1;
+        listFrom = 0;
+        if (page) artSoon();
+        invalidate();
+    }
+
+    private boolean whereShown() {
+        return page && qr == null && !text.toString().trim().isEmpty();
+    }
+
+    /** The places' row along the top of the results: the chosen one filled light, the remote's one in clear glass. */
+    private void drawWhere(Canvas c) {
+        float x = listX, y = panelT + 22, h = 56, gap = 10;
+        Paint p = rowLabel;
+        float was = p.getTextSize();
+        int[] n = new int[WHERE.length];
+        for (int i = 0; i < WHERE.length; i++) n[i] = i == 0 ? allHits.size() : only(allHits, i).size();
+        float size = 24;   // as large as fits across the panel
+        for (; size > 16; size -= 1) {
+            p.setTextSize(size * k);
+            float total = 0;
+            for (int i = 0; i < WHERE.length; i++) total += (p.measureText(WHERE[i]) + p.measureText(String.valueOf(n[i]))) / k + size * 2f + gap;
+            if (total - gap <= listR - listX) break;
+        }
+        float pad = size * 0.8f;
+        for (int i = 0; i < WHERE.length; i++) {
+            String label = WHERE[i], count = String.valueOf(n[i]);
+            float w = (p.measureText(label) + p.measureText(count)) / k + size * 2f;
+            r.set(x * k, y * k, (x + w) * k, (y + h) * k);
+            boolean chosen = i == where, focused = inWhere && chosen;
+            if (chosen) {
+                tile.setColor(0xE6FFFFFF);
+                c.drawRoundRect(r, r.height() / 2, r.height() / 2, tile);
+                if (focused) {
+                    RectF ring = new RectF(r.left - 4 * k, r.top - 4 * k, r.right + 4 * k, r.bottom + 4 * k);
+                    Frost.plate(c, ring, ring.height() / 2, k);
+                    c.drawRoundRect(r, r.height() / 2, r.height() / 2, tile);
+                }
+            } else {
+                tile.setColor(0x14FFFFFF);
+                c.drawRoundRect(r, r.height() / 2, r.height() / 2, tile);
+            }
+            int ink = chosen ? 0xFF0B0B0D : n[i] == 0 ? 0x66F4F4F1 : 0xD9F4F4F1;
+            float ty = r.centerY() + size * 0.34f * k;
+            p.setColor(ink);
+            c.drawText(label, r.left + pad * k, ty, p);
+            p.setColor(chosen ? 0x990B0B0D : 0x73F4F4F1);
+            c.drawText(count, r.left + pad * k + p.measureText(label) + size * 0.4f * k, ty, p);
+            x += w + gap;
+        }
+        p.setTextSize(was);
+        p.setColor(Frost.INK);
     }
 
     private void keepInView() {
@@ -707,8 +801,8 @@ final class TvKeyboard extends View {
                 if (first) {   // letters go in when OK is let go, since holding it means a space
                     okDown = true;
                     okHeld = false;
-                    if (list < 0 && !inBox && grid[row][col] == K_DELETE) press(K_DELETE);
-                } else if (list < 0 && !inBox) {
+                    if (list < 0 && !inBox && !inWhere && grid[row][col] == K_DELETE) press(K_DELETE);
+                } else if (list < 0 && !inBox && !inWhere) {
                     int key = grid[row][col];
                     if (key == K_DELETE) press(K_DELETE);
                     else if (key < K_SPACE && !okHeld) {
@@ -743,8 +837,9 @@ final class TvKeyboard extends View {
     public boolean onKeyUp(int code, KeyEvent e) {
         if (code == KeyEvent.KEYCODE_BACK) {
             if (qr != null) hidePhone();
-            else if (page && list >= 0) {   // back to the keys first
+            else if (page && (list >= 0 || inWhere)) {   // back to the keys first
                 list = -1;
+                inWhere = false;
                 invalidate();
             } else close();
             return true;
@@ -752,7 +847,13 @@ final class TvKeyboard extends View {
         if (code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER) {
             if (!okDown) return true;   // the OK that opened this keyboard, being let go
             okDown = false;
-            if (list >= 0) {
+            if (inWhere) {   // OK on a place: into its results
+                if (!hits.isEmpty()) {
+                    inWhere = false;
+                    list = listFrom = 0;
+                    invalidate();
+                }
+            } else if (list >= 0) {
                 if (list < hits.size()) pick(hits.get(list));
             } else if (inBox) leaveBox();
             else if (!okHeld && grid[row][col] != K_DELETE) press(grid[row][col]);
@@ -779,9 +880,27 @@ final class TvKeyboard extends View {
             }
             return;
         }
+        if (inWhere) {   // along the places: the list follows at once
+            if (dx != 0) {
+                int w = where + dx;
+                if (w < 0) {
+                    inWhere = false;   // past the first: back to the keys
+                    invalidate();
+                } else if (w < WHERE.length) chooseWhere(w);
+            } else if (dy > 0 && !hits.isEmpty()) {
+                inWhere = false;
+                list = listFrom = 0;
+                keepInView();
+                invalidate();
+            }
+            return;
+        }
         if (list >= 0) {
             if (dx < 0) list = -1;
-            else if (dy != 0) list = Math.max(0, Math.min(hits.size() - 1, list + dy));
+            else if (dy < 0 && list == 0 && whereShown()) {   // up from the first result: the places
+                list = -1;
+                inWhere = true;
+            } else if (dy != 0) list = Math.max(0, Math.min(hits.size() - 1, list + dy));
             keepInView();
             if (page) artSoon();
             invalidate();
@@ -790,6 +909,9 @@ final class TvKeyboard extends View {
         if (dx > 0 && lastCol()) {
             if (!hits.isEmpty()) {
                 list = listFrom = 0;
+                invalidate();
+            } else if (whereShown()) {   // no results here: onto the places, to look somewhere else
+                inWhere = true;
                 invalidate();
             }
             return;
@@ -833,6 +955,10 @@ final class TvKeyboard extends View {
                     text.deleteCharAt(caret - 1);
                     caret--;
                 }
+                break;
+            case K_CLEAR:   // everything typed, gone at once
+                text.setLength(0);
+                caret = 0;
                 break;
             case K_SYMBOLS:
                 symbols = !symbols;
@@ -892,6 +1018,9 @@ final class TvKeyboard extends View {
             try {
                 if (h.kind == STREAM && h.online != null) TitleActivity.open(a, h.online);
                 else if (h.kind == YOUTUBE) a.startActivity(DeepLinks.youtube(a, h.key));
+                else if (h.kind == IN_APP) {
+                    if (!PhoneRemote.searchApp(a, h.key, text.toString().trim())) route(a, new Hit(APP, h.title, ""), h.key);
+                }
                 else route(a, h);
             } catch (android.content.ActivityNotFoundException | SecurityException e) {
                 android.widget.Toast.makeText(a, R.string.not_available, android.widget.Toast.LENGTH_SHORT).show();
@@ -903,6 +1032,12 @@ final class TvKeyboard extends View {
     }
 
     /** Takes the chosen thing to its own section. */
+    /** An app opened by its package, for a search it couldn't take straight in. */
+    private static void route(Activity a, Hit h, String pkg) {
+        h.key = pkg;
+        route(a, h);
+    }
+
     static void route(Activity a, Hit h) {
         Intent i;
         switch (h.kind) {
@@ -1033,6 +1168,7 @@ final class TvKeyboard extends View {
     // On the 1920 x 1080 design: a wide panel over the screen, the box across its top, the keys on the left and the
     // suggestions beside them at the same height. A plain line has no suggestions, so it is only as wide as the keys.
     private static final float PAD = 32, GAP = 6, BOX_H = 84, TITLE_H = 60, BESIDE = 440, LIST_W = 520, HELP_H = 46;
+    private static final int PHONE_ROW = 6;   // Type on your phone: its own low row, where the hints used to be
     private float panelL, panelR, panelT, panelB, boxT, left, top, listX, listR, boxR;
     private float keyW = 96, keyH = 84, rowH = 70;
     private int rowsShown = 6;
@@ -1053,7 +1189,7 @@ final class TvKeyboard extends View {
         }
         float keys = COLS * keyW - GAP;
         float width = PAD * 2 + keys + (textOnly ? (qr != null ? BESIDE : 0) : 26 + LIST_W);
-        float height = PAD * 2 + (title != null ? TITLE_H : 0) + BOX_H + 20 + ROWS * keyH - GAP + HELP_H;
+        float height = PAD * 2 + (title != null ? TITLE_H : 0) + BOX_H + 20 + ROWS * keyH - GAP;
         panelL = (1920 - width) / 2;
         panelR = panelL + width;
         panelT = (1080 - height) / 2;
@@ -1068,6 +1204,7 @@ final class TvKeyboard extends View {
 
     @Override
     protected void onDraw(Canvas c) {
+        Frost.frame(this);   // selections glide (Frost.plate)
         if (page) {
             drawPage(c);
             return;
@@ -1078,12 +1215,9 @@ final class TvKeyboard extends View {
         Frost.panel(c, r, 44 * k, 1, k);
         drawField(c);
         drawKeys(c);
-        help.setColor(Frost.FAINT);
-        c.drawText(inBox ? "\u25C4 \u25BA move the cursor    \u25BC back to the keys" : "Hold OK on a letter for a space    \u25B2 from the top row to edit your text",
-                left * k, (panelB - PAD - 4) * k, help);
         if (qr != null) drawPhone(c);
         else if (!textOnly) drawList(c);
-        drawMini(c);
+        // (no QR code under the keys: "Type on phone" shows it when wanted)
     }
 
     private void drawField(Canvas c) {
@@ -1118,10 +1252,22 @@ final class TvKeyboard extends View {
             while (x < COLS) {
                 int key = grid[y][x], end = x;
                 while (end + 1 < COLS && grid[y][end + 1] == key) end++;
-                float keyT = top + y * keyH;
-                r.set((left + x * keyW) * k, keyT * k, (left + (end + 1) * keyW - GAP) * k, (keyT + keyH - GAP) * k);
-                boolean on = list < 0 && !inBox && y == row && x <= col && col <= end;
-                if (key == K_SEARCH) Frost.neon(c, r, 16 * k, on, k);
+                float keyT = top + y * keyH, kh = keyH;
+                r.set((left + x * keyW) * k, keyT * k, (left + (end + 1) * keyW - GAP) * k, (keyT + kh - GAP) * k);
+                boolean on = list < 0 && !inBox && !inWhere && y == row && x <= col && col <= end;
+                if (key == K_SEARCH) Frost.hero(c, r, 16 * k, on, k);   // the main key: the jewel colour
+                else if (key == K_SYMBOLS && !on) {   // the symbols key: a soft sky tint, so it is found at once
+                    tile.setColor(0x2E7CC8FF);
+                    c.drawRoundRect(r, 16 * k, 16 * k, tile);
+                } else if (key == K_PHONE) {   // a key like the rest, along the foot, with a faint teal wash so it reads as its own thing
+                    if (on) Frost.plate(c, r, 16 * k, k);
+                    else {
+                        tile.setColor(Color.WHITE);   // a shader takes the paint's alpha
+                        tile.setShader(new android.graphics.LinearGradient(r.left, 0, r.right, 0, 0x2E6EE7D2, 0x146EE7D2, android.graphics.Shader.TileMode.CLAMP));
+                        c.drawRoundRect(r, 16 * k, 16 * k, tile);
+                        tile.setShader(null);
+                    }
+                }
                 else if (on) Frost.plate(c, r, 16 * k, k);
                 else {
                     tile.setColor(key == K_SHIFT && shift ? 0x59FFFFFF : 0x1FFFFFFF);
@@ -1133,8 +1279,29 @@ final class TvKeyboard extends View {
                     keyText.setColor(bright ? Frost.INK : 0x59F4F4F1);
                     c.drawText(String.valueOf(capitalNext() ? Character.toUpperCase((char) key) : (char) key), r.centerX(), cy + 12 * k, keyText);
                 } else {
-                    small.setColor(key == K_SEARCH || on ? Frost.INK : Frost.MUTE);
-                    c.drawText(word(key), r.centerX(), cy + 9 * k, small);
+                    small.setColor(key == K_SEARCH || on ? Frost.INK : key == K_SYMBOLS ? 0xFFA8DCFF : 0xE6F4F4F1);
+                    String iconName = keyIcon(key);
+                    if (iconName != null) {   // a coloured icon, then the word, centred together
+                        String w = word(key);
+                        Bitmap g = LineIcon.icon(iconName, 32 * k);
+                        float was = small.getTextSize();
+                        while (g.getWidth() + 10 * k + small.measureText(w) > r.width() - 20 * k && small.getTextSize() > 16 * k)
+                            small.setTextSize(small.getTextSize() - k);
+                        float total = g.getWidth() + 10 * k + small.measureText(w), gx = r.centerX() - total / 2;
+                        keyIcon.setColorFilter(new android.graphics.PorterDuffColorFilter(keyColour(key), android.graphics.PorterDuff.Mode.SRC_IN));
+                        c.drawBitmap(g, gx, cy - g.getHeight() / 2f, keyIcon);
+                        Paint.Align al = small.getTextAlign();
+                        small.setTextAlign(Paint.Align.LEFT);
+                        c.drawText(w, gx + g.getWidth() + 10 * k, cy + 9 * k, small);
+                        small.setTextAlign(al);
+                        small.setTextSize(was);
+                    } else {
+                        c.drawText(word(key), r.centerX(), cy + 9 * k, small);
+                        if (key == K_SPACE) {   // a space bar's line under the word
+                            float half = small.measureText(word(key)) / 2 + 6 * k;
+                            c.drawRect(r.centerX() - half, cy + 18 * k, r.centerX() + half, cy + 20.5f * k, small);
+                        }
+                    }
                 }
                 x = end + 1;
             }
@@ -1142,6 +1309,29 @@ final class TvKeyboard extends View {
     }
 
     private final Paint tile = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint keyIcon = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG);
+
+    /** The icon on a key that does something, or null (Aa, #+=). */
+    @Nullable
+    private static String keyIcon(int key) {
+        switch (key) {
+            case K_SEARCH: return "search";
+            case K_DELETE: return "backspace";
+            case K_CLEAR: return "clearall";
+            case K_PHONE: return "phone";
+            default: return null;   // Space has its line; Type on your phone is words only
+        }
+    }
+
+    /** Each key's own colour, so it is found at a glance: soft enough to sit on the dark keys. */
+    private static int keyColour(int key) {
+        switch (key) {
+            case K_DELETE: return 0xFFFF8A80;         // coral
+            case K_CLEAR: return 0xFFFFC266;          // amber
+            case K_PHONE: return 0xFF6EE7D2;          // teal
+            default: return Color.WHITE;              // Search: the white magnifier it always had
+        }
+    }
     private Paint heading, help;
     private final Paint picture = new Paint(Paint.FILTER_BITMAP_FLAG);
     private boolean blurReady;
@@ -1153,11 +1343,13 @@ final class TvKeyboard extends View {
             case K_DELETE:
                 return "Delete";
             case K_PHONE:
-                return qr != null ? "Hide" : "Phone";
+                return qr != null ? "Hide the phone code" : "Type on your phone";
             case K_SYMBOLS:
                 return symbols ? "abc" : "#+=";
             case K_SHIFT:
                 return "Aa";
+            case K_CLEAR:
+                return "Clear all";
             default:
                 return okLabel;
         }

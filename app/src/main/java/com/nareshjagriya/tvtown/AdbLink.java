@@ -109,6 +109,37 @@ final class AdbLink implements Closeable {
         t.start();
     }
 
+    private int nextStream = 100;
+
+    /**
+     * Runs one command to its end and hands back what it printed, leaving the connection open for the next (so the TV
+     * asks "allow?" at most once). One at a time, on a link used for nothing else.
+     */
+    synchronized String exec(String command, int timeoutMs) throws Exception {
+        int local = ++nextStream, remote = 0;
+        send(OPEN, local, 0, ("shell:" + command + "\0").getBytes(StandardCharsets.UTF_8));
+        socket.setSoTimeout(timeoutMs);
+        java.io.ByteArrayOutputStream got = new java.io.ByteArrayOutputStream();
+        try {
+            while (true) {
+                Packet p = read();
+                if (p.arg1 != local) continue;   // left over from an earlier command
+                if (p.cmd == OKAY) remote = p.arg0;
+                else if (p.cmd == WRTE) {
+                    got.write(p.data, 0, p.data.length);
+                    send(OKAY, local, p.arg0, new byte[0]);
+                } else if (p.cmd == CLSE) {
+                    if (remote != 0) send(CLSE, local, remote, new byte[0]);
+                    break;
+                }
+            }
+        } catch (IOException e) {
+            close();
+            throw e;
+        }
+        return got.toString("UTF-8");
+    }
+
     void write(String text) throws Exception {
         if (closed || !mayWrite.tryAcquire(5, TimeUnit.SECONDS)) throw new IOException("closed");
         send(WRTE, LOCAL_ID, remoteId, text.getBytes(StandardCharsets.UTF_8));

@@ -260,7 +260,7 @@
     <string name="nothing_playing">Nothing playing</string>
     <string name="needs_access">Needs notification access</string>
     <string name="needs_access_hint">Allow TV Town notification access in the TV\'s settings (Apps → Special app access) to see what\'s playing</string>
-    <string name="free_memory">Free up memory</string>
+    <string name="free_memory">Free up this TV</string>
     <string name="mb_free">%d MB free</string>
     <string name="freeing">Freeing memory…</string>
     <string name="freed">Freed %1$d MB  ·  %2$d MB free now</string>

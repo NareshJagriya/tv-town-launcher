@@ -29,6 +29,11 @@ final class LineIcon {
     static {
         ICONS.put("apps", new String[]{"M4.5 3.0h4.0a1.5 1.5 0 0 1 1.5 1.5v4.0a1.5 1.5 0 0 1 -1.5 1.5h-4.0a1.5 1.5 0 0 1 -1.5 -1.5v-4.0a1.5 1.5 0 0 1 1.5 -1.5z M15.5 3.0h4.0a1.5 1.5 0 0 1 1.5 1.5v4.0a1.5 1.5 0 0 1 -1.5 1.5h-4.0a1.5 1.5 0 0 1 -1.5 -1.5v-4.0a1.5 1.5 0 0 1 1.5 -1.5z M4.5 14.0h4.0a1.5 1.5 0 0 1 1.5 1.5v4.0a1.5 1.5 0 0 1 -1.5 1.5h-4.0a1.5 1.5 0 0 1 -1.5 -1.5v-4.0a1.5 1.5 0 0 1 1.5 -1.5z M15.5 14.0h4.0a1.5 1.5 0 0 1 1.5 1.5v4.0a1.5 1.5 0 0 1 -1.5 1.5h-4.0a1.5 1.5 0 0 1 -1.5 -1.5v-4.0a1.5 1.5 0 0 1 1.5 -1.5z", "s"});
         ICONS.put("back", new String[]{"M10 6l-6 6 6 6M4 12h16", "s"});
+        // the keyboard's keys
+        ICONS.put("backspace", new String[]{"M9 5H20a1 1 0 0 1 1 1V18a1 1 0 0 1 -1 1H9L3 12Z M12 9l6 6 M18 9l-6 6", "s"});
+        ICONS.put("spacebar", new String[]{"M3 9V14a1 1 0 0 0 1 1H20a1 1 0 0 0 1 -1V9", "s"});
+        ICONS.put("phone", new String[]{"M8 3H16a1.5 1.5 0 0 1 1.5 1.5V19.5a1.5 1.5 0 0 1 -1.5 1.5H8a1.5 1.5 0 0 1 -1.5 -1.5V4.5A1.5 1.5 0 0 1 8 3Z M11 18H13", "s"});
+        ICONS.put("clearall", new String[]{"M12 3a9 9 0 1 0 0.01 0Z M9 9l6 6 M15 9l-6 6", "s"});
         ICONS.put("bars", new String[]{"M5 10v4M9.500 6v12M14 8v8M18.500 11v2", "s"});
         ICONS.put("bt", new String[]{"M7 7l10 10-5 4V3l5 4L7 17", "s"});
         ICONS.put("check", new String[]{"M5 12.500l4.500 4.500L19 7.500", "s"});

@@ -7,7 +7,6 @@ import android.graphics.Color;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.RadialGradient;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.view.KeyEvent;
@@ -58,26 +57,11 @@ final class Treat implements GlassSheet.Pane {
 
     @Override
     public void draw(Canvas c, RectF area, float e, boolean focused) {
-        int a = Math.round(255 * e);
-        // TV Town's colours softly in the glass: violet from the top left, pink from the bottom right
-        c.save();
-        clip.reset();
-        r.set(area.left + 8 * k, area.top + 8 * k, area.right - 8 * k, area.bottom - 8 * k);
-        clip.addRoundRect(r, 32 * k, 32 * k, Path.Direction.CW);
-        c.clipPath(clip);
-        fill.setColor(Color.WHITE);
-        fill.setShader(new RadialGradient(r.left, r.top, 620 * k, Color.argb(Math.round(0x55 * e), 0x7C, 0x5C, 0xFF), 0x007C5CFF, Shader.TileMode.CLAMP));
-        c.drawRect(r, fill);
-        fill.setShader(new RadialGradient(r.right, r.bottom, 620 * k, Color.argb(Math.round(0x4A * e), 0xFF, 0x3C, 0x8A), 0x00FF3C8A, Shader.TileMode.CLAMP));
-        c.drawRect(r, fill);
-        fill.setShader(null);
-        c.restore();
+        int a = Math.round(255 * e);   // the same black pop-up as every other section: no colour washed into it
 
         float x = area.left + 48 * k, y = area.top + 78 * k;
         title.setAlpha(a);
-        title.setShader(new LinearGradient(x, 0, x + 420 * k, 0, 0xFFC4B5FD, 0xFFFF8AC0, Shader.TileMode.CLAMP));
         c.drawText(TITLE, x, y, title);
-        title.setShader(null);
         line.setAlpha(a);
         c.drawText("Happiness is creating something you love.", x, y + 58 * k, line);
         c.drawText("Even better when someone loves it too!", x, y + 96 * k, line);
@@ -129,10 +113,6 @@ final class Treat implements GlassSheet.Pane {
             qr = PhoneKeyboard.qrFor(want, Math.round(qs));
             qrFor = want;
         }
-        fill.setColor(Color.WHITE);
-        fill.setShader(new RadialGradient(qx + qs / 2, qy + qs / 2, qs, Color.argb(Math.round(0x55 * e), 0x7C, 0x5C, 0xFF), 0x007C5CFF, Shader.TileMode.CLAMP));
-        c.drawCircle(qx + qs / 2, qy + qs / 2, qs, fill);
-        fill.setShader(null);
         if (qr != null) {
             r.set(qx - 16 * k, qy - 16 * k, qx + qs + 16 * k, qy + qs + 16 * k);
             fill.setColor(Color.WHITE);
@@ -162,28 +142,19 @@ final class Treat implements GlassSheet.Pane {
         small.setTextAlign(Paint.Align.LEFT);
     }
 
-    /** A choice: clear glass; the chosen one filled with TV Town's violet-to-pink, glowing when the remote is on it. */
+    /**
+     * A choice, drawn as everywhere else: the violet glass when the remote is on it; chosen, a soft violet tint with a
+     * light edge; otherwise clear glass.
+     */
     private void gem(Canvas c, RectF b, float rad, boolean chosen, boolean focused, float e) {
-        int a = Math.round(255 * e);
-        fill.setColor(Color.WHITE);
-        fill.setAlpha(a);
-        if (chosen) {
-            if (focused) {
-                fill.setShader(new RadialGradient(b.centerX(), b.centerY(), b.width() * 0.9f, 0x667C5CFF, 0x007C5CFF, Shader.TileMode.CLAMP));
-                c.drawRoundRect(b.left - 12 * k, b.top - 12 * k, b.right + 12 * k, b.bottom + 12 * k, (rad + 12) * k, (rad + 12) * k, fill);
-            }
-            fill.setShader(new LinearGradient(b.left, b.top, b.right, b.bottom, focused ? 0xFF7C5CFF : 0x997C5CFF, focused ? 0xFFFF3C8A : 0x99FF3C8A, Shader.TileMode.CLAMP));
-            c.drawRoundRect(b, rad * k, rad * k, fill);
-            fill.setShader(new LinearGradient(0, b.top, 0, b.centerY(), 0x40FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
-            c.drawRoundRect(b, rad * k, rad * k, fill);
+        if (focused) {
+            Frost.plate(c, b, rad * k, k);
+        } else if (chosen) {
             fill.setShader(null);
-        } else {
-            fill.setColor(0x1FFFFFFF);
+            fill.setColor(Color.argb(Math.round(0x4D * e), 0x7B, 0x5C, 0xF0));
             c.drawRoundRect(b, rad * k, rad * k, fill);
-            edge.setStrokeWidth(1.5f * k);
-            edge.setColor(0x33FFFFFF);
-            c.drawRoundRect(b, rad * k, rad * k, edge);
-        }
+            Frost.rim(c, b, rad * k, k);
+        } else Frost.ghost(c, b, rad * k, false, k);
     }
 
     @Override

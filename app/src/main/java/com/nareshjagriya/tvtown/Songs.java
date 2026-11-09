@@ -75,13 +75,16 @@ final class Songs {
     /**
      * Up to `max` songs or playlists for a card, none already shown for it (or hidden), marking them as shown. Several
      * searches (different wordings, each in one of the chosen languages, and a different part of the card each time)
-     * give a bigger pool; Extras (anyLanguage) use every part whatever the languages. When everything has been
+     * give a bigger pool; Extras use every part with Any, else the parts for the ticked languages. When everything has been
      * shown, a new round starts. Runs network requests; call off the main thread.
      */
     static List<Pick> find(Context ctx, int kind, Picks.Entry entry, List<String> ticked, List<String> shown,
                            boolean playlists, int max, Random random) {
-        boolean anyLanguage = kind == Picks.EXTRAS;
-        List<String> langs = anyLanguage ? java.util.Arrays.asList(Style.global() ? "English" : "Hindi") : Picks.songLanguages(ticked, shown);
+        // Extras: with Any, every part; with languages ticked, the parts made for them (Hindi trailers, Hindi stand-up…)
+        // and the ones for every language.
+        boolean anyLanguage = kind == Picks.EXTRAS && ticked.isEmpty();
+        List<String> langs = anyLanguage ? java.util.Arrays.asList(Style.global() ? "English" : "Hindi")
+                : kind == Picks.EXTRAS ? new ArrayList<>(ticked) : Picks.songLanguages(ticked, shown);
         String bag = Picks.bag(kind, entry, ticked) + (playlists ? ":pl" : ":song");
         java.util.Set<String> skip = Picks.seen(ctx, bag);
         skip.addAll(Picks.hidden(ctx));

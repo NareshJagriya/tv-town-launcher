@@ -73,7 +73,7 @@ final class GlassBackdrop implements GlassKit.Source {
     }
 
     static int intervalSeconds(SharedPreferences prefs) {
-        return prefs.getInt("scene_seconds", 6);
+        return 6;   // the setting was removed: six seconds suits every picture
     }
 
     /** Moves to the next scene when its time is up (the first as soon as one is ready). */

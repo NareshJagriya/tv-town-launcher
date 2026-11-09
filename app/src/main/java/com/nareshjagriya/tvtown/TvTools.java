@@ -266,12 +266,21 @@ final class TvTools {
      * under its address. Blocking: off the main thread.
      */
     static List<Watching> watchNext(Context c, int max) {
+        return watchNextOf(c, max, false);
+    }
+
+    /** What your apps keep in the TV's watchlist (saved for later), latest first. Blocking. */
+    static List<Watching> appWatchlist(Context c, int max) {
+        return watchNextOf(c, max, true);
+    }
+
+    private static List<Watching> watchNextOf(Context c, int max, boolean saved) {
         List<Watching> list = new ArrayList<>();
         PackageManager apps = c.getPackageManager();
         String newestFirst = TvContract.WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS + " DESC";
         try (Cursor row = c.getContentResolver().query(TvContract.WatchNextPrograms.CONTENT_URI, null, null, null, newestFirst)) {
             while (row != null && list.size() < max && row.moveToNext()) {
-                Watching w = fromRow(c, row, apps);
+                Watching w = fromRow(c, row, apps, saved);
                 if (w != null) list.add(w);
             }
         } catch (RuntimeException noList) {
@@ -280,9 +289,10 @@ final class TvTools {
         return list;
     }
 
-    private static Watching fromRow(Context c, Cursor row, PackageManager apps) {
+    private static Watching fromRow(Context c, Cursor row, PackageManager apps, boolean saved) {
         long kind = number(row, TvContract.WatchNextPrograms.COLUMN_WATCH_NEXT_TYPE, -1);
-        if (kind != TvContract.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE && kind != TvContract.WatchNextPrograms.WATCH_NEXT_TYPE_NEXT) return null;
+        if (saved ? kind != TvContract.WatchNextPrograms.WATCH_NEXT_TYPE_WATCHLIST
+                : kind != TvContract.WatchNextPrograms.WATCH_NEXT_TYPE_CONTINUE && kind != TvContract.WatchNextPrograms.WATCH_NEXT_TYPE_NEXT) return null;
         String pkg = field(row, TvContract.WatchNextPrograms.COLUMN_PACKAGE_NAME);
         boolean hiddenByApp = number(row, TvContract.WatchNextPrograms.COLUMN_BROWSABLE, 1) == 0;
         if (hiddenByApp || pkg.isEmpty() || apps.getLeanbackLaunchIntentForPackage(pkg) == null) return null;
