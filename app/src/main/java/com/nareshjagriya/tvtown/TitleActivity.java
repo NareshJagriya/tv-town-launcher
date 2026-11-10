@@ -30,6 +30,11 @@ import java.util.Locale;
  */
 public class TitleActivity extends Activity {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Lang.wrap(base));   // the language chosen in Customize
+    }
+
     /** The title being opened: too rich for an Intent, and only ever one at a time. */
     private static Tmdb.Title pending;
 
@@ -81,6 +86,18 @@ public class TitleActivity extends Activity {
         }, "open-title").start();
     }
 
+    /** Opens the title's own page in Stremio or Nuvio. */
+    private void playIn(Tmdb.Title t, String which) {
+        Toast.makeText(this, getString(R.string.opening, t.title), Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            Intent i = OpenIn.intent(this, t, which);
+            runOnUiThread(() -> {
+                if (i == null) Toast.makeText(this, getString(R.string.not_in_app, t.title, OpenIn.name(which)), Toast.LENGTH_LONG).show();
+                else start(i);
+            });
+        }, "open-in").start();
+    }
+
     private void trailer(Tmdb.Title t) {
         new Thread(() -> {
             Intent i = DeepLinks.trailer(this, t);
@@ -121,11 +138,25 @@ public class TitleActivity extends Activity {
         private boolean rating;
         private int ratingValue;
         private StaticLayout story;
+        /** Stremio or Nuvio, when chosen in Customize; and the one installed, for titles no streaming app has. */
+        private final String chosenIn, alt;
+
+        @androidx.annotation.Nullable
+        private String inWhich() {
+            if (!OpenIn.APPS.equals(chosenIn)) return chosenIn;
+            return where.isEmpty() && whereKnown ? alt : null;
+        }
+
+        private boolean playable() {
+            return inWhich() != null || !where.isEmpty();
+        }
 
         Page(TitleActivity act, Tmdb.Title t) {
             super(act);
             this.act = act;
             this.t = t;
+            chosenIn = OpenIn.chosen(act);
+            alt = OpenIn.fallback(act);
             k = act.getResources().getDisplayMetrics().widthPixels / 1920f;
             stage = new ArtStage(this);
             nk = new NoirKit(act, k);
@@ -174,7 +205,7 @@ public class TitleActivity extends Activity {
                 cast = names;
                 whereKnown = true;
                 story = null;
-                if (sel == B_PLAY && where.isEmpty()) sel = B_TRAILER;
+                if (sel == B_PLAY && !playable()) sel = B_TRAILER;
                 invalidate();
             });
         }
@@ -183,16 +214,17 @@ public class TitleActivity extends Activity {
             Library.Entry e = Library.get(getContext(), t);
             switch (b) {
                 case B_PLAY:
-                    return where.isEmpty() ? (whereKnown ? "Not streaming" : "Finding where…") : "Play on " + where.get(Math.min(app, where.size() - 1)).name;
+                    if (inWhich() != null) return L10n.t("Play in ") + OpenIn.name(inWhich());
+                    return where.isEmpty() ? (whereKnown ? L10n.t("Not streaming") : L10n.t("Finding where…")) : L10n.t("Play on ") + where.get(Math.min(app, where.size() - 1)).name;
                 case B_TRAILER:
-                    return "Trailer";
+                    return L10n.t("Trailer");
                 case B_LIST:
-                    return e != null && e.status == Library.WANT ? "✓ My List" : "+ My List";
+                    return e != null && e.status == Library.WANT ? L10n.t("✓ My List") : L10n.t("+ My List");
                 case B_WATCHED:
-                    return e != null && e.status == Library.WATCHED ? "✓ Watched" : "Watched";
+                    return e != null && e.status == Library.WATCHED ? L10n.t("✓ Watched") : L10n.t("Watched");
                 default:
-                    if (rating) return "‹  ★ " + (ratingValue == 0 ? "None" : ratingValue) + "  ›";
-                    return e != null && e.rating > 0 ? "★ " + e.rating : "Rate";
+                    if (rating) return "‹  ★ " + (ratingValue == 0 ? L10n.t("None") : ratingValue) + "  ›";
+                    return e != null && e.rating > 0 ? "★ " + e.rating : L10n.t("Rate");
             }
         }
 
@@ -204,7 +236,7 @@ public class TitleActivity extends Activity {
 
         /** The one main button, in the jewel colour with an icon: Play, or Trailer when it isn't streaming anywhere. */
         private boolean main(int b) {
-            return where.isEmpty() ? b == B_TRAILER : b == B_PLAY;
+            return playable() ? b == B_PLAY : b == B_TRAILER;
         }
 
         private float btnW(int b) {
@@ -241,7 +273,7 @@ public class TitleActivity extends Activity {
             story.draw(c);
             c.restore();
             y += 20 * k + story.getHeight() + 40 * k;
-            if (!cast.isEmpty()) c.drawText(fit("With " + cast, label, room), x, Math.min(y, (BTN_Y - (where.size() > 1 ? 98 : 26)) * k), label);
+            if (!cast.isEmpty()) c.drawText(fit(L10n.t("With ") + cast, label, room), x, Math.min(y, (BTN_Y - (where.size() > 1 ? 98 : 26)) * k), label);
 
             if (where.size() > 1) drawApps(c);
             for (int b = 0; b < 5; b++) {
@@ -256,7 +288,7 @@ public class TitleActivity extends Activity {
                     tx += 38 * k;
                 } else if (on) Frost.plate(c, r, r.height() / 2, k);
                 else Frost.ghost(c, r, r.height() / 2, false, k);
-                btn.setAlpha(b == B_PLAY && where.isEmpty() ? 150 : 255);
+                btn.setAlpha(b == B_PLAY && !playable() ? 150 : 255);
                 c.drawText(buttonText(b), tx, r.centerY() + 9 * k, btn);
                 btn.setAlpha(255);
             }
@@ -306,12 +338,12 @@ public class TitleActivity extends Activity {
 
         private String metaLine() {
             List<String> m = new ArrayList<>();
-            m.add(t.isSeries() ? "Series" : "Film");
+            m.add(t.isSeries() ? L10n.t("Series") : L10n.t("Film"));
             if (t.year > 0) m.add(String.valueOf(t.year));
             if (!t.genres.isEmpty()) m.add(t.genres.replace(",", " ·"));
-            if (t.runtime > 0) m.add(t.runtime >= 60 ? t.runtime / 60 + " h " + t.runtime % 60 + " min" : t.runtime + " min");
+            if (t.runtime > 0) m.add(t.runtime >= 60 ? t.runtime / 60 + " h " + t.runtime % 60 + L10n.t(" min") : t.runtime + L10n.t(" min"));
             if (t.rating > 0) m.add((t.jwId != null ? "IMDb " : "TMDB ") + String.format(Locale.US, "%.1f", t.rating));
-            if (t.tomato >= 0) m.add("Rotten Tomatoes " + t.tomato + "%");
+            if (t.tomato >= 0) m.add(L10n.t("Rotten Tomatoes ") + t.tomato + "%");
             return TextUtils.join(" · ", m);
         }
 
@@ -351,7 +383,7 @@ public class TitleActivity extends Activity {
             if (left || right) {
                 if (row == 0) app = Math.max(0, Math.min(Math.min(where.size(), 6) - 1, app + (right ? 1 : -1)));
                 else {
-                    int low = where.isEmpty() ? B_TRAILER : B_PLAY;
+                    int low = playable() ? B_PLAY : B_TRAILER;
                     sel = Math.max(low, Math.min(B_RATE, sel + (right ? 1 : -1)));
                 }
             } else if (code == KeyEvent.KEYCODE_DPAD_UP) {
@@ -376,7 +408,8 @@ public class TitleActivity extends Activity {
             Library.Entry en = Library.get(ctx, t);
             switch (sel) {
                 case B_PLAY:
-                    if (!where.isEmpty()) act.play(t, where.get(Math.min(app, where.size() - 1)));
+                    if (inWhich() != null) act.playIn(t, inWhich());
+                    else if (!where.isEmpty()) act.play(t, where.get(Math.min(app, where.size() - 1)));
                     break;
                 case B_TRAILER:
                     act.trailer(t);

@@ -52,25 +52,25 @@ public class MustWatchView extends View implements Choreographer.FrameCallback {
 
     // ---- the choices -------------------------------------------------------------------------------
 
-    static final String[][] LISTS = {{"", "Top rated"}, {"", "Award winners"}, {"", "Critics' picks"}};
-    static final String[][] GENRES = {{"", "All genres", ""}, {"act", "Action", ""}, {"ani", "Animation", ""},
-            {"cmy", "Comedy", ""}, {"crm", "Crime", ""}, {"doc", "Documentary", ""}, {"drm", "Drama", ""},
-            {"fml", "Family", ""}, {"fnt", "Fantasy", ""}, {"hst", "History", ""}, {"hrr", "Horror", ""},
-            {"msc", "Music", ""}, {"rma", "Romance", ""}, {"scf", "Sci-Fi", ""}, {"spt", "Sport", "★"},
-            {"trl", "Thriller", ""}, {"war", "War", ""}, {"wsn", "Western", ""}};
-    static final String[][] LANGUAGES = {{"All", ""}, {"Hindi", "hi"}, {"English", "en"}, {"Marathi", "mr"},
-            {"Gujarati", "gu"}, {"Malayalam", "ml"}, {"Tamil", "ta"}, {"Telugu", "te"}, {"Korean", "ko"}};
-    static final String[][] GLOBAL_LANGUAGES = {{"All", ""}, {"English", "en"}, {"Spanish", "es"}, {"French", "fr"},
-            {"Korean", "ko"}, {"Japanese", "ja"}, {"German", "de"}, {"Italian", "it"}, {"Hindi", "hi"}};
+    static final String[][] LISTS = {{"", L10n.t("Top rated")}, {"", L10n.t("Award winners")}, {"", L10n.t("Critics' picks")}};
+    static final String[][] GENRES = {{"", L10n.t("All genres"), ""}, {"act", L10n.t("Action"), ""}, {"ani", L10n.t("Animation"), ""},
+            {"cmy", L10n.t("Comedy"), ""}, {"crm", L10n.t("Crime"), ""}, {"doc", L10n.t("Documentary"), ""}, {"drm", L10n.t("Drama"), ""},
+            {"fml", L10n.t("Family"), ""}, {"fnt", L10n.t("Fantasy"), ""}, {"hst", L10n.t("History"), ""}, {"hrr", L10n.t("Horror"), ""},
+            {"msc", L10n.t("Music"), ""}, {"rma", L10n.t("Romance"), ""}, {"scf", L10n.t("Sci-Fi"), ""}, {"spt", L10n.t("Sport"), "★"},
+            {"trl", L10n.t("Thriller"), ""}, {"war", L10n.t("War"), ""}, {"wsn", L10n.t("Western"), ""}};
+    static final String[][] LANGUAGES = {{L10n.t("All"), ""}, {L10n.t("Hindi"), "hi"}, {L10n.t("English"), "en"}, {L10n.t("Marathi"), "mr"},
+            {L10n.t("Gujarati"), "gu"}, {L10n.t("Malayalam"), "ml"}, {L10n.t("Tamil"), "ta"}, {L10n.t("Telugu"), "te"}, {L10n.t("Korean"), "ko"}};
+    static final String[][] GLOBAL_LANGUAGES = {{L10n.t("All"), ""}, {L10n.t("English"), "en"}, {L10n.t("Spanish"), "es"}, {L10n.t("French"), "fr"},
+            {L10n.t("Korean"), "ko"}, {L10n.t("Japanese"), "ja"}, {L10n.t("German"), "de"}, {L10n.t("Italian"), "it"}, {L10n.t("Hindi"), "hi"}};
 
     /** The language chip's list for the content style. */
     static String[][] languages() {
         return Style.global() ? GLOBAL_LANGUAGES : LANGUAGES;
     }
-    static final String[] DECADES = {"Any decade", "2020s", "2010s", "2000s", "1990s", "1980s", "1970s", "Before 1970"};
-    static final String[][] STATUSES = {{"", "All"}, {"", "Hide watched"}, {"", "Want to Watch"}, {"", "Watched"},
-            {"", "Rated by me"}};
-    static final String[] SORTS = {"IMDb", "Critics", "Year", "My rating"};
+    static final String[] DECADES = {L10n.t("Any decade"), "2020s", "2010s", "2000s", "1990s", "1980s", "1970s", L10n.t("Before 1970")};
+    static final String[][] STATUSES = {{"", L10n.t("All")}, {"", L10n.t("Hide watched")}, {"", L10n.t("Want to Watch")}, {"", L10n.t("Watched")},
+            {"", L10n.t("Rated by me")}};
+    static final String[] SORTS = {L10n.t("IMDb"), L10n.t("Critics"), L10n.t("Year"), L10n.t("My rating")};
     static final int ALL = 0, HIDE_WATCHED = 1, WANT = 2, WATCHED = 3, RATED = 4;
     static final int BY_IMDB = 0, BY_CRITICS = 1, BY_YEAR = 2, BY_MINE = 3;
 
@@ -324,7 +324,7 @@ public class MustWatchView extends View implements Choreographer.FrameCallback {
         final String code = languages()[lang][1];
         final boolean indian = java.util.Arrays.asList("hi", "mr", "gu", "ml", "ta", "te").contains(code);
         final boolean series = tab == TAB_SERIES;
-        JustWatch.Category c = new JustWatch.Category("Must-Watch", LISTS[list][1]);
+        JustWatch.Category c = new JustWatch.Category(L10n.t("Must-Watch"), LISTS[list][1]);
         if (!GENRES[genre][0].isEmpty()) c.genres = new String[]{GENRES[genre][0]};
         int[] years = years();
         if (years != null) c.years(years[0], years[1]);
@@ -894,7 +894,7 @@ public class MustWatchView extends View implements Choreographer.FrameCallback {
         StringBuilder m = new StringBuilder();
         if (t.year > 0) m.append(t.year);
         if (t.rating > 0) m.append(m.length() > 0 ? " · " : "").append("IMDb ").append(String.format(Locale.US, "%.1f", t.rating));
-        if (t.tomato >= 0) m.append(" · RT ").append(t.tomato).append('%');
+        if (t.tomato >= 0) m.append(L10n.t(" · RT ")).append(t.tomato).append('%');
         cardMeta.setAlpha(220);
         c.drawText(ellipsize(m.toString(), cardMeta, cw), r.left + 2 * k, ty + 32 * k, cardMeta);
         float wy = ty + 64 * k;
@@ -965,9 +965,9 @@ public class MustWatchView extends View implements Choreographer.FrameCallback {
         tl.draw(c);
         c.restore();
         y += tl.getHeight() + 44 * k;
-        StringBuilder meta = new StringBuilder(t.isSeries() ? "Series" : "Movie");
+        StringBuilder meta = new StringBuilder(t.isSeries() ? L10n.t("Series") : L10n.t("Movie"));
         if (t.year > 0) meta.append("  ·  ").append(t.year);
-        if (t.runtime > 0) meta.append("  ·  ").append(t.runtime >= 60 ? t.runtime / 60 + " h " + t.runtime % 60 + " min" : t.runtime + " min");
+        if (t.runtime > 0) meta.append("  ·  ").append(t.runtime >= 60 ? t.runtime / 60 + " h " + t.runtime % 60 + L10n.t(" min") : t.runtime + L10n.t(" min"));
         if (!t.genres.isEmpty()) meta.append("  ·  ").append(t.genres);
         detailMeta.setAlpha(230);
         c.drawText(ellipsize(meta.toString(), detailMeta, right - x), x, y, detailMeta);
@@ -1015,8 +1015,8 @@ public class MustWatchView extends View implements Choreographer.FrameCallback {
 
     private static String votes(int v) {
         if (v >= 1_000_000) return String.format(Locale.US, "%.1fM votes", v / 1_000_000f);
-        if (v >= 1_000) return Math.round(v / 1000f) + "K votes";
-        return v + " votes";
+        if (v >= 1_000) return Math.round(v / 1000f) + L10n.t("K votes");
+        return v + L10n.t(" votes");
     }
 
     private void drawButtons(Canvas c, RectF p, float y) {

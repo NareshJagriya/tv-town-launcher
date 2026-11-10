@@ -40,16 +40,16 @@ final class Subtitles {
                 // read-only drive: Downloads instead
             }
         }
-        if (Build.VERSION.SDK_INT < 29) throw new IOException("Can't save on this TV");
+        if (Build.VERSION.SDK_INT < 29) throw new IOException(L10n.t("Can't save on this TV"));
         ContentResolver cr = ctx.getContentResolver();
         ContentValues cv = new ContentValues();
         cv.put(MediaStore.Downloads.DISPLAY_NAME, name);
         cv.put(MediaStore.Downloads.MIME_TYPE, "application/x-subrip");
         cv.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/" + FOLDER);
         Uri uri = cr.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
-        if (uri == null) throw new IOException("Can't save the subtitle");
+        if (uri == null) throw new IOException(L10n.t("Can't save the subtitle"));
         try (OutputStream o = cr.openOutputStream(uri)) {
-            if (o == null) throw new IOException("Can't save the subtitle");
+            if (o == null) throw new IOException(L10n.t("Can't save the subtitle"));
             o.write(data);
         }
         try (Cursor c = cr.query(uri, new String[]{MediaStore.MediaColumns.DATA}, null, null, null)) {

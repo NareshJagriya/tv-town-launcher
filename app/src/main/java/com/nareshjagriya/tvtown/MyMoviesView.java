@@ -101,9 +101,9 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
     // Tabs: views (All, Favourites, Unwatched, In progress, Movies, Series), then Filter (a panel) and Sort (a list).
     private static final int V_ALL = 0, V_FAV = 1, V_UNWATCHED = 2, V_STARTED = 3, V_MOVIES = 4, V_SERIES = 5, T_FILTER = 6,
             T_SORT = 7, T_SEARCH = 8, T_GRID = 9;
-    private static final String[] VIEWS = {"All", "Favourites", "Unwatched", "In progress", "Movies", "Series"};
+    private static final String[] VIEWS = {L10n.t("All"), L10n.t("Favourites"), L10n.t("Unwatched"), L10n.t("In progress"), L10n.t("Movies"), L10n.t("Series")};
     private static final String[] VIEW_EMOJI = {"", "❤", "", "⏯", "", ""};
-    private static final String[] SORTS = {"Recently added", "A–Z", "Year", "IMDb rating", "Your rating"};
+    private static final String[] SORTS = {L10n.t("Recently added"), "A–Z", L10n.t("Year"), L10n.t("IMDb rating"), L10n.t("Your rating")};
     // Language filter choices, kept with a prefix for their section: o: origin, a: audio, s: subtitles.
     private static final String HAS_SUBS = "Has subtitles", NO_SUBS = "No subtitles";
     /** Languages that need no subtitles, by content style. */
@@ -563,15 +563,15 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
 
     private String tabWord(int t) {
         if (t == 0) return VIEWS[view];
-        if (t == T_SEARCH) return query.isEmpty() ? "Search" : query;
+        if (t == T_SEARCH) return query.isEmpty() ? L10n.t("Search") : query;
         String text = SIDE_LABEL[t];
-        return t == T_FILTER && filterCount() > 0 ? "Filter · " + filterCount() : text;
+        return t == T_FILTER && filterCount() > 0 ? L10n.t("Filter · ") + filterCount() : text;
     }
 
     private float tabWidth(int t) {
         if (kit != null) barPaint.setTypeface(kit.font(10, 500).getTypeface());
         barPaint.setTextSize(24 * k);
-        if (t == BAR_KIND) return barPaint.measureText("Movies") + barPaint.measureText("Series") + barPaint.measureText("Videos") + 96 * k;
+        if (t == BAR_KIND) return barPaint.measureText(L10n.t("Movies")) + barPaint.measureText(L10n.t("Series")) + barPaint.measureText(L10n.t("Videos")) + 96 * k;
         if (t == T_SEARCH) return 330 * k;   // the search bar, the same on every page
         return Math.min(240 * k, barPaint.measureText(tabWord(t))) + 56 * k;
     }
@@ -1256,11 +1256,11 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         List<Item> on = new ArrayList<>();
         for (Item it : shown) if (inProgress(it) && !watched(it)) on.add(it);
         Collections.sort(on, (a, b) -> Long.compare(lastPlayed(b), lastPlayed(a)));
-        if (!on.isEmpty()) shelfList.add(new Shelf("Continue", on));
+        if (!on.isEmpty()) shelfList.add(new Shelf(L10n.t("Continue"), on));
         List<Item> rest = new ArrayList<>(shown);
         rest.removeAll(on);
         for (int i = 0; i < rest.size(); i += S_ACROSS) {
-            String head = i > 0 ? "" : (seriesShown ? "All series" : "All movies") + " · " + rest.size();
+            String head = i > 0 ? "" : (seriesShown ? L10n.t("All series") : L10n.t("All movies")) + " · " + rest.size();
             shelfList.add(new Shelf(head.isEmpty() ? "row" + i : head, new ArrayList<>(rest.subList(i, Math.min(rest.size(), i + S_ACROSS)))));
         }
         shelfRow = 0;
@@ -1423,7 +1423,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
     }
 
     /** A tab: filled when it is the view (or filters are on), with the focus ring when focused. */
-    private static final String[] SIDE_LABEL = {"All", "Favourites", "Unwatched", "In progress", "Movies", "Series", "Filter", "Sort", "Search", "Grid"};
+    private static final String[] SIDE_LABEL = {L10n.t("All"), L10n.t("Favourites"), L10n.t("Unwatched"), L10n.t("In progress"), L10n.t("Movies"), L10n.t("Series"), L10n.t("Filter"), L10n.t("Sort"), L10n.t("Search"), L10n.t("Grid")};
 
     private void drawTab(Canvas c, int t) {
         RectF r = tabRect(t);
@@ -1431,12 +1431,12 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         float rad = r.height() / 2;
         barPaint.setTextSize(24 * k);
         if (t == T_SEARCH) {
-            Frost.searchBar(c, r, k, focused, query.isEmpty() ? "Search your films" : query, query.isEmpty(), barPaint);
+            Frost.searchBar(c, r, k, focused, query.isEmpty() ? L10n.t("Search your films") : query, query.isEmpty(), barPaint);
             return;
         }
         if (focused) Frost.plate(c, r, rad, k);
         if (t == BAR_KIND) {   // all three words always visible; the one showing is bright
-            String[] words = {"Movies", "Series", "Videos"};
+            String[] words = {L10n.t("Movies"), L10n.t("Series"), L10n.t("Videos")};
             int showing = videosShown ? 2 : seriesShown ? 1 : 0;
             float x = r.left + 18 * k;
             for (int i = 0; i < words.length; i++) {
@@ -1588,7 +1588,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
 
     private static String length(long ms) {
         long min = ms / 60_000;
-        return min >= 60 ? min / 60 + " h " + min % 60 + " min" : min + " min";
+        return min >= 60 ? min / 60 + " h " + min % 60 + L10n.t(" min") : min + L10n.t(" min");
     }
 
     // The details panel, in design pixels.
@@ -1658,7 +1658,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             heroName.setTextSize(was);
             y += 48 * k;
         }
-        c.drawText(ellipsize((it.show() ? "Series  ·  " : "Film  ·  ") + cardLine(it, true), heroMeta, right - x), x, y, heroMeta);
+        c.drawText(ellipsize((it.show() ? L10n.t("Series  ·  ") : L10n.t("Film  ·  ")) + cardLine(it, true), heroMeta, right - x), x, y, heroMeta);
         y += 18 * k;
         float pillsH = pills(c, it, x, y, right);
         y += pillsH > 0 ? pillsH + 18 * k : 0;
@@ -1814,7 +1814,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             kit.pill(c, r, 18 * k, 1);
             if (!onSeasons && i == episodeSel) kit.focus(c, r, 18 * k, 1);
             big.setAlpha(255);
-            c.drawText("E" + pp.episode, r.left + 22 * k, r.top + 52 * k, big);
+            c.drawText(L10n.t("E") + pp.episode, r.left + 22 * k, r.top + 52 * k, big);
             long pos = MyMovies.position(getContext(), v);
             String info = MyMovies.seen(getContext(), v) ? "✓ " + getContext().getString(R.string.watched)
                     : pos > 0 ? MyMovies.clock(pos) : v.durationMs > 0 ? MyMovies.clock(v.durationMs) : "";
@@ -1887,7 +1887,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
     private static final float PANEL_W = 820, CHIP_H = 54, HEAD = 150;
     // The filter has four short sections, each shown only when the drive gives it at least two choices.
     private static final String S_QUICK = "Quick picks", S_GENRE = "Genre", S_TAGS = "Mood", S_AUDIO = "Spoken in",
-            S_INFO = "Info", S_FOUND = "Found", S_ACT = "";
+            S_INFO = L10n.t("Info"), S_FOUND = L10n.t("Found"), S_ACT = "";
     private Item panelItem;
     private float contentH;
 

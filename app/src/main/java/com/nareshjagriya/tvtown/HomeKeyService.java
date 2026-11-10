@@ -102,7 +102,7 @@ public class HomeKeyService extends AccessibilityService {
                         if (TvTools.seesPlaying(HomeKeyService.this)) {
                             usedQuickSave();
                             startSaveNow(HomeKeyService.this, false);
-                        } else note("To save, TV Town needs Notification access in the TV's settings", 6000);
+                        } else note(L10n.t("To save, TV Town needs Notification access in the TV's settings"), 6000);
                     } else if (pausedAt == 0 || now - pausedAt > 60_000) tipOnce();
                     pausedAt = 0;
                 }
@@ -119,7 +119,7 @@ public class HomeKeyService extends AccessibilityService {
         long day = System.currentTimeMillis() / 86_400_000L;
         if (!youTube(front) || !Features.on(this, Features.YT_SAVE) || sp.getInt("quick_used", 0) >= 3 || sp.getLong("tip_day", -1) == day) return;
         sp.edit().putLong("tip_day", day).apply();
-        main.postDelayed(() -> note("Tip: press OK twice to save this song", 4500), 2500);
+        main.postDelayed(() -> note(L10n.t("Tip: press OK twice to save this song"), 4500), 2500);
     }
 
     private void usedQuickSave() {
@@ -136,7 +136,7 @@ public class HomeKeyService extends AccessibilityService {
         if (!youTube(front) || !Features.on(this, Features.YT_SAVE) || !YtSaver.offerOnPause(this) || (saveNote != null && saveNote.wantsKeys())) return;
         saveWindow = true;
         filterKeys();
-        card().note("↓  Press " + YtSaver.BUTTON_NAMES[YtSaver.button(this)] + " to save", SAVE_WINDOW_MS);
+        card().note(L10n.t("↓  Press ") + YtSaver.BUTTON_NAMES[YtSaver.button(this)] + L10n.t(" to save"), SAVE_WINDOW_MS);
         main.removeCallbacks(saveWindowEnd);
         main.postDelayed(saveWindowEnd, SAVE_WINDOW_MS);
     }
@@ -244,7 +244,7 @@ public class HomeKeyService extends AccessibilityService {
     /** Red in YouTube: what's playing. With nothing there, the link from the phone instead. */
     private void redPressed() {
         if (!TvTools.seesPlaying(this)) {
-            note("Switch on TV Town in Settings → Apps → Special app access → Notification access", 7000);
+            note(L10n.t("Switch on TV Town in Settings → Apps → Special app access → Notification access"), 7000);
             return;
         }
         android.media.session.MediaController m = TvTools.nowPlaying(this);
@@ -258,9 +258,9 @@ public class HomeKeyService extends AccessibilityService {
         String channel = by == null ? "" : by.toString();
         long seconds = md == null ? 0 : md.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) / 1000;
         card().choice(title, channel, video -> {
-            note("Finding: " + title, 3000);
+            note(L10n.t("Finding: ") + title, 3000);
             YtSaver.find(title, channel, seconds, f -> {
-                if (f == null) note("Couldn't find this exact video", 5000);
+                if (f == null) note(L10n.t("Couldn't find this exact video"), 5000);
                 else save(f, video);
             });
         }, null);
@@ -288,13 +288,13 @@ public class HomeKeyService extends AccessibilityService {
 
     private void openPhone() {
         if (!Features.on(this, Features.PHONE)) {
-            note("The phone remote is off: turn it on in Settings \u2192 Features", 6000);
+            note(L10n.t("The phone remote is off: turn it on in Settings \u2192 Features"), 6000);
             return;
         }
         String url = PhoneLink.url(this);
         android.graphics.Bitmap code = url == null ? null : PhoneKeyboard.qrFor(url, 480);
         if (code == null) {
-            note("The TV isn't connected to the network", 5000);
+            note(L10n.t("The TV isn't connected to the network"), 5000);
             return;
         }
         qrOpen = true;
@@ -311,9 +311,9 @@ public class HomeKeyService extends AccessibilityService {
         HomeKeyService s = instance;
         if (s == null) return;
         s.main.post(() -> {
-            note("Reading the link", 3000);
+            note(L10n.t("Reading the link"), 3000);
             YtSaver.read(link, f -> {
-                if (f == null || f.urls.isEmpty()) note("That link didn't work", 5000);
+                if (f == null || f.urls.isEmpty()) note(L10n.t("That link didn't work"), 5000);
                 else s.save(f, video);
             });
         });
@@ -347,9 +347,9 @@ public class HomeKeyService extends AccessibilityService {
         CharSequence by = md == null ? null : md.getText(android.media.MediaMetadata.METADATA_KEY_ARTIST);
         long seconds = md == null ? 0 : md.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) / 1000;
         s.main.post(() -> {
-            note("Finding: " + title, 3000);
+            note(L10n.t("Finding: ") + title, 3000);
             YtSaver.find(title, by == null ? "" : by.toString(), seconds, f -> {
-                if (f == null) note("Couldn't find this exact video", 5000);
+                if (f == null) note(L10n.t("Couldn't find this exact video"), 5000);
                 else s.save(f, video);
             });
         });
@@ -372,9 +372,9 @@ public class HomeKeyService extends AccessibilityService {
         HomeKeyService s = instance;
         if (s == null || text == null || text.trim().isEmpty()) return;
         s.main.post(() -> {
-            note("Looking on YouTube", 3000);
+            note(L10n.t("Looking on YouTube"), 3000);
             java.util.function.Consumer<YtSaver.Found> done = f -> {
-                if (f == null || f.urls.isEmpty()) note("Nothing found", 5000);
+                if (f == null || f.urls.isEmpty()) note(L10n.t("Nothing found"), 5000);
                 else s.card().choice(f.title, f.by, video -> s.save(f, video), null);
             };
             if (text.matches("(?i).*(youtube\\.com|youtu\\.be)/.*")) YtSaver.read(text, done);
@@ -399,7 +399,7 @@ public class HomeKeyService extends AccessibilityService {
 
     private void save(YtSaver.Found f, boolean video) {
         java.io.File folder = YtSaver.folder(this, video);
-        if (folder == null) note("Plug in a drive to save to", 5000);
+        if (folder == null) note(L10n.t("Plug in a drive to save to"), 5000);
         else YtSaver.add(this, f, video, folder);
     }
 
@@ -497,7 +497,9 @@ public class HomeKeyService extends AccessibilityService {
 
     private static final long WAKE_DELAY_MS = 800;   // after the TV has put its last input or app back
     private long keyAt;
-    private BroadcastReceiver screenOn;
+    private BroadcastReceiver screenOn, homePress;
+    /** When Android last said the Home button was pressed (it tells apps, with the reason "homekey"). */
+    private long homePressedAt;
     private final Handler main = new Handler(Looper.getMainLooper());
 
     @Override
@@ -523,6 +525,24 @@ public class HomeKeyService extends AccessibilityService {
             };
             Perms.listen(this, screenOn, new IntentFilter(Intent.ACTION_SCREEN_ON));
         }
+        if (homePress == null) {
+            // Home pressed anywhere (TV Town's own screens too): Android says so straight away, before its own home
+            // shows. TV Town opens at once, as a real Home: pop-ups close and its other screens go. Without this, Home
+            // was only noticed once the TV's own home appeared, and looked the same as backing out of an app.
+            homePress = new BroadcastReceiver() {
+                @Override
+                public void onReceive(Context c, Intent i) {
+                    if (!"homekey".equals(i.getStringExtra("reason")) || !tvTownIsHome(c)) return;
+                    homePressedAt = SystemClock.uptimeMillis();
+                    lastOpen = 0;
+                    open(true, -1);
+                    guardTries = 0;
+                    main.removeCallbacks(guard);
+                    main.postDelayed(guard, GUARD_MS);
+                }
+            };
+            Perms.listen(this, homePress, new IntentFilter(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
+        }
     }
 
     @Override
@@ -535,6 +555,10 @@ public class HomeKeyService extends AccessibilityService {
         main.removeCallbacks(offerSave);
         main.removeCallbacks(guard);
         ServiceRepair.disconnected(this);   // switched off on purpose: not put back
+        if (homePress != null) {
+            unregisterReceiver(homePress);
+            homePress = null;
+        }
         if (screenOn != null) {
             unregisterReceiver(screenOn);
             screenOn = null;
@@ -577,7 +601,8 @@ public class HomeKeyService extends AccessibilityService {
             filterKeys();
         }
         if (!launchers.contains(pkg) || !tvTownIsHome(this)) return;
-        open(false, -1);   // Back out of an app landed on the TV's own home
+        // The TV's own home: after a Home press (said just before), a real Home; else Back out of an app landed here
+        open(SystemClock.uptimeMillis() - homePressedAt < 3000, -1);
         guardTries = 0;
         main.removeCallbacks(guard);
         main.postDelayed(guard, GUARD_MS);

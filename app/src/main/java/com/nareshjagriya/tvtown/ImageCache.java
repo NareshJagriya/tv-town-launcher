@@ -50,6 +50,14 @@ final class ImageCache {
     /** Images being loaded, each with whoever is waiting for it. */
     private static final java.util.Map<String, java.util.List<Runnable>> pending = new java.util.HashMap<>();
     private static File dir;
+    /** A TV with memory to spare: large pictures keep their full colour (no bands in dark scenes and skies). */
+    private static boolean rich;
+
+    /** The colour depth for a picture this wide (0: the usual, large size). Small cards stay light. */
+    static Bitmap.Config config(int width) {
+        return rich && !Lite.on && (width == 0 || width >= 780) ? Bitmap.Config.ARGB_8888 : Bitmap.Config.RGB_565;
+    }
+
     private static int writes;
 
     private ImageCache() {
@@ -60,6 +68,7 @@ final class ImageCache {
         maxWidth = Math.max(640, ctx.getResources().getDisplayMetrics().widthPixels);
         android.app.ActivityManager am = ctx.getSystemService(android.app.ActivityManager.class);
         if (am != null && !am.isLowRamDevice() && !Lite.on) memory.resize((int) Math.min(Integer.MAX_VALUE, Runtime.getRuntime().maxMemory() / 8));
+        rich = am != null && !am.isLowRamDevice() && Runtime.getRuntime().maxMemory() >= 190L * 1024 * 1024;
         dir = new File(ctx.getCacheDir(), "img");
         //noinspection ResultOfMethodCallIgnored
         dir.mkdirs();
@@ -92,7 +101,7 @@ final class ImageCache {
         Bitmap hit = memory.get(key);
         if (hit == null && width > 0) hit = memory.get(url);   // put() keeps pictures at one size
         if (hit != null) return hit;
-        if (!allowed(url)) return null;
+        if (!allowed(url) && !onDisk(url)) return null;   // an app's own picture is only on disk, never fetched
         synchronized (pending) {
             java.util.List<Runnable> waiting = pending.get(key);
             if (waiting != null) {   // already on its way: just wait for it too
@@ -124,9 +133,31 @@ final class ImageCache {
         memory.evictAll();
     }
 
-    /** A picture read elsewhere (an app's own artwork), kept under its address. */
+    /**
+     * A picture read elsewhere (an app's own artwork, from an address only that app can open), kept under its address:
+     * in memory, and on disk so it is still there after leaving Home or a restart.
+     */
     static void put(String url, Bitmap b) {
         memory.put(url, b);
+        if (dir == null || onDisk(url)) return;
+        File f = new File(dir, Net.sha1(url));
+        pool.execute(() -> {
+            try (OutputStream o = new FileOutputStream(f)) {
+                b.compress(Bitmap.CompressFormat.JPEG, 88, o);
+            } catch (IOException | RuntimeException e) {
+                //noinspection ResultOfMethodCallIgnored
+                f.delete();
+            }
+        });
+    }
+
+    /** Whether this picture can be shown: fetched from the web, or kept in memory or on disk. */
+    static boolean canShow(@Nullable String url) {
+        return url != null && (allowed(url) || memory.get(url) != null || onDisk(url));
+    }
+
+    private static boolean onDisk(String url) {
+        return dir != null && new File(dir, Net.sha1(url)).exists();
     }
 
     @Nullable
@@ -175,6 +206,7 @@ final class ImageCache {
                 return b;
             }
         }
+        if (!allowed(url)) return null;   // an app's own address: only what was kept on disk
         try {
             byte[] bytes = Net.get(url, null, 10_000, 1);
             if (f != null) {
@@ -188,7 +220,7 @@ final class ImageCache {
             BitmapFactory.decodeByteArray(bytes, 0, bytes.length, o);
             o.inJustDecodeBounds = false;
             o.inSampleSize = sampleFor(o.outWidth, url, width);
-            o.inPreferredConfig = Bitmap.Config.RGB_565;
+            o.inPreferredConfig = config(width);
             return BitmapFactory.decodeByteArray(bytes, 0, bytes.length, o);
         } catch (IOException | OutOfMemoryError e) {
             return null;
@@ -202,7 +234,7 @@ final class ImageCache {
         BitmapFactory.decodeFile(f.getPath(), o);
         o.inJustDecodeBounds = false;
         o.inSampleSize = sampleFor(o.outWidth, url, width);
-        o.inPreferredConfig = Bitmap.Config.RGB_565;
+        o.inPreferredConfig = config(width);
         try {
             return BitmapFactory.decodeFile(f.getPath(), o);
         } catch (OutOfMemoryError e) {

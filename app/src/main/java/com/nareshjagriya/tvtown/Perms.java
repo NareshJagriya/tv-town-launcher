@@ -27,6 +27,23 @@ final class Perms {
         else c.registerReceiver(r, f);
     }
 
+    /** The TV's listings (what your apps say you're watching): Continue Watching reads it. Android asks the user. */
+    static final String TV_LISTINGS = "com.android.providers.tv.permission.READ_EPG_DATA";
+    static final int ASK_TV_LISTINGS = 78;
+
+    static boolean tvListings(Context c) {
+        return c.checkSelfPermission(TV_LISTINGS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** Asked once when Home opens (and again only when chosen from the empty Continue Watching row). */
+    static void askTvListings(android.app.Activity a, boolean again) {
+        if (tvListings(a)) return;
+        android.content.SharedPreferences p = a.getSharedPreferences("home", Context.MODE_PRIVATE);
+        if (!again && p.getBoolean("asked_tv_listings", false)) return;
+        p.edit().putBoolean("asked_tv_listings", true).apply();
+        a.requestPermissions(new String[]{TV_LISTINGS}, ASK_TV_LISTINGS);
+    }
+
     /** Asked once on a new TV: Bluetooth (12 and later) for the sound list, and notifications (13 and later) for what's playing. */
     static void askOnce(android.app.Activity a) {
         android.content.SharedPreferences p = a.getSharedPreferences("home", Context.MODE_PRIVATE);

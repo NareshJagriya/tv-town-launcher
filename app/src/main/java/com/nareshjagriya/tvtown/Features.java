@@ -10,6 +10,8 @@ import android.content.SharedPreferences;
 final class Features {
 
     static final String PHONE = "phone", APPS = "watchapps", YT_SAVE = "ytsave";
+    /** Parts of TV Town you can hide: their dock button, search results and remote buttons go. */
+    static final String SURPRISE = "surprise", MOVIES = "mymovies", MUSIC = "mymusic";
 
     private Features() {
     }

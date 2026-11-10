@@ -26,21 +26,21 @@ final class Scores {
 
     static final String CRICKET = "cricket", FOOTBALL = "football", BASKETBALL = "basketball", TENNIS = "tennis", F1 = "f1";
     static final String[] SPORTS = {CRICKET, FOOTBALL, BASKETBALL, TENNIS};   // F1 left out: a race is 20 drivers, not a score
-    static final String[] NAMES = {"Cricket", "Football", "Basketball", "Tennis"};
+    static final String[] NAMES = {L10n.t("Cricket"), L10n.t("Football"), L10n.t("Basketball"), L10n.t("Tennis")};
 
     private static final String FEED = "https://site.api.espn.com/apis/site/v2/sports/";
 
     /** sport, the feed's path, and the competition's name as shown. */
     private static final String[][] LEAGUES = {
-            {FOOTBALL, "soccer/eng.1", "Premier League"},
-            {FOOTBALL, "soccer/uefa.champions", "Champions League"},
-            {FOOTBALL, "soccer/ind.1", "Indian Super League"},
-            {FOOTBALL, "soccer/esp.1", "La Liga"},
-            {FOOTBALL, "soccer/fifa.world", "FIFA World Cup"},
+            {FOOTBALL, "soccer/eng.1", L10n.t("Premier League")},
+            {FOOTBALL, "soccer/uefa.champions", L10n.t("Champions League")},
+            {FOOTBALL, "soccer/ind.1", L10n.t("Indian Super League")},
+            {FOOTBALL, "soccer/esp.1", L10n.t("La Liga")},
+            {FOOTBALL, "soccer/fifa.world", L10n.t("FIFA World Cup")},
             {BASKETBALL, "basketball/nba", "NBA"},
             {TENNIS, "tennis/atp", "ATP"},
             {TENNIS, "tennis/wta", "WTA"},
-            {F1, "racing/f1", "Formula 1"}};
+            {F1, "racing/f1", L10n.t("Formula 1")}};
 
     private Scores() {
     }
@@ -252,11 +252,11 @@ final class Scores {
     }
 
     private static final String[][] NEWS = {
-            {FOOTBALL, "soccer/eng.1", "Premier League"}, {FOOTBALL, "soccer/uefa.champions", "Champions League"},
-            {BASKETBALL, "basketball/nba", "NBA"}, {TENNIS, "tennis/atp", "Tennis"}, {F1, "racing/f1", "Formula 1"}};
+            {FOOTBALL, "soccer/eng.1", L10n.t("Premier League")}, {FOOTBALL, "soccer/uefa.champions", L10n.t("Champions League")},
+            {BASKETBALL, "basketball/nba", "NBA"}, {TENNIS, "tennis/atp", L10n.t("Tennis")}, {F1, "racing/f1", L10n.t("Formula 1")}};
     private static final String[][] TABLES = {
-            {FOOTBALL, "soccer/eng.1", "Premier League"}, {FOOTBALL, "soccer/ind.1", "Indian Super League"},
-            {FOOTBALL, "soccer/esp.1", "La Liga"}, {BASKETBALL, "basketball/nba", "NBA"}};
+            {FOOTBALL, "soccer/eng.1", L10n.t("Premier League")}, {FOOTBALL, "soccer/ind.1", L10n.t("Indian Super League")},
+            {FOOTBALL, "soccer/esp.1", L10n.t("La Liga")}, {BASKETBALL, "basketball/nba", "NBA"}};
 
     /** Headlines with photos from the chosen sports, newest first, a few from each. Network. */
     static List<Story> news(Set<String> sports) {
@@ -401,13 +401,13 @@ final class Scores {
             }
             Card c = new Card();
             JSONArray sa = a.optJSONArray("statistics"), sb = b.optJSONArray("statistics");
-            String[] want = {"Possession", "SHOTS", "ON GOAL", "Shots on Target", "Corner Kicks", "Fouls", "Saves", "Field Goal %", "Three Point %", "Rebounds", "Assists", "Turnovers"};
+            String[] want = {L10n.t("Possession"), "SHOTS", L10n.t("ON GOAL"), L10n.t("Shots on Target"), L10n.t("Corner Kicks"), L10n.t("Fouls"), L10n.t("Saves"), "Field Goal %", "Three Point %", L10n.t("Rebounds"), L10n.t("Assists"), L10n.t("Turnovers")};
             for (String w : want) {
                 for (int i = 0; sa != null && sb != null && i < Math.min(sa.length(), sb.length()); i++) {
                     JSONObject x = sa.getJSONObject(i), y = sb.getJSONObject(i);
                     String label = x.optString("label");
                     if (!label.equalsIgnoreCase(w)) continue;
-                    String nice = label.equals("SHOTS") ? "Shots" : label.equals("ON GOAL") ? "Shots on target" : label;
+                    String nice = label.equals("SHOTS") ? L10n.t("Shots") : label.equals("ON GOAL") ? L10n.t("Shots on target") : label;
                     c.stats.add(new String[]{nice, x.optString("displayValue"), y.optString("displayValue")});
                 }
             }

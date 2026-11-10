@@ -175,7 +175,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         Tmdb.Title title_;
     }
 
-    private enum Row { TOP, APPS, ACTIONS, NEW, RANDOM, SIDE, CONT, LIST, NOWP }   // LIST: My Watchlist, under Continue   // CONT, NOWP: the neon glass look only
+    private enum Row { TOP, APPS, ACTIONS, NEW, RANDOM, SIDE, CONT, LIST, NOWP, NOTHING }   // NOTHING: the covers' page when there are none yet   // LIST: My Watchlist, under Continue   // CONT, NOWP: the neon glass look only
 
     private static final class Action {
         final String label, kind;   // kind: play, trailer, info, open, allapps, inputs, discover
@@ -338,16 +338,19 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     private final TextSprite timeText = new TextSprite(), ampmText = new TextSprite(), dateText = new TextSprite();
     private final SimpleDateFormat timeFmt = new SimpleDateFormat("h:mm", Locale.getDefault());
     private final SimpleDateFormat ampmFmt = new SimpleDateFormat("a", Locale.ENGLISH);
-    private SimpleDateFormat dateFmt = new SimpleDateFormat(Style.datePattern(), Locale.ENGLISH);
+    private SimpleDateFormat dateFmt = new SimpleDateFormat(Lang.datePattern(), Lang.dates());
 
     /** The date format, following the streaming country (it can change in Customize). */
     private SimpleDateFormat dateFormat() {
-        if (!dateFmt.toPattern().equals(Style.datePattern())) dateFmt = new SimpleDateFormat(Style.datePattern(), Locale.ENGLISH);
+        if (!dateFmt.toPattern().equals(Lang.datePattern())) dateFmt = new SimpleDateFormat(Lang.datePattern(), Lang.dates());
         return dateFmt;
     }
 
     private boolean running, scheduled, longPressed, idlePaused;
     private int vsyncs;
+    private long paceLast;
+    private int paceFrames, paceLate;
+    private boolean paceSlow;
     private long lastFrame;
 
     public HomeView(Context context, @Nullable AttributeSet attrs) {
@@ -421,9 +424,23 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             idlePaused = true;
             return;
         }
-        if (++vsyncs % 2 == 0) {   // 30 fps
+        // Every frame (60 a second) on a TV that keeps up; every other one in Lite, or once this TV has shown it can't:
+        // a steady 30 looks smoother than a 60 that keeps missing.
+        boolean mv = moving(now);
+        if (!Lite.on && !paceSlow) {
+            if (mv && paceLast != 0) {
+                paceFrames++;
+                if (frameTimeNanos - paceLast > 25_000_000L) paceLate++;
+                if (paceFrames >= 90) {
+                    if (paceLate * 100 > paceFrames * 15) paceSlow = true;
+                    paceFrames = paceLate = 0;
+                }
+            }
+            paceLast = mv ? frameTimeNanos : 0;
+        }
+        if (!Lite.on && !paceSlow || ++vsyncs % 2 == 0) {
             step(now);
-            if (moving(now)) invalidate();   // the neon glass look otherwise redraws on its own, gentler timer (glassHome)
+            if (mv) invalidate();   // the neon glass look otherwise redraws on its own, gentler timer (glassHome)
         }
         scheduled = true;
         Choreographer.getInstance().postFrameCallback(this);
@@ -543,11 +560,24 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             freshLoading = true;
             // No streaming apps yet (a new TV): what's new across the popular ones, so Home isn't empty
             List<Services.Service> mine = Services.installedOrPopular(getContext());
+            final boolean empty = fresh.isEmpty();
             work.execute(() -> {
+                if (empty) {   // just started: what was saved last time, at once, while the real answer loads
+                    Net.savedOnly(true);
+                    try {
+                        final List<Tmdb.Title> saved = newThisWeek(mine);
+                        if (!saved.isEmpty()) main.post(() -> {
+                            if (fresh.isEmpty()) showFresh(saved);
+                        });
+                    } catch (Exception ignored) {
+                        // nothing saved yet
+                    } finally {
+                        Net.savedOnly(false);
+                    }
+                }
                 List<Tmdb.Title> list = null;
                 try {
-                    list = reallyNew(Catalog.newOn(getContext(), mine, 7));
-                    if (list.size() < 6) list = reallyNew(Catalog.newOn(getContext(), mine, 30));   // a quiet week: the label says so
+                    list = newThisWeek(mine);
                 } catch (Exception ignored) {
                     // offline: keep what is shown
                 }
@@ -556,18 +586,41 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                     freshLoading = false;
                     freshFailed = got == null && fresh.isEmpty();
                     if (got != null) {
-                        fresh.clear();
-                        fresh.addAll(got);
-                        TvTownDream.keepPictures(getContext(), got);
-                        freshCards.clear();
                         freshLoadedAt = System.currentTimeMillis();
-                        freshPos = Math.max(0, Math.min(freshPos, fresh.size() - 1));
-                        shiftFrom = shiftTo = freshShift(freshPos);
+                        if (!sameTitles(got, fresh)) showFresh(got);   // unchanged: nothing on screen moves
                     }
                     invalidate();
                 });
             });
         }
+    }
+
+    private List<Tmdb.Title> newThisWeek(List<Services.Service> mine) throws java.io.IOException {
+        List<Tmdb.Title> list = reallyNew(Catalog.newOn(getContext(), mine, 7));
+        if (list.size() < 6) {   // a quiet week: the label says so
+            try {
+                list = reallyNew(Catalog.newOn(getContext(), mine, 30));
+            } catch (java.io.IOException e) {
+                if (list.isEmpty()) throw e;
+            }
+        }
+        return list;
+    }
+
+    private static boolean sameTitles(List<Tmdb.Title> a, List<Tmdb.Title> b) {
+        if (a.size() != b.size()) return false;
+        for (int i = 0; i < a.size(); i++) if (!a.get(i).key().equals(b.get(i).key())) return false;
+        return true;
+    }
+
+    private void showFresh(List<Tmdb.Title> got) {
+        fresh.clear();
+        fresh.addAll(got);
+        TvTownDream.keepPictures(getContext(), got);
+        freshCards.clear();
+        freshPos = Math.max(0, Math.min(freshPos, fresh.size() - 1));
+        shiftFrom = shiftTo = freshShift(freshPos);
+        invalidate();
     }
 
     /** Details (runtime, genres, trailer) for a New this week title, fetched when it is focused. */
@@ -1056,6 +1109,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         MyMovies.Video video;   // a film on the drive, or…
         String pkg, app, intentUri;   // …something an app says you're in the middle of (Watch Next)
         String title, image, line, overview = "", meta;
+        String poster;   // a tall cover, when known (My Watchlist); else found by name for the shelf
         long from, at;
         float frac = -1;
     }
@@ -1096,7 +1150,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 ct.intentUri = o.optString("intent").isEmpty() ? null : o.optString("intent");
                 l.add(ct);
             }
-            conts = l;
+            conts = withoutHidden(l);
         } catch (org.json.JSONException ignored) {
             // nothing kept
         }
@@ -1156,8 +1210,8 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 long pos = MyMovies.position(ctx, v);
                 ct.from = pos > 0 ? pos : -1;
                 long left = v.durationMs > 0 && pos > 0 ? v.durationMs - pos : 0;
-                String leftText = left > 60_000 ? (left / 3_600_000 > 0 ? left / 3_600_000 + " h " : "") + (left / 60_000) % 60 + " min left" : "";
-                ct.line = leftText.isEmpty() ? "My Movies" : leftText;
+                String leftText = left > 60_000 ? (left / 3_600_000 > 0 ? left / 3_600_000 + " h " : "") + (left / 60_000) % 60 + L10n.t(" min left") : "";
+                ct.line = leftText.isEmpty() ? L10n.t("My Movies") : leftText;
                 ct.meta = (m != null && m.year > 0 ? m.year + " · " : "") + (m != null && !m.genres.isEmpty() ? m.genres + " · " : "") + ct.line;
                 if (v.durationMs > 0 && pos > 0) ct.frac = Math.min(1, pos / (float) v.durationMs);
                 ct.at = MyMovies.lastPlayed(ctx, v);
@@ -1181,7 +1235,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                         ct.image = m != null ? (m.backdrop != null ? m.backdrop : m.poster) : w.image;
                         ct.overview = m != null ? m.overview : "";
                         ct.from = -1;   // VLC remembers where
-                        ct.line = "My Movies";
+                        ct.line = L10n.t("My Movies");
                         ct.meta = ct.line;
                         ct.frac = w.frac;
                         ct.at = w.at;
@@ -1212,7 +1266,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 Watched.loadPicture(ctx, w.image);
                 ct.image = w.image;
                 long left = w.dur > 0 ? w.dur - w.pos : 0;
-                ct.line = ct.app + (left > 60_000 ? "  \u00B7  " + (left / 3_600_000 > 0 ? left / 3_600_000 + " h " : "") + (left / 60_000) % 60 + " min left" : "");
+                ct.line = ct.app + (left > 60_000 ? "  \u00B7  " + (left / 3_600_000 > 0 ? left / 3_600_000 + " h " : "") + (left / 60_000) % 60 + L10n.t(" min left") : "");
                 ct.meta = w.sub.isEmpty() ? ct.line : w.sub + " \u00B7 " + ct.line;
                 ct.frac = w.dur > 0 && w.pos > 0 ? Math.min(1, w.pos / (float) w.dur) : -1;
                 ct.at = w.at;
@@ -1223,7 +1277,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             saveConts(ctx, found);
             post(() -> {
                 contLooking = false;
-                conts = found;
+                conts = withoutHidden(found);
                 appSaved = saved;
                 contSel = Math.min(contSel, Math.max(0, conts.size() - 1));
                 invalidate();
@@ -1258,6 +1312,60 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     }
 
     /** OK on a film to continue: it carries on in VLC from where it stopped. */
+    /** What you took off Continue watching (hold OK): kept off until it is played again somewhere new. */
+    private java.util.Set<String> contHidden() {
+        return prefs.getStringSet("cont_hidden", new java.util.HashSet<>());
+    }
+
+    private static String contKey(Cont ct) {
+        return (ct.pkg == null ? "drive" : ct.pkg) + "|" + (ct.title == null ? "" : ct.title.trim().toLowerCase(Locale.ROOT));
+    }
+
+    private List<Cont> withoutHidden(List<Cont> in) {
+        java.util.Set<String> h = contHidden();
+        if (h.isEmpty()) return in;
+        List<Cont> out = new ArrayList<>();
+        for (Cont ct : in) if (!h.contains(contKey(ct))) out.add(ct);
+        return out;
+    }
+
+    /** Hold OK on a Continue title: Resume, Mark watched, or Remove from Continue watching. */
+    private Cont contOptionsFor;
+
+    private void openContOptions(Cont ct) {
+        contOptionsFor = ct;
+        GlassSheet s = new GlassSheet(kit, ct.title, WheelArt.Glyph.PLAY, "contopts", "");
+        s.popupW = 760;
+        s.rows.add(new GlassSheet.Row(GlassSheet.ACTION, L10n.t("Resume"), kit.glyph(WheelArt.Glyph.PLAY, 38), "cont:resume"));
+        s.rows.add(new GlassSheet.Row(GlassSheet.ACTION, L10n.t("Mark watched"), kit.glyph(WheelArt.Glyph.CHECK, 38), "cont:watched"));
+        s.rows.add(new GlassSheet.Row(GlassSheet.ACTION, L10n.t("Remove from Continue watching"), kit.glyph(WheelArt.Glyph.REDO, 38), "cont:hide"));
+        s.layout(getWidth(), getHeight(), 900, 4);
+        sheet = s;
+        invalidate();
+    }
+
+    private void contOption(String what) {
+        Cont ct = contOptionsFor;
+        closeSheet();
+        if (ct == null) return;
+        if (what.equals("resume")) {
+            openContinue(ct);
+            return;
+        }
+        if (what.equals("watched") && ct.title != null) {
+            Library.finished(getContext(), ct.title);   // off My Watchlist too, when it's there
+            Watched.forget(getContext(), ct.title);
+        }
+        java.util.Set<String> h = new java.util.HashSet<>(contHidden());
+        h.add(contKey(ct));
+        prefs.edit().putStringSet("cont_hidden", h).apply();
+        conts = withoutHidden(conts);
+        contAt = Math.max(0, Math.min(contAt, conts.size() - 1));
+        if (conts.isEmpty()) setRow(watchlist().isEmpty() ? Row.NOTHING : Row.LIST);
+        message(L10n.t(what.equals("watched") ? "Marked watched" : "Removed from Continue watching"));
+        invalidate();
+    }
+
     private void openContinue(int i) {
         openContinue(contRow().get(i));
     }
@@ -1267,11 +1375,14 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     private String contApp;
 
     /** What the Continue row shows: everything, or the dock app's own when it has some. */
+    /** Everything you're in the middle of; coming from an app on the dock, that app's titles first (nothing is left out). */
     private List<Cont> contRow() {
         if (contApp == null) return conts;
         List<Cont> out = new ArrayList<>();
         for (Cont ct : conts) if (contApp.equals(ct.pkg)) out.add(ct);
-        return out.isEmpty() ? conts : out;
+        if (out.isEmpty()) return conts;
+        for (Cont ct : conts) if (!contApp.equals(ct.pkg)) out.add(ct);
+        return out;
     }
 
     /**
@@ -1290,7 +1401,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         float w = 44 * k + p.measureText("\u25BE  " + t) + q.measureText(more) + 28 * k, h = 52 * k;
         float x = Math.max(80 * k, Math.min(1840 * k - w, cell.centerX() - w / 2)), y = cell.top - h - 14 * k;
         RectF pill = new RectF(x, y, x + w, y + h);
-        Frost.liquid(c, pill, h / 2, homeFrost, wholeScreen(), nImg, k);
+        Frost.smoked(c, pill, h / 2, k);
         float tx = pill.left + 22 * k;
         c.drawText("\u25BE  " + t, tx, pill.centerY() + 8 * k, p);
         if (!more.isEmpty()) c.drawText(more, tx + p.measureText("\u25BE  " + t), pill.centerY() + 8 * k, q);
@@ -1341,7 +1452,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     // View all. Text is Inter. Arrows move to the neighbour on screen.
 
     // Background colour sets (Customize → Background): a base, then six glows, each moving between two colours.
-    static final String[] BG_NAMES = {"Nebula", "Twilight", "Midnight", "Aurora", "Dusk", "Ocean", "Ember"};
+    static final String[] BG_NAMES = {L10n.t("Nebula"), L10n.t("Twilight"), L10n.t("Midnight"), L10n.t("Aurora"), L10n.t("Dusk"), L10n.t("Ocean"), L10n.t("Ember")};
     private static final int[] BG_BASE = {0xFF0B1024, 0xFF111218, 0xFF0A0E1C, 0xFF07131A, 0xFF120E18, 0xFF061424, 0xFF140C0C};
     private static final int[][][] BG_GLOWS = {
             {{0x993A2EA8, 0x99302EA0}, {0x66187080, 0x661A5C80}, {0x70B8602A, 0x70A84A30}, {0x6630509C, 0x664030A0},
@@ -1445,7 +1556,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     private void heading(Canvas c, String title, float x, float y, float right, boolean viewAll, boolean focused) {
         c.drawText(title, x, y, gH2);
         if (!viewAll) return;
-        String v = "View all  →";
+        String v = L10n.t("View all  →");
         float w = gMuted.measureText(v);
         if (focused) {
             RectF r = new RectF(right - w - 32 * k, y - 34 * k, right + 2 * k, y + 14 * k);
@@ -1492,6 +1603,29 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         for (Paint p : new Paint[]{hTitle, hHead, hTime, hOver, hMeta}) p.setShadowLayer(4 * k, 0, 1 * k, 0x8C000000);
     }
     private Paint hOver, hAppName;
+
+    private final Map<String, String> wholeWordsMemo = new HashMap<>();
+
+    /** A story cut to `lines` lines at the end of a word ("the hottest…"), never in the middle of one ("the hottest ap…"). */
+    private String wholeWords(String s, TextPaint p, int width, int lines) {
+        if (s == null || s.isEmpty() || width <= 0) return s == null ? "" : s;
+        String key = width + "/" + lines + "/" + p.getTextSize() + "/" + s;
+        String done = wholeWordsMemo.get(key);
+        if (done != null) return done;
+        StaticLayout all = StaticLayout.Builder.obtain(s, 0, s.length(), p, width).build();
+        String out = s;
+        if (all.getLineCount() > lines) {
+            int end = all.getLineEnd(lines - 1);
+            float room = width - p.measureText("\u2026 ");
+            int lineStart = all.getLineStart(lines - 1);
+            while (end > lineStart && (p.measureText(s, lineStart, end) > room || !Character.isWhitespace(s.charAt(Math.min(end, s.length() - 1))))) end--;
+            String cut = s.substring(0, Math.max(end, lineStart)).replaceAll("[\\s,;:\u2013\u2014-]+$", "");
+            if (!cut.isEmpty()) out = cut + "\u2026";
+        }
+        if (wholeWordsMemo.size() > 60) wholeWordsMemo.clear();
+        wholeWordsMemo.put(key, out);
+        return out;
+    }
 
     /** New this week on your apps: a short list, so it loads quickly. */
     private List<Tmdb.Title> feed() {
@@ -1589,8 +1723,8 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             {0xFF00D8E8, 0x4000D8E8, 0x8C063D50, 0xA600D8E8, 0xFF5CF0FF}};  // Discover
     private static final WheelArt.Glyph[] TILE_GLYPH = {WheelArt.Glyph.DICE, WheelArt.Glyph.FILM, WheelArt.Glyph.NOTE, WheelArt.Glyph.TELESCOPE};
     private static final int[] TILE_NEON = {0xFFB292FF, 0xFF6FB4FF, 0xFFF06BC4, 0xFF62E6D8};
-    private static final String[][] TILE_TEXT = {{"Surprise Me", "Random movie or music"}, {"My Movies", "Your movie collection"},
-            {"My Music", "Your music collection"}, {"Discover", "Find something new"}};
+    private static final String[][] TILE_TEXT = {{L10n.t("Surprise Me"), L10n.t("Random movie or music")}, {L10n.t("My Movies"), L10n.t("Your movie collection")},
+            {L10n.t("My Music"), L10n.t("Your music collection")}, {L10n.t("Discover"), L10n.t("Find something new")}};
 
     // ---- Home after the reference picture 5.png: the hero (the focused title's art blended into the wallpaper,
     // its words on the left, posters along the bottom right), Continue Watching and Continue Listening as glass
@@ -1653,16 +1787,24 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         List<Tmdb.Title> feed = feed();
         if (!feed.isEmpty()) featSel = Math.max(0, Math.min(feed.size() - 1, posSel));
         final Tmdb.Title feat = feed.isEmpty() ? null : feed.get(featSel);
-        homeBackdrop(feat);
+        if (live && inShelf()) {   // the shelf's title, never Home's own pick; none yet: the picture stays as it is
+            String shelfPic = shelfPicture();
+            if (shelfPic != null) homeBackdropKey(shelfPic);
+        } else homeBackdropKey(feat == null ? null : feat.backdropLarge());
         c.drawColor(Frost.base());
         MusicPlayer mp = MusicPlayer.get(getContext());
         MyMusic.Song cur = mp.current();
         String common = "|" + live + "," + imgEpoch + "," + getWidth() + Frost.lighter + Lite.on;
         String ft = feat == null ? "" : feat.title;
         String pic = homeArtFor + "," + getWidth() + Frost.lighter + (homeFrost != null);
+        // Pale picture: deeper smoke on the bars (they went milky grey on cream and snow)
+        Frost.smokeDeep = Frost.lighter ? 0 : Math.max(0, Math.min(1, (Math.max(brightness(homeFrost, 0f, 0.5f, 0.6f, 1f), brightness(homeFrost, 0f, 0f, 1f, 0.2f)) - 0.4f) / 0.35f));
         long fade = now - homeFadeAt;
-        if (homeArtOld != null && fade < 700) {   // one picture dissolving into the next
-            heroPicture(c, homeArtOld, homeArt, Math.round(255 * fade / 700f));
+        final long fadeMs = inShelf() ? 280 : 700;   // the shelf changes pictures quickly as you move along it
+        if (live && inShelf() && shelfPicture() == null) {   // this title has no picture at all: the plain page
+            Frost.page(c, wholeScreen());
+        } else if (homeArtOld != null && fade < fadeMs) {   // one picture dissolving into the next
+            heroPicture(c, homeArtOld, homeArt, Math.round(255 * fade / (float) fadeMs));
         } else {
             homeArtOld = null;
             section(c, "art", 0, 0, 1920, 1080, pic, rc -> heroPicture(rc, null, homeArt, 255));
@@ -1670,25 +1812,24 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         ensureLogo(feat);
         final float reveal = revealNow(now, live);
         revealShift = reveal * REVEAL * k;
-        if (reveal > 0) {   // Continue is up: the picture steps back
+        if (reveal > 0) {   // Continue is up: the plain page steps back (the full picture stays as it is)
             if (Frost.lighter) {
                 gFill.setShader(null);
                 gFill.setColor(Math.round(reveal * 217) << 24 | 0x030304);
                 c.drawRect(0, 0, getWidth(), getHeight(), gFill);
-            } else if (homeFrost != null) {
-                nImg.setAlpha(Math.round(reveal * 235));
-                c.drawBitmap(homeFrost, null, wholeScreen(), nImg);
-                nImg.setAlpha(255);
             }
+            // Full picture: it stays sharp as the rows come up (cinema mode); the rows' own fade keeps them readable
         }
         // The dock is glass over the picture's colours. Two layers, so it dissolves along with the picture.
         if (!pic.equals(glassSig)) {
             if (!glassSig.isEmpty()) glassSide ^= 1;
             glassSig = pic;
         }
-        float glassFade = homeArtOld != null && fade < 700 ? fade / 700f : 1;
+        float glassFade = homeArtOld != null && fade < fadeMs ? fade / (float) fadeMs : 1;
+        float barShown = live ? barShown(now) : 1;   // 0 while the covers are in its place
         c.save();
         c.translate(0, -revealShift);
+        int barLayer = barShown < 1 ? barLayer(c, barShown) : -1;
         if (c.isHardwareAccelerated() && android.os.Build.VERSION.SDK_INT >= 29) {
             android.graphics.RenderNode was = nodes.get("glass" + (glassSide ^ 1)), is = nodes.get("glass" + glassSide);
             if (glassFade < 1 && was != null && was.hasDisplayList()) {
@@ -1697,61 +1838,70 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             }
             if (is != null) is.setAlpha(glassFade);
         }
-        section(c, "glass" + glassSide, 40, DOCK_TOP - 8, 1880, DOCK_TOP + DOCK_H + 8, pic + "," + appSlots().length, rc -> {
+        section(c, "glass" + glassSide, 40, DOCK_TOP - 8, 1880, DOCK_TOP + DOCK_H + 8, pic + "," + appSlots().length + "," + tilesOn().length, rc -> {
             RectF d = dockBar();
-            Frost.liquid(rc, d, 44 * k, homeFrost, wholeScreen(), nImg, k);
+            Frost.smoked(rc, d, 44 * k, k);   // the dock: the search bar's smoked glass
             gFill.setShader(null);
             gFill.setColor(0x33FFFFFF);
             float dx = (dockX0() + appSlots().length * dockCellW() + DOCK_GAP / 2f) * k;
             rc.drawRect(dx, d.top + 30 * k, dx + Math.max(1, k), d.bottom - 30 * k, gFill);
         });
+        if (barLayer >= 0) c.restoreToCount(barLayer);
         c.restore();
         if (reveal > 0) {
             c.save();
             c.translate(0, (REVEAL * k - revealShift));
-            // Continue watching and My Watchlist: the shiny black of every pop-up, not the picture's colour
-            section(c, "contglass", 60, CONT_TOP - 8, 1860, CONT_TOP + CONT_H + 8, pic, rc ->
-                    Frost.panel(rc, gr(80, CONT_TOP, 1760, CONT_H), 44 * k, 1, k));
-            if (reveal > 0.9f) Frost.panel(c, gr(80, CONT_TOP + LIST_DROP, 1760, CONT_H), 44 * k, 1, k);
             c.restore();
+            // Continue watching and My Watchlist sit straight on the sharp picture, nothing over it (cinema mode)
         }
         heroTurn(now, live, feed);
+        if (live && warmedFor != conts) {   // the first Continue titles' clean pictures, found before Down is pressed
+            warmedFor = conts;
+            for (int i = 0; i < Math.min(3, conts.size()); i++) if (conts.get(i).video == null && conts.get(i).title != null) artByName(conts.get(i).title);
+        }
         cricketLayout();
         songLayout();
         final String topPill = (cricketBar != null ? cricketText + cricketBar.left : "") + (songBar != null ? songText + songBar.left : "");
         section(c, "topglass", 0, 28, 1920, 124, pic + topPill, rc -> {
-            Frost.liquid(rc, new RectF(CAPS_X * k, TOP_Y * k, 1840 * k, (TOP_Y + TOP_H) * k), TOP_H / 2f * k, homeFrost, wholeScreen(), nImg, k);
-            if (cricketBar != null) Frost.liquid(rc, cricketBar, TOP_H / 2f * k, homeFrost, wholeScreen(), nImg, k);
-            if (songBar != null) Frost.liquid(rc, songBar, TOP_H / 2f * k, homeFrost, wholeScreen(), nImg, k);
+            Frost.smoked(rc, new RectF(CAPS_X * k, TOP_Y * k, 1840 * k, (TOP_Y + TOP_H) * k), TOP_H / 2f * k, k);
+            if (cricketBar != null) Frost.smoked(rc, cricketBar, TOP_H / 2f * k, k);
+            if (songBar != null) Frost.smoked(rc, songBar, TOP_H / 2f * k, k);
         });
         homePlate(c, now, live);
         Weather.refresh(getContext(), this::postInvalidate);   // every 30 minutes at most, once a town is set
         Weather.Now wn = Weather.current();
         Cricket.refresh(getContext(), this::postInvalidate);   // every minute with a match on, else every 30
         section(c, "top", 0, 0, 1920, 130, System.currentTimeMillis() / 60_000L + "," + (row == Row.TOP ? navSel : -1)
-                + (wn != null ? wn.symbol + wn.temperature : "") + topPill + MusicPlayer.get(getContext()).playing() + common, rc -> homeTop(rc, live));
+                + (wn != null ? wn.symbol + wn.temperature : "") + topPill + MusicPlayer.get(getContext()).playing() + (Updater.available != null) + common, rc -> homeTop(rc, live));
         if (reveal < 1) {
             if (c.isHardwareAccelerated() && android.os.Build.VERSION.SDK_INT >= 29 && nodes.get("hero") != null) nodes.get("hero").setAlpha(1 - reveal);
-            section(c, "hero", 0, 120, 1920, 900, ft + (feat != null ? feat.logoUrl + logoWaiting(feat) : "") + "," + (row == Row.ACTIONS ? actSel : -1) + "," + featSel + "," + feed.size() + homeArtFor + common,
+            if (live && inShelf()) shelfInfo(c, now);
+            else if (live && row == Row.NOTHING) { }   // the empty shelf says what goes there: the film above it steps aside
+            else section(c, "hero", 0, 120, 1920, 900, ft + (feat != null ? feat.logoUrl + logoWaiting(feat) : "") + "," + (row == Row.ACTIONS ? actSel : -1) + "," + featSel + "," + feed.size() + homeArtFor + common,
                     rc -> homeHero(rc, feat, live));
         }
         c.save();
         c.translate(0, -revealShift);
-        section(c, "apps", 40, DOCK_TOP - 8, 1880, DOCK_TOP + DOCK_H + 8, (row == Row.APPS ? Math.round(carTo) : -1) + "," + items.size() + common, rc -> homeApps(rc, live));
-        List<MyMusic.Song> sl = MyMusic.lastRead();
-        section(c, "tiles", 40, DOCK_TOP - 8, 1880, DOCK_TOP + DOCK_H + 8, (row == Row.RANDOM ? randSel : -1) + "," + appSlots().length + "," + driveIn + "," + filmCount + ","
-                + (sl == null ? 0 : sl.size()) + "," + fresh.size() + "," + myList().size() + common, rc -> homeButtons(rc, live));
+        int barLayer2 = barShown < 1 ? barLayer(c, barShown) : -1;
+        if (barShown > 0) {
+            section(c, "apps", 40, DOCK_TOP - 8, 1880, DOCK_TOP + DOCK_H + 8, (row == Row.APPS ? Math.round(carTo) : -1) + "," + items.size() + "," + tilesOn().length + common, rc -> homeApps(rc, live));
+            List<MyMusic.Song> sl = MyMusic.lastRead();
+            section(c, "tiles", 40, DOCK_TOP - 8, 1880, DOCK_TOP + DOCK_H + 8, (row == Row.RANDOM ? randSel : -1) + "," + appSlots().length + "," + tilesKey + "," + driveIn + "," + filmCount + ","
+                    + (sl == null ? 0 : sl.size()) + "," + fresh.size() + "," + myList().size() + common, rc -> homeButtons(rc, live));
+        }
+        if (barLayer2 >= 0) c.restoreToCount(barLayer2);
         c.restore();
-        if (live && row == Row.APPS && reveal < 0.05f) appPeek(c);
+        if (live && (inShelf() || row == Row.NOTHING)) floatRow(c, now);   // the covers, where the app bar was
+        // (the note above a dock app is gone: Down shows "Continue on <app>" in the shelf instead)
         if (reveal > 0) {
             StringBuilder contSig = new StringBuilder();
             List<Cont> cr = contRow();
-            for (int i = 0; i < contShown(); i++) contSig.append(cr.get(i).title).append(cr.get(i).frac);
+            for (int i = contScroll(); i < Math.min(cr.size(), contScroll() + 4); i++) contSig.append(cr.get(i).title).append(cr.get(i).frac);
             contSig.append(contApp);
             contSig.append(myList().size());
             c.save();
             c.translate(0, (REVEAL * k - revealShift));
-            section(c, "watch", 60, CONT_TOP - 60, 1860, CONT_TOP + CONT_H + 8, (row == Row.CONT ? contAt : -1) + "," + conts.size() + contSig + (cur != null ? cur.key() + mp.playing() : "")
+            section(c, "watch", 60, CONT_TOP - 60, 1920, CONT_TOP + CONT_H + 8, (row == Row.CONT ? contAt : -1) + "," + conts.size() + contSig + (cur != null ? cur.key() + mp.playing() : "")
                     + "," + driveIn + common, rc -> homeContinue(rc, live && row == Row.CONT));
             if (reveal > 0.9f) homeWatchlist(c, watchlist());   // drawn as it is: it starts below the screen, where a cached section is cut off
             c.restore();
@@ -1796,7 +1946,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     /** What the label over a title may honestly say. */
     private static String newLabel(Tmdb.Title t) {
-        return isThisWeek(t) ? "New this week" : daysOld(t) >= 0 ? "New this month" : "New this year";
+        return isThisWeek(t) ? L10n.t("New this week") : daysOld(t) >= 0 ? L10n.t("New this month") : L10n.t("New this year");
     }
 
     private Bitmap homeArt, homeFrost;
@@ -1840,11 +1990,47 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         }
         // Full picture: the whole screen, with only a soft dark fade in the corner the words sit in, so they read
         // on a bright picture too (A Dog's Perfect Christmas, white snow); the rest of the picture is left as it is.
+        // How dark it gets follows the picture: a dark one is hardly touched, a pale one gets a deeper corner and a
+        // soft band along the top, so the clock and the story are never white on cream.
+        float low = brightness(homeFrost, 0f, 0.5f, 0.6f, 1f), top = brightness(homeFrost, 0f, 0f, 1f, 0.2f);
+        float deep = Math.max(0, Math.min(1, (low - 0.35f) / 0.4f)), band = Math.max(0, Math.min(1, (top - 0.45f) / 0.35f));
+        int a0 = Math.round(0xA6 + deep * (0xEB - 0xA6)), a1 = Math.round(0x59 + deep * (0xA6 - 0x59));
         gFill.setColor(Color.WHITE);
-        gFill.setShader(new RadialGradient(w * 0.08f, H * 0.82f, w * 0.62f, new int[]{0xA6000000, 0x59000000, 0x00000000},
+        gFill.setShader(new RadialGradient(w * 0.08f, H * 0.82f, w * (0.62f + 0.1f * deep), new int[]{a0 << 24, a1 << 24, 0x00000000},
                 new float[]{0, 0.55f, 1}, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, w, H, gFill);
+        if (band > 0) {
+            gFill.setShader(new LinearGradient(0, 0, 0, H * 0.24f, Math.round(band * 0x8C) << 24, 0x00000000, Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, w, H * 0.24f, gFill);
+        }
         gFill.setShader(null);
+    }
+
+    private Bitmap brightOf;
+    private final float[] brightMemo = new float[2];
+
+    /** How light a part of the (blurred) picture is, 0 to 1; the part given as fractions of its width and height. */
+    private float brightness(@Nullable Bitmap b, float l, float t, float r, float bt) {
+        if (b == null || b.isRecycled()) return 0;
+        int slot = t < 0.25f ? 1 : 0;
+        if (b == brightOf && brightMemo[slot] >= 0) return brightMemo[slot];
+        if (b != brightOf) {
+            brightOf = b;
+            brightMemo[0] = brightMemo[1] = -1;
+        }
+        float sum = 0;
+        int n = 0;
+        try {
+            for (int y = 0; y < 6; y++) for (int x = 0; x < 10; x++) {
+                int px = b.getPixel(Math.min(b.getWidth() - 1, Math.round(b.getWidth() * (l + (r - l) * (x + 0.5f) / 10))),
+                        Math.min(b.getHeight() - 1, Math.round(b.getHeight() * (t + (bt - t) * (y + 0.5f) / 6))));
+                sum += (0.299f * Color.red(px) + 0.587f * Color.green(px) + 0.114f * Color.blue(px)) / 255f;
+                n++;
+            }
+        } catch (RuntimeException e) {
+            return 0;
+        }
+        return brightMemo[slot] = sum / n;
     }
 
     /** The top picture moves on by itself, unless you are on its buttons; the next one is fetched ahead of time. */
@@ -1854,7 +2040,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         if (heroTurnedAt == 0) heroTurnedAt = now;
         ImageCache.get(feed.get((posSel + 1) % n).backdropLarge(), null, null, 1280);
         ensureLogo(feed.get((posSel + 1) % n));   // the next film's title art, ahead of time
-        if (!live || row == Row.ACTIONS || now - heroTurnedAt < Math.max(HERO_MS, GlassBackdrop.intervalSeconds(prefs) * 1000L)) return;
+        if (!live || row == Row.ACTIONS || row == Row.NEW || now - heroTurnedAt < Math.max(HERO_MS, GlassBackdrop.intervalSeconds(prefs) * 1000L)) return;
         posSel = (posSel + 1) % n;
         heroTurnedAt = now;
     }
@@ -1873,9 +2059,11 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
      * The chosen title's picture behind the whole of Home, and a small blurred copy for the glass. Made once per
      * title, away from the screen's own thread, so moving along the posters never stutters.
      */
-    private void homeBackdrop(@Nullable Tmdb.Title t) {
-        if (t == null) return;
-        String key = t.backdropLarge();
+    /** The picture asked for last: one that finishes after you've moved on is not shown. */
+    private String homeArtWant;
+
+    private void homeBackdropKey(@Nullable String key) {
+        if (key != null) homeArtWant = key;
         if (key == null || key.equals(homeArtFor) || key.equals(homeArtBaking)) return;
         Bitmap got = ImageCache.get(key, this::imageArrived, null, 1280);
         if (got == null) return;
@@ -1884,7 +2072,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             Bitmap full = null, blurred = null;
             try {
                 Bitmap scaled = Bitmap.createScaledBitmap(got, 1280, 720, true);
-                full = scaled.copy(Bitmap.Config.RGB_565, false);
+                full = scaled.copy(ImageCache.config(1280), false);
                 blurred = WheelArt.glassCopy(scaled, 320, 1f);   // the plain picture, only blurred: what the glass shows
                 if (scaled != got) scaled.recycle();
             } catch (RuntimeException | OutOfMemoryError e) {
@@ -1893,7 +2081,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             final Bitmap f = full, b = blurred;
             final int accent = b != null ? Frost.accent(b) : Frost.LILAC;
             post(() -> {
-                if (f != null && b != null) {
+                if (f != null && b != null && key.equals(homeArtWant)) {   // still the one wanted
                     homeAccent = accent;
                     Frost.accentNow = accent;
                     if (homeArt != null) {
@@ -1928,13 +2116,17 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 rad[0] = 36 * k;
                 return dockCell(appSlot(appSlots()));
             case CONT:
+                if (inShelf()) return null;
                 zone[0] = 2;
                 rad[0] = 40 * k;
                 return contPlate(contAt);
             case LIST:   // lifted into Continue's place while it has the focus
+                if (inShelf()) return null;
                 zone[0] = 5;
                 rad[0] = 40 * k;
-                return slotPlate(listAtW, listFilms());
+                RectF pp = posterPlate(listAtW, listFilms());   // the rows are lifted LIST_LIFT higher here
+                if (!watchlist().isEmpty()) pp.offset(0, -LIST_LIFT * k);
+                return pp;
             case RANDOM:
                 zone[0] = 3;
                 rad[0] = 36 * k;
@@ -1953,13 +2145,19 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             plateZone = -1;
             return;
         }
-        if (zone[0] == 2 || zone[0] == 5) {   // Continue and My Watchlist: the clear glass of every pop-up, at once (no trail)
+        if (zone[0] == 2 || zone[0] == 5) {   // Continue and My Watchlist: a crisp white frame round the picture, at once (no trail)
             plateZone = zone[0];
             plateA.set(target);
             plateB.set(target);
             c.save();
             if (zone[0] == 2) c.translate(0, REVEAL * k - revealShift);
-            Frost.plate(c, target, rad[0], k);
+            RectF ring = zone[0] == 5 && !watchlist().isEmpty()
+                    ? new RectF(target.left + 17 * k, target.top + 11 * k, target.left + (27 + POSTER_W) * k, target.top + (21 + POSTER_H) * k)
+                    : new RectF(target.left + 13 * k, target.top + 11 * k, target.right - 13 * k, target.bottom - 11 * k);
+            gLine.setShader(null);
+            gLine.setStrokeWidth(3.5f * k);
+            gLine.setColor(Color.WHITE);
+            c.drawRoundRect(ring, 20 * k, 20 * k, gLine);
             c.restore();
             return;
         }
@@ -2004,7 +2202,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     /** How far Continue has come up (0 to 1): it shows while it has the focus. */
     private float revealNow(long now, boolean live) {
-        float target = !live ? 0 : row == Row.CONT ? 1 : row == Row.LIST ? (REVEAL + LIST_DROP) / (float) REVEAL : 0;   // the watchlist lifts both rows
+        float target = 0;   // Continue and My Watchlist are a shelf over the dock now (shelf()): nothing moves up
         if (target != revealB) {
             revealA = Frost.glide(revealA, revealB, now, revealAt);
             revealB = target;
@@ -2014,15 +2212,15 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     }
 
     private float dockCellW() {
-        return Math.min(200, (1760f - DOCK_GAP) / (appSlots().length + 4));
+        return Math.min(200, (1760f - DOCK_GAP) / (appSlots().length + tilesOn().length));
     }
 
     private float dockX0() {
-        return (1920 - dockCellW() * (appSlots().length + 4) - DOCK_GAP) / 2;
+        return (1920 - dockCellW() * (appSlots().length + tilesOn().length) - DOCK_GAP) / 2;
     }
 
     private RectF dockBar() {
-        return gr(dockX0(), DOCK_TOP, dockCellW() * (appSlots().length + 4) + DOCK_GAP, DOCK_H);
+        return gr(dockX0(), DOCK_TOP, dockCellW() * (appSlots().length + tilesOn().length) + DOCK_GAP, DOCK_H);
     }
 
     private RectF dockCell(int j) {
@@ -2054,7 +2252,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     /** The whole of a place in Continue, top to bottom, for the selected glass. */
     private RectF contPlate(int i) {
-        return slotPlate(i, contFilms());
+        return slotPlate(i - contScroll(), Integer.MAX_VALUE);   // the row slides: the chosen card stays in view
     }
 
     /** A place in a row of three wide cards and a small last tile, at Continue's height. */
@@ -2065,8 +2263,22 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     /** The See all tile: small, after the covers, and only when there are more than fit. */
     private static final int SEE_ALL_W = 240;
 
+    /** My Watchlist's posters: big enough to read from the sofa on a large TV, with room between them. */
+    /** Big enough to read from the sofa on a large TV (2:3), with room between them; the row lifts higher to fit them. */
+    private static final int POSTER_W = 267, POSTER_H = 400, POSTER_STEP = POSTER_W + 44, LIST_LIFT = 120;
+
+    private RectF posterPlate(int i, int films) {
+        if (watchlist().isEmpty()) return slotPlate(0, 1);
+        return gr(80 + (i - listScroll()) * POSTER_STEP, CONT_TOP, POSTER_STEP, POSTER_H + 32);
+    }
+
+    /** The first poster in view: the row slides so the chosen one is never past the fourth place. */
+    private int listScroll() {
+        return Math.max(0, Math.min(listAtW - 3, watchlist().size() - 5));
+    }
+
     private boolean listExtra() {
-        return watchlist().size() > 3;
+        return false;   // no See all: the row keeps going to the right
     }
 
     /** True while something is still moving, so the view keeps redrawing at full speed. */
@@ -2097,7 +2309,12 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     /** What the small last tile is: 2 the whole list, 0 nothing (the song playing sits in the top bar). */
     private int contExtra() {
-        return contRow().size() > contShown() ? 2 : 0;
+        return 0;   // no See all: the row keeps going to the right
+    }
+
+    /** The first card in view: the row slides along so the chosen card is never past the third place. */
+    private int contScroll() {
+        return Math.max(0, Math.min(contAt - 2, contRow().size() - 3));
     }
 
     // ---- My Watchlist: what you saved in TV Town (Want to Watch) and in your apps; finished ones drop off ----
@@ -2134,55 +2351,742 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     }
 
     private int listFilms() {
-        return Math.max(1, Math.min(3, watchlist().size()));
+        return Math.max(1, watchlist().size());
     }
 
     /** The row: three covers with their names, then See all (where titles are removed or added). */
     private void homeWatchlist(Canvas c, List<WItem> wl) {
         float drop = LIST_DROP * k;
-        c.drawText("My Watchlist", 96 * k, (CONT_TOP - 18) * k + drop, hHead);
-        int films = Math.max(1, Math.min(3, wl.size()));
-        for (int i = 0; i < films; i++) {
-            RectF p = slotPlate(i, films);
-            RectF cell = new RectF(p.left + 18 * k, p.top + 16 * k + drop, p.right - 18 * k, p.bottom - 16 * k + drop);
-            if (i >= wl.size()) upNext(c, cell, null);
-            else if (wl.get(i).entry != null) upNext(c, cell, wl.get(i).entry);
-            else homeWatch(c, cell, wl.get(i).app);
+        rowHead(c, L10n.t("My Watchlist"), wl.size(), (CONT_TOP - 18) * k + drop);
+        if (row == Row.LIST && wl.size() > 1) where(c, listAtW + 1, wl.size(), (CONT_TOP - 18) * k + drop);
+        if (wl.isEmpty()) {
+            RectF p = slotPlate(0, 1);
+            upNext(c, new RectF(p.left + 18 * k, p.top + 16 * k + drop, p.right - 18 * k, p.bottom - 16 * k + drop), null);
+            return;
         }
-        if (wl.size() <= 3) return;   // everything is showing: no See all
-        RectF p = slotPlate(films, films);
-        RectF t = new RectF(p.left + 18 * k, p.top + 16 * k + drop, p.right - 18 * k, p.bottom - 16 * k + drop);
-        icon(c, WheelArt.Glyph.LIST, 56, t.centerX(), t.centerY() - 24 * k, 255);
-        String w = "See all " + wl.size();
-        c.drawText(fit(w, hCard, t.width()), t.centerX() - Math.min(t.width(), hCard.measureText(w)) / 2, t.centerY() + 48 * k, hCard);
+        int films = wl.size();
+        for (int i = listScroll(); i < Math.min(films, listScroll() + 6); i++) {   // the sixth peeks in
+            RectF p = posterPlate(i, films);
+            RectF cell = new RectF(p.left + 22 * k, p.top + 16 * k + drop, p.left + 22 * k + POSTER_W * k, p.top + 16 * k + drop + POSTER_H * k);
+            WItem w = wl.get(i);
+            if (w.entry != null) posterCard(c, cell, w.entry.poster, w.entry.title, null);
+            else posterCard(c, cell, w.app.image, w.app.title, source(w.app));
+        }
+
     }
 
     private int contLast() {
-        return contExtra() != 0 ? contFilms() : contFilms() - 1;
+        return Math.max(0, contRow().size() - 1);
     }
 
     private void homeContinue(Canvas c, boolean on) {
         List<Cont> cr = contRow();
         boolean own = contApp != null && cr != conts;
-        c.drawText(own ? "Continue on " + source(cr.get(0)) : "Continue watching", 96 * k, (CONT_TOP - 18) * k, hHead);
+        rowHead(c, own ? L10n.t("Continue on ") + source(cr.get(0)) : L10n.t("Continue watching"), conts.isEmpty() ? 0 : cr.size(), (CONT_TOP - 18) * k);
+        if (on && cr.size() > 1 && !conts.isEmpty()) where(c, contAt + 1, cr.size(), (CONT_TOP - 18) * k);
         if (conts.isEmpty()) {   // nothing half-watched yet
             RectF p = contCell(0);
             thumb(c, null, new RectF(p.left, p.top, p.right, p.top + 150 * k), WheelArt.Glyph.PLAY);
-            c.drawText(fit("Nothing half-watched", hCard, p.width()), p.left, p.bottom - 44 * k, hCard);
-            c.drawText(fit("Start something on any app", hSub, p.width()), p.left, p.bottom - 8 * k, hSub);
-        } else for (int i = 0; i < contShown(); i++) homeWatch(c, contCell(i), cr.get(i));
-        int extra = contExtra();
-        if (extra == 0) return;
-        RectF t = contCell(contFilms());
-        {
-            icon(c, WheelArt.Glyph.LIST, 56, t.centerX(), t.centerY() - 24 * k, 255);
-            String w = "See all " + cr.size();
-            c.drawText(fit(w, hCard, t.width()), t.centerX() - Math.min(t.width(), hCard.measureText(w)) / 2, t.centerY() + 48 * k, hCard);
+            boolean allowed = Perms.tvListings(getContext());   // not allowed: say how, OK asks
+            c.drawText(fit(allowed ? L10n.t("Nothing half-watched") : L10n.t("See what you're watching"), hCard, p.width()), p.left, p.bottom - 44 * k, hCard);
+            c.drawText(fit(allowed ? L10n.t("Start something on any app") : L10n.t("Press OK to allow it from your apps"), hSub, p.width()), p.left, p.bottom - 8 * k, hSub);
+        } else for (int i = contScroll(); i < Math.min(cr.size(), contScroll() + 4); i++) homeWatch(c, contCell(i), cr.get(i));   // the fourth peeks in
+    }
+
+    /** A row's name, with how many there are in a small pill beside it. */
+    private void rowHead(Canvas c, String name, int count, float base) {
+        Paint head = new Paint(hHead);   // a soft shadow, so the name reads on a bright picture too
+        head.setShadowLayer(8 * k, 0, 2 * k, 0xCC000000);
+        c.drawText(name, 96 * k, base, head);
+        if (count <= 0) return;
+        String n = String.valueOf(count);
+        Paint p = nk.inter(22, 700, 0, Color.WHITE);
+        float x = 96 * k + hHead.measureText(name) + 16 * k, w = p.measureText(n) + 24 * k;
+        RectF pill = new RectF(x, base - 26 * k, x + w, base + 4 * k);
+        gFill.setShader(null);
+        gFill.setColor(0x8C000000);
+        c.drawRoundRect(pill, 15 * k, 15 * k, gFill);
+        c.drawText(n, pill.left + 12 * k, base - 4 * k, p);
+    }
+
+    /** Where you are in a long row, at the right of its heading: "2 of 12". */
+    private void where(Canvas c, int at, int of, float base) {
+        Paint p = nk.inter(24, 600, 0, 0xD9FFFFFF);
+        p.setShadowLayer(6 * k, 0, 2 * k, 0xCC000000);
+        String w = at + L10n.t(" of ") + of;
+        c.drawText(w, 1840 * k - p.measureText(w), base, p);
+    }
+
+    // ---- The shelf: Continue watching or My Watchlist above the dock, the title you're on filling the screen ----
+
+    private long shelfAt;
+    private List<Cont> warmedFor;
+    private static final long SHELF_MS = 260;
+    /** A watchlist title's wide picture and story, looked up once (TMDB), by its key. */
+    private final java.util.Map<String, String[]> shelfArt = new java.util.HashMap<>();
+    private final java.util.Set<String> shelfAsked = new java.util.HashSet<>();
+
+    private boolean inShelf() {
+        return row == Row.CONT || row == Row.LIST;
+    }
+
+    /** What the shelf shows for one title: its words, its picture behind, its card. */
+    private static final class Shelved {
+        String title, app, picture, card, line, story, hint;
+        float frac = -1;
+        int colour;
+    }
+
+    @Nullable
+    private Shelved shelved() {
+        if (row == Row.CONT) {
+            List<Cont> cr = contRow();
+            if (cr.isEmpty()) return null;
+            Cont ct = cr.get(Math.max(0, Math.min(contAt, cr.size() - 1)));
+            Shelved s = new Shelved();
+            s.title = ct.title;
+            s.app = source(ct);
+            s.colour = tintFor(ct.pkg != null && ct.video == null ? ct.pkg + " " + s.app : s.app);
+            s.picture = ct.image;
+            s.card = ct.image;
+            s.line = ct.line;
+            s.story = ct.overview;
+            if (!ImageCache.canShow(s.picture)) {   // no picture we can show: the fallback
+                String[] art = artByName(ct.title);
+                if (art != null && art[0] != null) s.picture = s.card = art[0];
+                if (art != null && (s.story == null || s.story.isEmpty())) s.story = art[1];
+            } else if (ct.video == null) {
+                // An app's own artwork has its name, logo and often a progress bar painted in: behind the whole screen it
+                // clashes with TV Town's own title. The film's clean picture is used there when it's found by the same
+                // name; the card keeps the app's artwork. Not found: the app's artwork after all.
+                String[] art = artByName(ct.title);
+                if (art == null) s.picture = null;   // still looking (a moment, once): nothing yet, not the wrong one first
+                else if (art[0] != null) s.picture = art[0];
+                if (art != null && (s.story == null || s.story.isEmpty())) s.story = art[1];
+            }
+            s.frac = ct.frac;
+            s.hint = L10n.t("OK to resume  ·  hold OK for more");
+            return s;
+        }
+        List<WItem> wl = watchlist();
+        if (wl.isEmpty()) return null;
+        WItem w = wl.get(Math.max(0, Math.min(listAtW, wl.size() - 1)));
+        Shelved s = new Shelved();
+        s.hint = L10n.t("OK to open");
+        if (w.entry != null) {
+            Library.Entry e = w.entry;
+            s.title = e.title;
+            s.app = L10n.t("My Watchlist");
+            s.colour = 0xFF9C84FF;
+            s.card = e.poster;
+            s.line = ("tv".equals(e.type) ? L10n.t("Series") : L10n.t("Film")) + (e.year > 0 ? " · " + e.year : "") + (e.imdb > 0 ? String.format(Locale.US, " · ★ %.1f", e.imdb) : "");
+            String[] art = shelfArt.get(e.key);
+            if (art == null) askArt(e);
+            s.picture = art != null && art[0] != null ? art[0] : null;
+            s.story = art != null ? art[1] : "";
+        } else {
+            s.title = w.app.title;
+            s.app = source(w.app);
+            s.colour = tintFor(w.app.pkg != null ? w.app.pkg + " " + s.app : s.app);
+            s.picture = w.app.image;
+            s.card = w.app.image;
+            s.line = w.app.line;
+            s.story = w.app.overview;
+        }
+        return s;
+    }
+
+    /**
+     * The fallback for a title an app gave no picture for (VLC's films, a Netflix picture that can't be read): its
+     * name looked up in the film catalogue, once; the best match's wide picture and story. Null while looking.
+     */
+    @Nullable
+    private String[] artByName(String title) {
+        String key = "name:" + title.toLowerCase(Locale.ROOT);
+        String[] have = shelfArt.get(key);
+        if (have != null || !shelfAsked.add(key)) return have;
+        Context ctx = getContext().getApplicationContext();
+        new Thread(() -> {
+            String[] got = null;
+            try {
+                MyMovies.Parsed p = MyMovies.parse(title.replaceAll("\\((\\d{4})\\)", "$1"), "", "");
+                String name = p.title.isEmpty() ? title : p.title;
+                Tmdb.Page page = Catalog.search(ctx, name, 1);
+                for (Tmdb.Title t : page.titles) {   // the first with the same name (and year, when known)
+                    boolean sameName = SearchMatch.plain(t.title).equals(SearchMatch.plain(name));
+                    if (!sameName || p.year > 0 && t.year > 0 && Math.abs(t.year - p.year) > 1) continue;
+                    if (t.backdropLarge() != null || t.poster() != null) got = new String[]{t.backdropLarge(), t.overview == null ? "" : t.overview, t.poster()};
+                    break;
+                }
+            } catch (java.io.IOException | RuntimeException ignored) {
+                // nothing found: the card keeps its plain look
+            }
+            final String[] found = got != null ? got : new String[]{null, "", null};
+            post(() -> {
+                shelfArt.put(key, found);
+                if (found[0] != null) ImageCache.get(found[0], null, null, 1280);   // ready before you get to it
+                invalidate();
+            });
+        }, "name-art").start();
+        return null;
+    }
+
+    /** A My Watchlist title as a wide card, like Continue's: its wide picture (else its poster, cropped wide). */
+    private Cont asCard(WItem w) {
+        if (w.entry == null) return w.app;
+        Library.Entry e = w.entry;
+        Cont ct = new Cont();
+        ct.title = e.title;
+        ct.pkg = "watchlist";
+        ct.app = L10n.t("My Watchlist");
+        String[] art = shelfArt.get(e.key);
+        if (art == null) askArt(e);
+        ct.image = art != null && art[0] != null ? art[0] : e.poster;
+        ct.poster = e.poster;
+        ct.line = ("tv".equals(e.type) ? L10n.t("Series") : L10n.t("Film")) + (e.year > 0 ? " · " + e.year : "");
+        return ct;
+    }
+
+    /** A saved title's wide picture and story, fetched once in the background. */
+    private void askArt(Library.Entry e) {
+        if (e.tmdbId <= 0 || !shelfAsked.add(e.key) || !Tmdb.available()) return;
+        Context ctx = getContext().getApplicationContext();
+        String type = "tv".equals(e.type) ? "tv" : "movie";
+        new Thread(() -> {
+            String[] art = null;
+            try {
+                art = Tmdb.pictureAndStory(ctx, type, e.tmdbId);
+            } catch (java.io.IOException | RuntimeException ignored) {
+                // no picture: the top picture stays
+            }
+            final String[] got = art;
+            post(() -> {
+                if (got != null) shelfArt.put(e.key, got);
+                invalidate();
+            });
+        }, "shelf-art").start();
+    }
+
+    @Nullable
+    private String shelfPicture() {
+        Shelved s = shelved();
+        if (s == null) return null;
+        return s.picture != null ? s.picture : s.card;   // no wide picture: its own card's, not someone else's
+    }
+
+    /** How far the shelf has risen (0 to 1), smoothed. */
+    private float shelfRise(long now) {
+        if (Lite.on) return 1;
+        float f = Math.max(0, Math.min(1, (now - shelfAt) / (float) SHELF_MS));
+        if (f < 1) postInvalidateOnAnimation();
+        return 1 - (1 - f) * (1 - f) * (1 - f);
+    }
+
+    /** The title you're on, on the left, as the top picture's words are: app, name, details, story, how far you got. */
+    private void shelfInfo(Canvas c, long now) {
+        Shelved s = shelved();
+        if (s == null) return;
+        float f = shelfRise(now);
+        int a = Math.round(255 * f);
+        float x = 80 * k, room = 960 * k;
+        c.save();
+        c.translate(0, (1 - f) * 16 * k);
+        Paint name = nk.inter(64, 800, -0.02f, Color.WHITE);
+        name.setShadowLayer(10 * k, 0, 2 * k, 0xB3000000);
+        name.setAlpha(a);
+        fitSize(name, s.title, room, 64, 40);
+        Paint meta = nk.inter(24, 500, 0, Color.WHITE);
+        meta.setShadowLayer(6 * k, 0, 1 * k, 0xCC000000);
+        meta.setAlpha(a);
+        TextPaint story = new TextPaint(nk.inter(24, 400, 0, 0xE6FFFFFF));
+        story.setShadowLayer(6 * k, 0, 1 * k, 0xCC000000);
+        story.setAlpha(Math.round(0xE6 * f));
+        boolean hasLine = s.line != null && !s.line.replace(s.app, "").replace("·", "").trim().isEmpty();
+        float y = (380 - (s.frac > 0 ? 44 : 0) - (hasLine ? 14 : 0)) * k;   // where Home's own film details sit, the button at their foot
+        appTag(c, x, y, s.app, s.colour);
+        y += 34 * k + 66 * k;
+        c.drawText(fit(s.title, name, room), x, y, name);
+        y += 46 * k;
+        String line = s.line == null ? "" : s.line.replace(" · " + s.app, "").replace(s.app, "").trim();
+        if (line.endsWith("·")) line = line.substring(0, line.length() - 1).trim();
+        if (!line.isEmpty()) {
+            c.drawText(fit(line, meta, room), x, y, meta);
+            y += 14 * k;
+        }
+        if (s.story != null && !s.story.isEmpty()) {
+            String st = wholeWords(s.story, story, Math.round(room), 2);
+            StaticLayout sl = StaticLayout.Builder.obtain(st, 0, st.length(), story, Math.round(room)).setMaxLines(2)
+                    .setEllipsize(TextUtils.TruncateAt.END).setLineSpacing(4 * k, 1).build();
+            c.save();
+            c.translate(x, y + 6 * k);
+            sl.draw(c);
+            c.restore();
+            y += sl.getHeight() + 14 * k;
+        }
+        if (s.frac > 0) {   // how far you got: a slim violet-to-pink line
+            RectF track = new RectF(x, y + 18 * k, x + 260 * k, y + 26 * k);
+            gFill.setShader(null);
+            gFill.setColor(0x40FFFFFF);
+            c.drawRoundRect(track, 4 * k, 4 * k, gFill);
+            gFill.setColor(Color.WHITE);
+            gFill.setShader(new LinearGradient(track.left, 0, track.right, 0, 0xFF8A6BFF, 0xFFD9468F, Shader.TileMode.CLAMP));
+            c.drawRoundRect(track.left, track.top, track.left + track.width() * Math.min(1, s.frac), track.bottom, 4 * k, 4 * k, gFill);
+            gFill.setShader(null);
+            y += 36 * k;
+        }
+        Paint hp = nk.inter(26, 700, 0, Color.WHITE);
+        float hw = hp.measureText(s.hint) + 52 * k;
+        RectF pill = new RectF(x, y + 12 * k, x + hw, y + 68 * k);
+        c.saveLayerAlpha(pill.left - 10 * k, pill.top - 10 * k, pill.right + 10 * k, pill.bottom + 10 * k, a);
+        Frost.hero(c, pill, pill.height() / 2, false, k);
+        c.drawText(s.hint, pill.left + 26 * k, pill.centerY() + 9 * k, hp);
+        c.restore();
+        c.restore();
+    }
+
+    /** The shelf over the dock, on the right: both names above it, its cards sliding along, the chosen one framed. */
+    private void shelf(Canvas c, long now) {
+        boolean cont = row == Row.CONT;
+        List<Cont> cr = contRow();
+        List<WItem> wl = watchlist();
+        int n = cont ? cr.size() : wl.size(), at = cont ? contAt : listAtW;
+        if (n == 0) return;
+        float f = shelfRise(now);
+        float cw = 400, ch = 225, gap = 26, x0 = 80;   // from the left, as rows are; one card size for both rows, so swapping is smooth
+        float top = DOCK_TOP - 40 - ch;
+        c.save();
+        c.translate(0, (1 - f) * 40 * k);
+        int saved = c.saveLayerAlpha(0, (top - 70) * k, getWidth(), DOCK_TOP * k, Math.round(255 * f));
+        // both names, the one showing bright; and where you are
+        Paint on = nk.inter(30, 800, 0, Color.WHITE), off = nk.inter(30, 700, 0, 0x80FFFFFF), small = nk.inter(24, 600, 0, 0xCCFFFFFF);
+        for (Paint p : new Paint[]{on, off, small}) p.setShadowLayer(8 * k, 0, 2 * k, 0xCC000000);
+        float tx = x0 * k, ty = (top - 24) * k;
+        String a1 = L10n.t("Continue watching"), a2 = L10n.t("My Watchlist");
+        if (!conts.isEmpty()) {
+            c.drawText(a1, tx, ty, cont ? on : off);
+            tx += (cont ? on : off).measureText(a1) + 34 * k;
+        }
+        if (!wl.isEmpty()) {
+            c.drawText(a2, tx, ty, cont ? off : on);
+            tx += (cont ? off : on).measureText(a2) + 34 * k;
+        }
+        c.drawText("\u25BC " + (cont && !wl.isEmpty() ? "next" : "apps"), tx, ty, small);
+        if (n > 1) {   // L10n.t("2 of 6"); nothing to count with one
+            String where = (at + 1) + L10n.t(" of ") + n;
+            c.drawText(where, 1840 * k - small.measureText(where), ty, small);
+        }
+        // the next titles' pictures, fetched ahead, so moving along doesn't wait for them
+        for (int i = at - 1; i <= at + 2; i++) {
+            if (i < 0 || i >= n || i == at) continue;
+            String pic = cont ? cr.get(i).image : wl.get(i).entry != null ? null : wl.get(i).app.image;
+            if (cont && cr.get(i).video == null && ImageCache.canShow(pic)) {   // an app's title: its clean picture, looked up ahead
+                String[] clean = artByName(cr.get(i).title);
+                if (clean != null && clean[0] != null) pic = clean[0];
+            }
+            if (!cont && wl.get(i).entry != null) {
+                String[] art = shelfArt.get(wl.get(i).entry.key);
+                if (art == null) askArt(wl.get(i).entry);
+                else pic = art[0];
+            }
+            if (pic != null) ImageCache.get(pic, null, null, 1280);
+        }
+        // the cards, sliding so the chosen one is never past the third in view
+        int first = Math.max(0, at - 2);
+        for (int i = first; i < Math.min(n, first + 5); i++) {
+            float x = x0 + (i - first) * (cw + gap);
+            if (x > 1920) break;
+            RectF r = gr(x, top, cw, ch);
+            homeWatch(c, r, cont ? cr.get(i) : asCard(wl.get(i)));
+            if (i == at) {   // the chosen one: a crisp white frame
+                gLine.setShader(null);
+                gLine.setStrokeWidth(3.5f * k);
+                gLine.setColor(Color.WHITE);
+                c.drawRoundRect(r.left - 5 * k, r.top - 5 * k, r.right + 5 * k, r.bottom + 5 * k, 20 * k, 20 * k, gLine);
+            }
+        }
+        c.restoreToCount(saved);
+        c.restore();
+    }
+
+    /** Down in the corner: New this week → Continue watching → My Watchlist → the dock (rows with nothing are skipped). */
+    private void coverDown() {   // Continue watching → My Watchlist → the app bar (pages with nothing are skipped)
+        if (row == Row.CONT && !watchlist().isEmpty()) {
+            listAtW = 0;
+            setRow(Row.LIST);
+        } else setRow(Row.APPS);
+    }
+
+    /** Down from the app bar: the first page of covers there is, or the "nothing yet" page. */
+    private void openCovers() {
+        contAt = 0;
+        listAtW = 0;
+        if (!conts.isEmpty()) setRow(Row.CONT);
+        else if (!watchlist().isEmpty()) setRow(Row.LIST);
+        else setRow(Row.NOTHING);
+    }
+
+    private long barAt;
+    private static final long BAR_MS = 300;
+
+    /** How much of the app bar shows (1 all, 0 none): it turns away as the covers come and back as they go. */
+    private float barShown(long now) {
+        boolean covers = inShelf() || row == Row.NOTHING;
+        float f = Lite.on ? 1 : Math.max(0, Math.min(1, (now - barAt) / (float) BAR_MS));
+        if (f < 1) postInvalidateOnAnimation();
+        f = 1 - (1 - f) * (1 - f);
+        return covers ? 1 - f : f;
+    }
+
+    /** The bar turning away: fading, and folding back toward its foot. */
+    private int barLayer(Canvas c, float shown) {
+        int saved = c.saveLayerAlpha(0, (DOCK_TOP - 12) * k, getWidth(), (DOCK_TOP + DOCK_H + 12) * k, Math.round(255 * shown));
+        c.scale(1, 0.55f + 0.45f * shown, getWidth() / 2f, (DOCK_TOP + DOCK_H) * k);
+        return saved;
+    }
+
+    /**
+     * The covers in the app bar's place, with nothing behind them: the page's name, count and dots above; the chosen one
+     * framed; a "+ Add more" tile after My Watchlist; a "nothing yet" line when there are none.
+     */
+    private void floatRow(Canvas c, long now) {
+        float f = shelfRise(now);
+        float cw = 200, ch = 300, gap = 24, x0 = 80, top = 736;   // tall covers, like Discover's
+        int saved = c.saveLayerAlpha(0, (top - 50) * k, getWidth(), getHeight(), Math.round(255 * f));
+        c.translate(0, (1 - f) * 46 * k);
+        Paint head = nk.inter(28, 800, 0.01f, Color.WHITE), small = nk.inter(24, 700, 0, 0xD9FFFFFF);
+        head.setShadowLayer(8 * k, 0, 2 * k, 0xCC000000);
+        small.setShadowLayer(6 * k, 0, 2 * k, 0xCC000000);
+        float base = (top - 16) * k;
+        List<Row> pages = new ArrayList<>();
+        if (!conts.isEmpty()) pages.add(Row.CONT);
+        if (!watchlist().isEmpty()) pages.add(Row.LIST);
+        if (row == Row.NOTHING) {
+            c.drawText(L10n.t("Continue watching and My Watchlist"), x0 * k, base, head);
+            Paint line = nk.inter(26, 500, 0, Color.WHITE);
+            line.setShadowLayer(8 * k, 0, 2 * k, 0xCC000000);
+            String say = L10n.t("Films you start, and titles you save with + My List, appear here.");
+            c.drawText(say, x0 * k, (top + 70) * k, line);
+            Paint bp = nk.inter(24, 700, 0, Color.WHITE);
+            float bx = x0 * k + line.measureText(say) + 32 * k, bw = bp.measureText(L10n.t("+ Browse Discover")) + 48 * k;
+            RectF pill = new RectF(bx, (top + 34) * k, bx + bw, (top + 94) * k);
+            Frost.hero(c, pill, pill.height() / 2, true, k);
+            c.drawText(L10n.t("+ Browse Discover"), pill.left + 24 * k, pill.centerY() + 8 * k, bp);
+            c.restoreToCount(saved);
+            return;
+        }
+        boolean cont = row == Row.CONT;
+        List<Cont> cr = contRow();
+        List<WItem> wl = watchlist();
+        int n = cont ? cr.size() : wl.size(), at = cont ? contAt : listAtW;
+        String name = cont ? L10n.t("Continue watching") : L10n.t("My Watchlist");
+        c.drawText(name, x0 * k, base, head);
+        float hx = x0 * k + head.measureText(name) + 14 * k;
+        String cnt = String.valueOf(n);
+        Paint cp = nk.inter(21, 700, 0, Color.WHITE);
+        RectF pillN = new RectF(hx, base - 26 * k, hx + cp.measureText(cnt) + 24 * k, base + 5 * k);
+        gFill.setShader(null);
+        gFill.setColor(0x8C000000);
+        c.drawRoundRect(pillN, 15.5f * k, 15.5f * k, gFill);
+        c.drawText(cnt, pillN.left + 12 * k, base - 3 * k, cp);
+        float dx = pillN.right + 16 * k;
+        for (Row pg : pages) {   // which page of covers this is
+            gFill.setColor(pg == row ? Color.WHITE : 0x66FFFFFF);
+            float w = pg == row ? 22 * k : 9 * k;
+            c.drawRoundRect(dx, base - 15 * k, dx + w, base - 6 * k, 4.5f * k, 4.5f * k, gFill);
+            dx += w + 6 * k;
+        }
+        if (n > 1) {
+            String where = Math.min(at + 1, n) + L10n.t(" of ") + n;
+            c.drawText(where, 1840 * k - small.measureText(where), base, small);
+        }
+        // the same feel as the app bar: the frame glides to the next cover, the row slides after it
+        float scrollTo = Math.max(0, at - 5);
+        if (row != floatRowOf) {   // a new page: start in place
+            floatRowOf = row;
+            floatFrom = floatTo = at;
+            floatScrollFrom = floatScrollTo = scrollTo;
+            floatAt = 0;
+        } else if (at != floatTo || scrollTo != floatScrollTo) {
+            floatFrom = floatPos(now);
+            floatScrollFrom = floatScroll(now);
+            floatTo = at;
+            floatScrollTo = scrollTo;
+            floatAt = now;
+        }
+        float pos = floatPos(now), scroll = floatScroll(now);
+        if (!Lite.on && now - floatAt < Theme.MOVE_MS) postInvalidateOnAnimation();
+        int last = cont ? n - 1 : n;   // My Watchlist ends with + Add more
+        for (int i = Math.max(0, (int) Math.floor(scroll) - 1); i <= last; i++) {
+            float x = x0 + (i - scroll) * (cw + gap);
+            if (x > 1920) break;
+            float gone = Math.max(0, Math.min(1, scroll - i));   // sliding off on the left: fading
+            if (gone >= 1) continue;
+            RectF r = gr(x, top, cw, ch);
+            int fadeLayer = gone > 0 ? c.saveLayerAlpha(r.left - 10 * k, r.top - 10 * k, r.right + 10 * k, r.bottom + 20 * k, Math.round(255 * (1 - gone))) : -1;
+            c.save();
+            float lift = Math.max(0, 1 - Math.abs(i - pos));   // grows as the focus arrives, shrinks as it leaves
+            if (lift > 0) {
+                c.scale(1 + 0.07f * lift, 1 + 0.07f * lift, r.centerX(), r.centerY());
+                if (lift > 0.5f) Frost.posterShadow(c, r, 18 * k, k);
+            }
+            if (i == n) {   // + Add more
+                Frost.smoked(c, r, 18 * k, k);
+                Paint ap = nk.inter(24, 700, 0, Color.WHITE);
+                ap.setTextAlign(Paint.Align.CENTER);
+                c.drawText("+", r.centerX(), r.centerY() - 4 * k, nk.inter(44, 300, 0, Color.WHITE));
+                c.drawText(L10n.t("Add more"), r.centerX(), r.centerY() + 34 * k, ap);
+            } else {
+                gFill.setShader(null);   // a soft shadow under each cover, so it stands off the picture
+                gFill.setColor(0x59000000);
+                c.drawRoundRect(r.left + 4 * k, r.top + 10 * k, r.right + 4 * k, r.bottom + 14 * k, 18 * k, 18 * k, gFill);
+                shelfPoster(c, r, cont ? cr.get(i) : asCard(wl.get(i)));
+            }
+            if (lift > 0.5f) Frost.posterRing(c, r, 18 * k, k);   // the white edge hugs the chosen cover
+            else Frost.posterDim(c, r, 18 * k);
+            if (false) {
+            }
+            c.restore();
+            if (fadeLayer >= 0) c.restoreToCount(fadeLayer);
+        }
+        c.restoreToCount(saved);
+    }
+
+    private Row floatRowOf;
+    private float floatFrom, floatTo, floatScrollFrom, floatScrollTo;
+    private long floatAt;
+
+    /** Where the frame is now: a quick, soft glide (like the app bar's glass). */
+    private float floatPos(long now) {
+        if (Lite.on) return floatTo;
+        float f = Math.max(0, Math.min(1, (now - floatAt) / 260f));
+        f = 1 - (1 - f) * (1 - f) * (1 - f);
+        return floatFrom + (floatTo - floatFrom) * f;
+    }
+
+    /** How far the row has slid: the app bar's own slide. */
+    private float floatScroll(long now) {
+        if (Lite.on) return floatScrollTo;
+        return floatScrollFrom + (floatScrollTo - floatScrollFrom) * Theme.progress(now, floatAt, Theme.MOVE_MS);
+    }
+
+    private final android.graphics.Camera coverCam = new android.graphics.Camera();
+    private final android.graphics.Matrix coverM = new android.graphics.Matrix();
+
+    /**
+     * The corner over the dock: small posters turning in, the chosen one in front and two on each side turning away
+     * and darkening; the row's name above, right-aligned, with three dots for the three rows. No glow.
+     */
+    private void coverflow(Canvas c, long now) {
+        int which = row == Row.CONT ? 1 : row == Row.LIST ? 2 : 0;
+        boolean focused = row == Row.NEW || row == Row.CONT || row == Row.LIST;
+        List<String[]> cards = new ArrayList<>();   // picture, name, tag, progress (0-1, or empty)
+        int at;
+        if (which == 0) {
+            List<Tmdb.Title> feed = feed();
+            for (Tmdb.Title t : feed) cards.add(new String[]{t.poster() != null ? t.poster() : t.backdropLarge(), t.title, "NEW", ""});
+            at = featSel;
+        } else if (which == 1) {
+            for (Cont ct : contRow()) {
+                String pic = ImageCache.canShow(ct.image) ? ct.image : null;
+                if (pic == null) {
+                    String[] art = artByName(ct.title);
+                    if (art != null) pic = art[0];
+                }
+                String left = ct.line != null && ct.line.contains("left") ? ct.line.replaceAll(".*?(\\d[^·]*left).*", "$1").toUpperCase(Locale.ROOT) : "CONTINUE";
+                cards.add(new String[]{pic, ct.title, left, ct.frac > 0 ? String.valueOf(ct.frac) : ""});
+            }
+            at = contAt;
+        } else {
+            for (WItem w : watchlist()) {
+                Cont ct = asCard(w);
+                String pic = w.entry != null && w.entry.poster != null ? w.entry.poster : ct.image;
+                cards.add(new String[]{pic, ct.title, "SAVED", ""});
+            }
+            at = listAtW;
+        }
+        int n = cards.size();
+        if (n == 0) return;
+        at = Math.max(0, Math.min(at, n - 1));
+        // the row's name, right-aligned, with the three dots (the one showing tall)
+        String[] names = {L10n.t("NEW THIS WEEK"), L10n.t("CONTINUE WATCHING"), L10n.t("MY WATCHLIST")};
+        Paint lab = nk.inter(21, 800, 0.1f, Color.WHITE);
+        lab.setShadowLayer(8 * k, 0, 2 * k, 0xCC000000);
+        float right = 1860 * k, base = 652 * k;
+        c.drawText(names[which], right - lab.measureText(names[which]), base, lab);
+        float dx = right - lab.measureText(names[which]) - 18 * k, dy = base - 22 * k;
+        gFill.setShader(null);
+        for (int i = 0; i < 3; i++) {
+            gFill.setColor(i == which ? Color.WHITE : 0x59FFFFFF);
+            float h = i == which ? 16 * k : 7 * k;
+            c.drawRoundRect(dx - 3.5f * k, dy, dx + 3.5f * k, dy + h, 4 * k, 4 * k, gFill);
+            dy += h + 4 * k;
+        }
+        // the posters: far ones first, the chosen one last (in front)
+        float cw = 138, ch = 207, cx = 1640, top = 676;
+        for (int ring = 2; ring >= 0; ring--) {
+            for (int side : ring == 0 ? new int[]{0} : new int[]{-1, 1}) {
+                int i = at + side * ring;
+                if (i < 0 || i >= n) continue;
+                float off = ring == 0 ? 0 : 117 + (ring - 1) * 69, sc = 1 - ring * 0.07f, deg = ring == 0 ? 0 : -side * 42;
+                float x = (cx + side * off) * k, y = (top + ch / 2) * k;
+                c.save();
+                coverCam.save();
+                coverCam.rotateY(deg);
+                coverCam.getMatrix(coverM);
+                coverCam.restore();
+                coverM.preTranslate(-x, -y);
+                coverM.postTranslate(x, y);
+                c.concat(coverM);
+                c.scale(ring == 0 ? 1.06f : sc, ring == 0 ? 1.06f : sc, x, y);
+                RectF r = new RectF(x - cw / 2 * k, y - ch / 2 * k, x + cw / 2 * k, y + ch / 2 * k);
+                coverCard(c, r, cards.get(i), ring);
+                if (ring == 0 && focused) {   // chosen with the remote: a crisp white frame
+                    gLine.setShader(null);
+                    gLine.setStrokeWidth(3 * k);
+                    gLine.setColor(Color.WHITE);
+                    c.drawRoundRect(r.left - 4 * k, r.top - 4 * k, r.right + 4 * k, r.bottom + 4 * k, 16 * k, 16 * k, gLine);
+                }
+                c.restore();
+            }
+        }
+        // the neighbours' pictures, fetched ahead
+        for (int i = Math.max(0, at - 3); i <= Math.min(n - 1, at + 3); i++) if (cards.get(i)[0] != null) ImageCache.get(cards.get(i)[0], null, null, 300);
+    }
+
+    /** One small poster: the picture, its name and a small tag at the foot, darker the further it is from the front. */
+    private void coverCard(Canvas c, RectF r, String[] card, int ring) {
+        float rad = 12 * k;
+        Bitmap img = card[0] != null ? ImageCache.get(card[0], this::imageArrived, null, 300) : null;
+        if (img != null) coverImage(c, img, r, rad, 255, 0.5f);
+        else {
+            gFill.setShader(null);
+            gFill.setColor(0xFF1C1C22);
+            c.drawRoundRect(r, rad, rad, gFill);
+            icon(c, WheelArt.Glyph.FILM, 40, r.centerX(), r.top + r.height() * 0.38f, 180);
+        }
+        c.save();
+        android.graphics.Path round = new android.graphics.Path();
+        round.addRoundRect(r, rad, rad, android.graphics.Path.Direction.CW);
+        c.clipPath(round);
+        gFill.setColor(Color.WHITE);
+        gFill.setShader(new LinearGradient(0, r.top + r.height() * 0.45f, 0, r.bottom, 0x00000000, 0xE0000000, Shader.TileMode.CLAMP));
+        c.drawRect(r, gFill);
+        gFill.setShader(null);
+        if (!card[3].isEmpty()) {   // how far in: a thin line along the foot
+            float f = Float.parseFloat(card[3]);
+            gFill.setColor(0x40FFFFFF);
+            c.drawRect(r.left, r.bottom - 5 * k, r.right, r.bottom, gFill);
+            gFill.setColor(Color.WHITE);
+            gFill.setShader(new LinearGradient(r.left, 0, r.right, 0, 0xFF8A6BFF, 0xFFD9468F, Shader.TileMode.CLAMP));
+            c.drawRect(r.left, r.bottom - 5 * k, r.left + r.width() * Math.min(1, f), r.bottom, gFill);
+            gFill.setShader(null);
+        }
+        if (ring > 0) {   // further away: darker
+            gFill.setColor(ring == 1 ? 0x73000000 : 0xA6000000);
+            c.drawRect(r, gFill);
+        }
+        c.restore();
+        if (ring == 0) {
+            Paint nm = nk.inter(17, 800, 0, Color.WHITE);
+            nm.setShadowLayer(4 * k, 0, 1 * k, 0xCC000000);
+            nm.setTextAlign(Paint.Align.CENTER);
+            c.drawText(fit(card[1], nm, r.width() - 14 * k), r.centerX(), r.bottom - 34 * k, nm);
+            Paint tg = nk.inter(11, 800, 0.06f, Color.WHITE);
+            float tw = tg.measureText(L10n.t(card[2])) + 16 * k;
+            RectF pill = new RectF(r.centerX() - tw / 2, r.bottom - 26 * k, r.centerX() + tw / 2, r.bottom - 10 * k);
+            gFill.setColor(Color.WHITE);
+            gFill.setShader(new LinearGradient(pill.left, 0, pill.right, 0, 0xFF5D45D6, 0xFF973A8C, Shader.TileMode.CLAMP));
+            c.drawRoundRect(pill, pill.height() / 2, pill.height() / 2, gFill);
+            gFill.setShader(null);
+            c.drawText(L10n.t(card[2]), pill.left + 8 * k, pill.bottom - 4.5f * k, tg);
         }
     }
 
+    /** "See all 12 ›": a small glass pill at the end of a row, not a big tile. */
+    private void seeAll(Canvas c, RectF t, int count) {
+        String w = L10n.t("See all ") + count + "  \u203A";
+        Paint p = nk.inter(24, 600, 0, Color.WHITE);
+        float pw = Math.min(t.width(), p.measureText(w) + 44 * k), ph = 60 * k;
+        RectF pill = new RectF(t.centerX() - pw / 2, t.centerY() - ph / 2, t.centerX() + pw / 2, t.centerY() + ph / 2);
+        Frost.ghost(c, pill, ph / 2, false, k);
+        c.drawText(fit(w, p, pw - 32 * k), pill.left + 22 * k, pill.centerY() + 8 * k, p);
+    }
+
+    /** A My Watchlist poster: the picture, tall, with the app it's on in a small tag at its foot. */
+    private void posterCard(Canvas c, RectF r, @Nullable String image, String title, @Nullable String app) {
+        float rad = 16 * k;
+        Bitmap img = image != null ? ImageCache.get(image, this::imageArrived, null, 400) : null;
+        if (img != null) coverImage(c, img, r, rad, 255, 0.5f);
+        else {   // no picture yet: its name on a dark card
+            gFill.setShader(null);
+            gFill.setColor(0x26FFFFFF);
+            c.drawRoundRect(r, rad, rad, gFill);
+            icon(c, WheelArt.Glyph.FILM, 44, r.centerX(), r.centerY() - 40 * k, 200);
+            TextPaint tp = new TextPaint(hSub);
+            tp.setColor(Color.WHITE);
+            StaticLayout sl = StaticLayout.Builder.obtain(title, 0, title.length(), tp, Math.round(r.width() - 24 * k)).setMaxLines(3)
+                    .setEllipsize(TextUtils.TruncateAt.END).setAlignment(android.text.Layout.Alignment.ALIGN_CENTER).build();
+            c.save();
+            c.translate(r.left + 12 * k, r.centerY());
+            sl.draw(c);
+            c.restore();
+        }
+        if (app != null) appTag(c, r.left + 10 * k, r.bottom - 44 * k, app, tintFor(app));
+    }
+
+    /** A small dark tag with the app's colour dot and name, on a picture. */
+    private void appTag(Canvas c, float x, float top, String app, int colour) {
+        Paint p = nk.inter(19, 700, 0, Color.WHITE);
+        float w = p.measureText(app) + 46 * k, h = 34 * k;
+        RectF t = new RectF(x, top, x + w, top + h);
+        gFill.setShader(null);
+        gFill.setColor(0xA6000000);
+        c.drawRoundRect(t, h / 2, h / 2, gFill);
+        gFill.setColor(colour | 0xFF000000);
+        c.drawCircle(t.left + 17 * k, t.centerY(), 5 * k, gFill);
+        c.drawText(app, t.left + 30 * k, t.centerY() + 7 * k, p);
+    }
+
+    /** An app's own colour, by its name or package (Netflix red, Prime blue…); violet for My Movies and the rest. */
+    private int tintFor(String app) {
+        String a = app.toLowerCase(Locale.ROOT);
+        if (a.contains("netflix")) return 0xFFE50914;
+        if (a.contains("prime") || a.contains("amazon")) return 0xFF1A98FF;
+        if (a.contains("youtube")) return 0xFFFF2D2D;
+        if (a.contains("hotstar")) return 0xFF4C6FFF;
+        if (a.contains("apple")) return 0xFFB0B0B8;
+        if (a.contains("sony")) return 0xFFFF8A2B;
+        if (a.contains("vlc") || a.contains("videolan")) return 0xFFFF8800;
+        return 0xFF9C84FF;
+    }
+
     private RectF homeTile(int i) {
-        return gr(dockX0() + appSlots().length * dockCellW() + DOCK_GAP + i * dockCellW(), DOCK_TOP, dockCellW(), DOCK_H);
+        return gr(dockX0() + appSlots().length * dockCellW() + DOCK_GAP + Math.max(0, tilePos(i)) * dockCellW(), DOCK_TOP, dockCellW(), DOCK_H);
+    }
+
+    /** The dock's own buttons that are switched on (0 Surprise Me, 1 My Movies, 2 My Music, 3 Discover, always on). */
+    private int[] tilesOn() {
+        Context c = getContext();
+        boolean s = Features.on(c, Features.SURPRISE), m = Features.on(c, Features.MOVIES), u = Features.on(c, Features.MUSIC);
+        int key = (s ? 1 : 0) | (m ? 2 : 0) | (u ? 4 : 0);
+        if (key == tilesKey && tilesMemo != null) return tilesMemo;
+        int[] all = new int[4];
+        int n = 0;
+        if (s) all[n++] = 0;
+        if (m) all[n++] = 1;
+        if (u) all[n++] = 2;
+        all[n++] = 3;
+        tilesKey = key;
+        return tilesMemo = Arrays.copyOf(all, n);
+    }
+
+    private int[] tilesMemo;
+    private int tilesKey = -1;
+
+    private int tilePos(int id) {
+        int[] t = tilesOn();
+        for (int i = 0; i < t.length; i++) if (t[i] == id) return i;
+        return -1;
     }
 
     /** A picture filling a rectangle with rounded corners. */
@@ -2207,7 +3111,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         float x = 80 * k + tp.measureText(t) + 28 * k;
         Paint dp = nk.inter(24, 500, 0, Color.WHITE);
         dp.setShadowLayer(4 * k, 0, 1 * k, 0x8C000000);
-        String date = new SimpleDateFormat(Style.datePattern(), Locale.ENGLISH).format(d);
+        String date = new SimpleDateFormat(Lang.datePattern(), Lang.dates()).format(d);
         c.drawText(date, x, 88 * k, dp);
         x += dp.measureText(date);
         Weather.Now w = Weather.current();
@@ -2231,8 +3135,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         drawSong(c);
         float cy = (TOP_Y + TOP_H / 2f) * k;
         RectF sf = gr(SEARCH_X, TOP_Y, SEARCH_W, TOP_H);   // the search bar: a black box to type in
-        Frost.searchBar(c, sf, k, live && row == Row.TOP && navSel == 0, "Search films and apps", true, nk.inter(23, 500, 0, Color.WHITE));
+        Frost.searchBar(c, sf, k, live && row == Row.TOP && navSel == 0, L10n.t("Search films and apps"), true, nk.inter(23, 500, 0, Color.WHITE));
         for (int i : new int[]{1, 2, 3}) icon(c, TOP_GLYPHS[i], 34, (topIconX(i) + TOP_ICON / 2f) * k, cy, 255);
+        if (Updater.available != null)   // a new version: a dot on Customize, where Updates is
+            Frost.dot(c, (topIconX(2) + TOP_ICON / 2f + 16) * k, cy - 15 * k, k);
     }
 
     private final RectF wholeScreenRect = new RectF();
@@ -2322,10 +3228,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         if (t == null) {
             if (!Tmdb.available()) {   // no key and no list: say what it brings, and the button adds it
                 hTitle.setTextSize(64 * k);
-                c.drawText(fit("See what's new on your apps", hTitle, wide), x, 650 * k, hTitle);
+                c.drawText(fit(L10n.t("See what's new on your apps"), hTitle, wide), x, 650 * k, hTitle);
                 hTitle.setTextSize(88 * k);
-                c.drawText(fit("Add a free TMDB key: scan a QR code with your phone.", hOver, wide), x, 712 * k, hOver);
-                heroButton(c, gr(80, 812, 280, 72), "Add the key", 0, true, on);
+                c.drawText(fit(L10n.t("Add a free TMDB key: scan a QR code with your phone."), hOver, wide), x, 712 * k, hOver);
+                heroButton(c, gr(80, 812, 280, 72), L10n.t("Add the key"), 0, true, on);
             }
             return;
         }
@@ -2348,19 +3254,20 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         meta.add(newLabel(t));
         if (t.year > 0) meta.add(String.valueOf(t.year));
         if (!t.genres.isEmpty()) meta.add(t.genres.replace(",", " ·"));
-        if (t.runtime > 0) meta.add(t.runtime >= 60 ? t.runtime / 60 + " h " + t.runtime % 60 + " min" : t.runtime + " min");
+        if (t.runtime > 0) meta.add(t.runtime >= 60 ? t.runtime / 60 + " h " + t.runtime % 60 + L10n.t(" min") : t.runtime + L10n.t(" min"));
         c.drawText(fit(TextUtils.join(" · ", meta), hMeta, wide), x, 698 * k + low, hMeta);
         TextPaint tp = new TextPaint(hOver);
+        ov = wholeWords(ov, tp, Math.round(wide), 2);
         StaticLayout sl = StaticLayout.Builder.obtain(ov, 0, ov.length(), tp, Math.round(wide)).setMaxLines(2)
                 .setEllipsize(TextUtils.TruncateAt.END).setLineSpacing(4 * k, 1).build();
         c.save();
         c.translate(x, 712 * k);
         sl.draw(c);
         c.restore();
-        float gap = 16 * k, wW = hBtn.measureText("Watch now") + 112 * k, mW = hBtn.measureText("More info") + 112 * k;
+        float gap = 16 * k, wW = hBtn.measureText(L10n.t("Watch now")) + 112 * k, mW = hBtn.measureText(L10n.t("More info")) + 112 * k;
         RectF w = new RectF(x, 812 * k, x + wW, 884 * k), m = new RectF(w.right + gap, 812 * k, w.right + gap + mW, 884 * k);
-        heroButton(c, w, "Watch now", 1, true, on && actSel == 0);
-        heroButton(c, m, "More info", 2, false, on && actSel == 1);
+        heroButton(c, w, L10n.t("Watch now"), 1, true, on && actSel == 0);
+        heroButton(c, m, L10n.t("More info"), 2, false, on && actSel == 1);
     }
 
     /** Asks once for the title's logo; until it comes (or if it has none) the name is set in type. */
@@ -2396,7 +3303,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         if (selected) c.scale(FOCUS_SCALE, FOCUS_SCALE, r.centerX(), r.centerY());
         if (primary) Frost.hero(c, r, rad, selected, k);   // Watch now: the main button's jewel, as everywhere
         else if (selected) Frost.plate(c, r, rad, k);       // More info: the clear glass of everything selected
-        else Frost.liquid(c, r, rad, homeFrost, wholeScreen(), nImg, k);
+        else Frost.smoked(c, r, rad, k);
         float tx = r.left + (mark != 0 ? 74 : 36) * k;
         hBtn.setAlpha(255);
         if (mark == 1) {
@@ -2525,7 +3432,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     /** The watchlist: one row of cards (picture, name, where it's from) and Remove titles at the top right. */
     private void glassWishGrid(Canvas c) {
         List<WItem> items = watchlist();
-        stripPanel(c, "My Watchlist", items.size(), wlEdit ? "Done" : "Remove titles", wlOnEdit);
+        stripPanel(c, L10n.t("My Watchlist"), items.size(), items.isEmpty() ? L10n.t("Browse Discover") : wlEdit ? L10n.t("Done") : L10n.t("Remove titles"), wlOnEdit);
         for (int i = listTop; i < items.size() && i < listTop + STRIP_SHOWN + 1; i++) {
             WItem wi = items.get(i);
             RectF pic = stripCard(c, i, i == listSel, wlEdit ? 0xFFFF5A5A : 0);
@@ -2541,7 +3448,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             String ln;
             if (wi.entry != null) {
                 Library.Entry e = wi.entry;
-                ln = ("tv".equals(e.type) ? "Series" : "Film") + (e.year > 0 ? " · " + e.year : "") + (e.imdb > 0 ? String.format(Locale.US, " · ★ %.1f", e.imdb) : "") + "  ·  TV Town";
+                ln = ("tv".equals(e.type) ? L10n.t("Series") : L10n.t("Film")) + (e.year > 0 ? " · " + e.year : "") + (e.imdb > 0 ? String.format(Locale.US, " · ★ %.1f", e.imdb) : "") + "  ·  TV Town";
             } else ln = source(wi.app);
             stripText(c, pic, wi.title(), ln);
         }
@@ -2561,6 +3468,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     private void wishSelect() {
         if (wlOnEdit) {
+            if (watchlist().isEmpty()) {   // nothing to remove: the button finds something to add instead
+                if (listener != null) listener.onDiscover();
+                return;
+            }
             wlEdit = !wlEdit;
             if (wlEdit && !watchlist().isEmpty()) wlOnEdit = false;   // straight onto the cards to take some off
             invalidate();
@@ -2607,31 +3518,93 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         float room = p.width();
         if (e == null) {
             thumb(c, null, th, WheelArt.Glyph.FILM);
-            c.drawText(fit("Save something for tonight", hCard, room), p.left, p.bottom - 44 * k, hCard);
-            c.drawText(fit("Choose + My List on any film's page", hSub, room), p.left, p.bottom - 8 * k, hSub);
+            c.drawText(fit(L10n.t("Save something for tonight"), hCard, room), p.left, p.bottom - 44 * k, hCard);
+            c.drawText(fit(L10n.t("Choose + My List on any film's page"), hSub, room), p.left, p.bottom - 8 * k, hSub);
             return;
         }
         Bitmap img = e.poster != null ? ImageCache.get(e.poster, this::imageArrived, null, 640) : null;
         thumb(c, img, th, WheelArt.Glyph.FILM);
         c.drawText(fit(e.title, hCard, room), p.left, p.bottom - 44 * k, hCard);
-        String line = ("tv".equals(e.type) ? "Series" : "Film") + (e.year > 0 ? " · " + e.year : "")
+        String line = ("tv".equals(e.type) ? L10n.t("Series") : L10n.t("Film")) + (e.year > 0 ? " · " + e.year : "")
                 + (e.imdb > 0 ? String.format(Locale.US, " · ★ %.1f", e.imdb) : "");
         c.drawText(fit(line, hSub, room), p.left, p.bottom - 8 * k, hSub);
     }
 
     /** A Continue card: a wide picture with its progress along the foot, then the name and the time left. */
-    private void homeWatch(Canvas c, RectF p, @Nullable Cont ct) {
-        RectF th = new RectF(p.left, p.top, p.right, p.top + 150 * k);
-        thumb(c, ct.image != null ? ImageCache.get(ct.image, this::imageArrived, null, 640) : null, th, WheelArt.Glyph.FILM);
-        if (ct.frac > 0) {   // how far in: a bright line on a dark strip, so it reads over any picture
-            RectF strip = new RectF(th.left + 10 * k, th.bottom - 28 * k, th.right - 10 * k, th.bottom - 8 * k);
-            gFill.setShader(null);
-            gFill.setColor(0x99000000);
-            c.drawRoundRect(strip, 10 * k, 10 * k, gFill);
-            neonProgress(c, strip.left + 12 * k, strip.centerY(), strip.width() - 24 * k, Math.min(1, ct.frac), Frost.CYAN, Frost.CYAN);
+    /** A shelf cover: the title's tall poster (found by name when the app gave only a wide picture), and how far in. */
+    private void shelfPoster(Canvas c, RectF p, Cont ct) {
+        float rad = 18 * k;
+        String url = ct.poster;
+        if (url == null && ct.title != null && ct.video == null || url == null && ct.video != null && ct.title != null) {
+            String[] art = artByName(ct.title);
+            if (art != null && art.length > 2) url = art[2];
         }
-        c.drawText(fit(ct.title, hCard, p.width()), p.left, p.bottom - 44 * k, hCard);
-        c.drawText(fit(ct.line, hSub, p.width()), p.left, p.bottom - 8 * k, hSub);
+        Bitmap img = url != null ? ImageCache.get(url, this::imageArrived, null, Math.round(p.width())) : null;
+        if (img == null && ct.image != null && ImageCache.canShow(ct.image)) img = ImageCache.get(ct.image, this::imageArrived, null, 640);
+        if (img != null) coverImage(c, img, p, rad, 255, 0.2f);   // a wide picture is cropped to the middle
+        else {
+            Frost.smoked(c, p, rad, k);
+            icon(c, WheelArt.Glyph.FILM, 48, p.centerX(), p.top + p.height() * 0.4f, 200);
+            Paint np = nk.inter(22, 600, 0, Color.WHITE);
+            np.setTextAlign(Paint.Align.CENTER);
+            c.drawText(fit(ct.title == null ? "" : ct.title, np, p.width() - 24 * k), p.centerX(), p.top + p.height() * 0.62f, np);
+        }
+        if (ct.frac > 0) {   // how far in: a thin violet-to-pink line along the foot
+            c.save();
+            android.graphics.Path round = new android.graphics.Path();
+            round.addRoundRect(p, rad, rad, android.graphics.Path.Direction.CW);
+            c.clipPath(round);
+            float h = 7 * k, w = p.width() * Math.min(1, ct.frac);
+            gFill.setShader(null);
+            gFill.setColor(0x66000000);
+            c.drawRect(p.left, p.bottom - h, p.right, p.bottom, gFill);
+            gFill.setColor(Color.WHITE);
+            gFill.setShader(new LinearGradient(p.left, 0, p.left + Math.max(w, 1), 0, 0xFF8A6BFF, 0xFFD9468F, Shader.TileMode.CLAMP));
+            c.drawRect(p.left, p.bottom - h, p.left + w, p.bottom, gFill);
+            gFill.setShader(null);
+            c.restore();
+        }
+    }
+
+    private void homeWatch(Canvas c, RectF p, @Nullable Cont ct) {
+        float rad = 16 * k;
+        Bitmap img = ct.image != null ? ImageCache.get(ct.image, this::imageArrived, null, 640) : null;
+        if (img == null && !ImageCache.canShow(ct.image) && inShelf()) {   // the app gave none we can read: the fallback
+            String[] art = artByName(ct.title);
+            if (art != null && art[0] != null) img = ImageCache.get(art[0], this::imageArrived, null, 640);
+        }
+        if (img != null) coverImage(c, img, p, rad, 255, 0.2f);
+        else {
+            gFill.setShader(null);
+            gFill.setColor(0x26FFFFFF);
+            c.drawRoundRect(p, rad, rad, gFill);
+            icon(c, WheelArt.Glyph.FILM, 56, p.centerX(), p.top + p.height() * 0.38f, 200);
+        }
+        c.save();   // a dark fade up from the foot, so the words read on any picture
+        android.graphics.Path round = new android.graphics.Path();
+        round.addRoundRect(p, rad, rad, android.graphics.Path.Direction.CW);
+        c.clipPath(round);
+        gFill.setColor(Color.WHITE);
+        gFill.setShader(new LinearGradient(0, p.top + p.height() * 0.35f, 0, p.bottom, 0x00000000, 0xEB000000, Shader.TileMode.CLAMP));
+        c.drawRect(p, gFill);
+        gFill.setShader(null);
+        if (ct.frac > 0) {   // how far in: a thin violet-to-pink line right along the foot
+            float h = 6 * k, w = p.width() * Math.min(1, ct.frac);
+            gFill.setColor(0x33FFFFFF);
+            c.drawRect(p.left, p.bottom - h, p.right, p.bottom, gFill);
+            gFill.setColor(Color.WHITE);
+            gFill.setShader(new LinearGradient(p.left, 0, p.left + Math.max(w, 1), 0, 0xFF8A6BFF, 0xFFD9468F, Shader.TileMode.CLAMP));
+            c.drawRect(p.left, p.bottom - h, p.left + w, p.bottom, gFill);
+            gFill.setShader(null);
+        }
+        c.restore();
+        String app = source(ct);
+        appTag(c, p.left + 12 * k, p.top + 12 * k, app, tintFor(ct.pkg != null && ct.video == null ? ct.pkg + " " + app : app));
+        float room = p.width() - 36 * k;
+        c.drawText(fit(ct.title, hCard, room), p.left + 18 * k, p.bottom - 52 * k, hCard);
+        String line = ct.line != null ? ct.line.replace(" · " + app, "").replace(app, "").trim() : "";
+        if (line.endsWith("·")) line = line.substring(0, line.length() - 1).trim();
+        c.drawText(fit(line, hSub, room), p.left + 18 * k, p.bottom - 22 * k, hSub);
     }
 
     // Without a drive (or nothing from it): what's playing in a music app (YouTube Music, Spotify…), else that app.
@@ -2666,12 +3639,12 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     private final java.util.Map<String, Boolean> lyricsHome = new java.util.HashMap<>();
 
     private void homeButtons(Canvas c, boolean live) {
-        for (int i = 0; i < 4; i++) {
+        for (int i : tilesOn()) {
             RectF r = homeTile(i);
             boolean f = live && row == Row.RANDOM && randSel == i;
             c.save();
             if (f) c.scale(FOCUS_SCALE, FOCUS_SCALE, r.centerX(), r.centerY());
-            String name = i == 1 && noFilms() ? "My List" : i == 2 && noSongs() && !driveIn ? "Music" : TILE_TEXT[i][0];
+            String name = i == 1 && noFilms() ? L10n.t("My List") : i == 2 && noSongs() && !driveIn ? L10n.t("Music") : TILE_TEXT[i][0];
             icon(c, TILE_GLYPH[i], 50, r.centerX(), r.top + 52 * k, 255);
             String label = fit(name, hAppName, r.width() - 16 * k);
             c.drawText(label, r.centerX() - hAppName.measureText(label) / 2, r.top + 108 * k, hAppName);
@@ -2680,10 +3653,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     }
 
     /** An app's neon wordmark: its name in its brand colour, glowing, on clear glass. */
-    private static final String[][] WORDMARKS = {{"netflix", "NETFLIX", "#FF2A36", "#1C0709"}, {"amazon", "prime video", "#3DB8FF", "#071A33"}, {"youtube", "YouTube", "#FF4D5E", "#1E0A10"},
-            {"hotstar", "JioHotstar", "#B49AFF", "#150B33"}, {"apple", "Apple TV", "#F4F6FF", "#10141F"}, {"videolan", "VLC", "#FFA040", "#241205"},
-            {"zee5", "ZEE5", "#D58BFF", "#1A0A26"}, {"sonyliv", "SonyLIV", "#59D8FF", "#061C26"}, {"disney", "Disney+", "#59D8FF", "#071433"},
-            {"spotify", "Spotify", "#2BEA88", "#06200F"}};
+    private static final String[][] WORDMARKS = {{"netflix", "NETFLIX", "#FF2A36", "#1C0709"}, {"amazon", L10n.t("prime video"), "#3DB8FF", "#071A33"}, {"youtube", L10n.t("YouTube"), "#FF4D5E", "#1E0A10"},
+            {"hotstar", L10n.t("JioHotstar"), "#B49AFF", "#150B33"}, {"apple", L10n.t("Apple TV"), "#F4F6FF", "#10141F"}, {"videolan", "VLC", "#FFA040", "#241205"},
+            {"zee5", "ZEE5", "#D58BFF", "#1A0A26"}, {"sonyliv", L10n.t("SonyLIV"), "#59D8FF", "#061C26"}, {"disney", L10n.t("Disney+"), "#59D8FF", "#071433"},
+            {"spotify", L10n.t("Spotify"), "#2BEA88", "#06200F"}};
 
     private final java.util.Map<Bitmap, Integer> brandColours = new java.util.HashMap<>();
 
@@ -2707,7 +3680,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             float mw = mark.getWidth() * sc, mh = mark.getHeight() * sc;
             c.drawBitmap(mark, null, new RectF(cx - mw / 2, cy - mh / 2, cx + mw / 2, cy + mh / 2), nImg);
         } else if (it.disc != null) c.drawBitmap(it.disc, null, new RectF(cx - 28 * k, cy - 28 * k, cx + 28 * k, cy + 28 * k), nImg);
-        String label = fit(it.kind == ALL_APPS ? "All apps" : it.name, hAppName, r.width() - 16 * k);
+        String label = fit(it.kind == ALL_APPS ? L10n.t("All apps") : it.name, hAppName, r.width() - 16 * k);
         c.drawText(label, cx - hAppName.measureText(label) / 2, r.top + 108 * k, hAppName);
         c.restore();
     }
@@ -2757,71 +3730,66 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                         setRow(Row.ACTIONS);
                     } else posSel--;
                 } else if (right) {
-                    if (posSel >= n - 1) {   // round to Watch now
-                        posSel = 0;
-                        actSel = 0;
-                        setRow(Row.ACTIONS);
-                    } else posSel++;
+                    if (posSel < n - 1) posSel++;
                 } else if (up) setRow(Row.TOP);
-                else {
-                    if (slots.length > 0) setFront(slots[Math.min(slots.length - 1, 3 + Math.min(2, posSel - posterFirst))]);
-                    setRow(Row.APPS);
-                }
+                else coverDown();   // the next row in the corner: Continue watching, My Watchlist, then the dock
                 featSel = posSel;
+                heroTurnedAt = SystemClock.uptimeMillis();
                 return true;
             }
             case APPS:   // the dock is one row: its apps, then its four buttons
                 if (up) {
                     actSel = 0;
                     setRow(Row.ACTIONS);
-                } else if (down) {   // from an app with something half-watched: that app's; else everything
-                    contAt = 0;
+                } else if (down) {   // the covers in the bar's place: from an app with something half-watched, its titles first
                     contApp = dockAppWithConts();
-                    setRow(Row.CONT);
+                    openCovers();
                 } else if (left) {
                     if (at > 0 && slots.length > 0) setFront(slots[at - 1]);
                     else {
-                        randSel = 3;
+                        randSel = tilesOn()[tilesOn().length - 1];
                         setRow(Row.RANDOM);
                     }
                 } else if (right) {
                     if (at < slots.length - 1) setFront(slots[at + 1]);
                     else {
-                        randSel = 0;
+                        randSel = tilesOn()[0];
                         setRow(Row.RANDOM);
                     }
                 }
                 return true;
             case CONT:
                 contAt = Math.min(contAt, contLast());
-                if (up) setRow(Row.APPS);
-                else if (down) {   // My Watchlist, below
-                    listAtW = 0;
-                    setRow(Row.LIST);
-                } else if (right) contAt = Math.min(contLast(), contAt + 1);
+                if (up) setRow(Row.APPS);   // the app bar again
+                else if (down) coverDown();
+                else if (right) contAt = Math.min(contLast(), contAt + 1);
                 else if (left) contAt = Math.max(0, contAt - 1);
                 return true;
             case LIST:
-                if (up) setRow(Row.CONT);
-                else if (right) listAtW = Math.min(listExtra() ? listFilms() : listFilms() - 1, listAtW + 1);
+                if (up) setRow(Row.APPS);
+                else if (down) coverDown();
+                else if (right) listAtW = Math.min(watchlist().size(), listAtW + 1);   // past the last: + Add more
                 else if (left) listAtW = Math.max(0, listAtW - 1);
                 return true;
+            case NOTHING:
+                setRow(Row.APPS);
+                return true;
             case RANDOM:
+                if (tilePos(randSel) < 0) randSel = 3;   // switched off while chosen: Discover
                 if (up) {
                     actSel = 0;
                     setRow(Row.ACTIONS);
                 } else if (down) {
-                    contAt = 0;
                     contApp = null;
-                    setRow(Row.CONT);
+                    openCovers();
                 } else if (left) {
-                    if (randSel > 0) randSel--;
+                    if (tilePos(randSel) > 0) randSel = tilesOn()[tilePos(randSel) - 1];
                     else {
                         if (slots.length > 0) setFront(slots[slots.length - 1]);
                         setRow(Row.APPS);
                     }
                 } else if (right) {
-                    if (randSel < 3) randSel++;
+                    if (tilePos(randSel) < tilesOn().length - 1) randSel = tilesOn()[tilePos(randSel) + 1];
                     else {
                         if (slots.length > 0) setFront(slots[0]);
                         setRow(Row.APPS);
@@ -2861,13 +3829,19 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 if (t != null) listener.onPlay(t);
                 return true;
             case CONT:
-                if (contExtra() != 0 && contAt == contFilms()) {
-                    openList(1, 0);
-                } else if (contAt < contShown()) openContinue(contAt);
+                if (contAt < contRow().size()) openContinue(contAt);
+                else if (conts.isEmpty() && !Perms.tvListings(getContext()) && getContext() instanceof android.app.Activity)
+                    Perms.askTvListings((android.app.Activity) getContext(), true);
+                return true;
+            case NOTHING:
+                if (listener != null) listener.onDiscover();
                 return true;
             case LIST: {
                 List<WItem> wl = watchlist();
-                if (listAtW >= listFilms() || listAtW >= wl.size()) openMyList();   // See all / Edit: remove or add there
+                if (listAtW >= wl.size()) {   // + Add more: find something in Discover
+                    if (listener != null) listener.onDiscover();
+                    return true;
+                }
                 else if (wl.get(listAtW).entry != null) TitleActivity.open(getContext(), MustWatchView.fromEntry(wl.get(listAtW).entry));
                 else openContinue(wl.get(listAtW).app);
                 return true;
@@ -2927,9 +3901,9 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     /** Where a Continue item plays: My Movies for the drive, else its app's name. */
     private String source(Cont c) {
-        if (c.video != null || c.pkg == null) return "My Movies";
+        if (c.video != null || c.pkg == null) return L10n.t("My Movies");
         String a = c.app != null && !c.app.isEmpty() ? c.app : appLabel(getContext(), c.pkg);
-        return a.isEmpty() ? "Apps" : a;
+        return a.isEmpty() ? L10n.t("Apps") : a;
     }
 
     private static final long ROTATE_MS = 6000;
@@ -2971,7 +3945,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     /** See all for Continue watching: one row of cards (picture with progress, name, where) sliding sideways. */
     private void glassWatchGrid(Canvas c) {
         List<Cont> items = contRow();
-        stripPanel(c, contApp != null && items != conts ? "Continue on " + source(items.get(0)) : "Continue watching", items.size(), null, false);
+        stripPanel(c, contApp != null && items != conts ? L10n.t("Continue on ") + source(items.get(0)) : L10n.t("Continue watching"), items.size(), null, false);
         for (int i = listTop; i < items.size() && i < listTop + STRIP_SHOWN + 1; i++) {
             Cont ct = items.get(i);
             RectF pic = stripCard(c, i, i == listSel, 0);
@@ -3010,18 +3984,18 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         Frost.panel(c, p, 40 * k, 1, k);
         Paint head = nk.inter(44, 500, -0.03f, Frost.INK), e2 = nk.inter(24, 500, 0, Frost.MUTE);
         c.drawText(title, p.left + 48 * k, p.top + 76 * k, head);
-        if (total > 0) c.drawText((listSel + 1) + " of " + total, p.left + 64 * k + head.measureText(title), p.top + 76 * k, e2);
+        if (total > 0) c.drawText((listSel + 1) + L10n.t(" of ") + total, p.left + 64 * k + head.measureText(title), p.top + 76 * k, e2);
         if (button != null) {
             Paint tp = nk.inter(26, 600, 0, Frost.INK);
             float bw = tp.measureText(button) + 92 * k;
             RectF eb = new RectF(p.right - 40 * k - bw, p.top + 30 * k, p.right - 40 * k, p.top + 90 * k);
             Frost.ghost(c, eb, 30 * k, buttonOn, k);
-            icon(c, wlEdit ? WheelArt.Glyph.CHECK : WheelArt.Glyph.PENCIL, 26, eb.left + 36 * k, eb.centerY(), 255);
+            icon(c, wlEdit ? WheelArt.Glyph.CHECK : listAll == 3 && watchlist().isEmpty() ? WheelArt.Glyph.TELESCOPE : WheelArt.Glyph.PENCIL, 26, eb.left + 36 * k, eb.centerY(), 255);
             c.drawText(button, eb.left + 62 * k, eb.centerY() + 9 * k, tp);
         }
         if (total == 0) {
             Paint e3 = nk.inter(28, 500, 0, Frost.MUTE);
-            c.drawText(listAll == 3 ? "Nothing saved yet. Choose + My List on any film's page" : "Nothing half-watched", p.left + 48 * k, p.top + 170 * k, e3);
+            c.drawText(listAll == 3 ? L10n.t("Nothing saved yet. Choose + My List on any film's page") : L10n.t("Nothing half-watched"), p.left + 48 * k, p.top + 170 * k, e3);
         }
         c.save();
         c.clipRect(p.left + 8 * k, p.top, p.right - 8 * k, p.bottom);
@@ -3089,7 +4063,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         Frost.panel(c, p, 40 * k, 1, k);
         float x = p.left + 20 * k, room = p.width() - 40 * k;
         Paint head = nk.inter(46, 500, -0.03f, Frost.INK);
-        c.drawText(watching ? "Continue watching" : "Continue listening", p.left + 48 * k, p.top + 76 * k, head);
+        c.drawText(watching ? L10n.t("Continue watching") : L10n.t("Continue listening"), p.left + 48 * k, p.top + 76 * k, head);
         Paint rowName = nk.inter(34, 600, -0.016f, Frost.INK), rowLine = nk.inter(26, 500, 0, Frost.MUTE), pill = nk.inter(26, 600, 0, Frost.INK);
         for (int v = 0; v < n; v++) {
             int i = watching ? listTop + v : v;
@@ -3124,7 +4098,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             if (frac > 0) neonProgress(c, tx, r.bottom - 8 * k, tr, frac, Frost.CYAN, Frost.CYAN);
             if (f && listBtn == 0) icon(c, WheelArt.Glyph.PLAY, 34, film.right - 48 * k, film.centerY(), 255);
             if (canMark) {   // always there, one press to the right of the film
-                String word = "Mark watched";
+                String word = L10n.t("Mark watched");
                 RectF b = new RectF(film.right + 12 * k, r.centerY() - 34 * k, r.right - 8 * k, r.centerY() + 34 * k);
                 boolean on = f && listBtn == 1;
                 Frost.ghost(c, b, 34 * k, on, k);
@@ -3663,7 +4637,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         head.setAlpha(Math.round(255 * e));
         c.drawText(getContext().getString(R.string.all_apps), p.left + 48 * k, p.top + 76 * k, head);
         if (pages > 1) {
-            String pg = (allPage + 1) + " of " + pages;
+            String pg = (allPage + 1) + L10n.t(" of ") + pages;
             c.drawText(pg, p.right - 48 * k - count.measureText(pg), p.top + 74 * k, count);
         }
         for (int i = 0; i < per; i++) {
@@ -3733,7 +4707,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     private String whereText(List<Services.Service> where) {
         List<String> names = new ArrayList<>();
-        for (Services.Service s : where) names.add(s.name + (Services.installed(getContext(), s.pkg) ? "" : " (not installed)"));
+        for (Services.Service s : where) names.add(s.name + (Services.installed(getContext(), s.pkg) ? "" : L10n.t(" (not installed)")));
         return getContext().getString(R.string.where_watch, TextUtils.join(", ", names));
     }
 
@@ -3828,41 +4802,49 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         Context c = getContext();
         TvTools.audio(c, p -> btProxy = p);
         styleAtOpen = Style.get() + "/" + Style.country();
-        GlassSheet s = new GlassSheet(kit, "Customize TV Town", WheelArt.Glyph.SLIDERS, "customize", c.getString(R.string.page_scroll_hint));
-        s.addSection("Control Center", kit.glyph(WheelArt.Glyph.PULSE, 34)).pane(new ControlCenter.Pane(c, this::invalidate, controlActions(false)));
-        s.addSection("Home", kit.glyph(WheelArt.Glyph.FILM, 34));
-        s.add(GlassSheet.VALUE, "Top picture", kit.glyph(WheelArt.Glyph.FILM, 38), "appearance");
-        s.add(GlassSheet.ACTION, "Apps on Home", kit.glyph(WheelArt.Glyph.GRID, 38), "apps");
+        GlassSheet s = new GlassSheet(kit, L10n.t("Customize TV Town"), WheelArt.Glyph.SLIDERS, "customize", c.getString(R.string.page_scroll_hint));
+        s.addSection(L10n.t("Control Center"), kit.glyph(WheelArt.Glyph.PULSE, 34)).pane(new ControlCenter.Pane(c, this::invalidate, controlActions(false)));
+        s.addSection(L10n.t("Home"), kit.glyph(WheelArt.Glyph.FILM, 34));
+        s.add(GlassSheet.VALUE, L10n.t("Top picture"), kit.glyph(WheelArt.Glyph.FILM, 38), "appearance");
+        s.add(GlassSheet.ACTION, L10n.t("Apps on Home"), kit.glyph(WheelArt.Glyph.GRID, 38), "apps");
         s.add(GlassSheet.ACTION, c.getString(R.string.weather_row), kit.glyph(WheelArt.Glyph.SUN, 38), "weather");
-        s.add(GlassSheet.VALUE, "Live scores", kit.glyph(WheelArt.Glyph.PULSE, 38), "cricketon");
-        s.addSection("Features", kit.glyph(WheelArt.Glyph.SLIDERS, 34));
-        s.add(GlassSheet.VALUE, "Phone remote", kit.glyph(WheelArt.Glyph.KEY, 38), "f:" + Features.PHONE);
-        s.add(GlassSheet.VALUE, "Continue watching from apps", kit.glyph(WheelArt.Glyph.PLAY, 38), "f:" + Features.APPS);
-        s.add(GlassSheet.VALUE, "Save from YouTube (OK twice)", kit.glyph(WheelArt.Glyph.DOWN, 38), "f:" + Features.YT_SAVE);
-        s.add(GlassSheet.NOTE, "These keep running while you're in other apps. Switch off what you don't use", null, null);
-        s.addSection("Screensaver", kit.glyph(WheelArt.Glyph.TV, 34));
-        s.add(GlassSheet.ACTION, "Screensaver", kit.glyph(WheelArt.Glyph.TV, 38), "dreamapp");
+        s.addSection(L10n.t("Features"), kit.glyph(WheelArt.Glyph.SLIDERS, 34));
+        s.add(GlassSheet.VALUE, L10n.t("Surprise Me"), kit.glyph(WheelArt.Glyph.DICE, 38), "f:" + Features.SURPRISE);
+        s.add(GlassSheet.VALUE, L10n.t("My Movies"), kit.glyph(WheelArt.Glyph.FILM, 38), "f:" + Features.MOVIES);
+        s.add(GlassSheet.VALUE, L10n.t("My Music"), kit.glyph(WheelArt.Glyph.NOTE, 38), "f:" + Features.MUSIC);
+        s.add(GlassSheet.VALUE, L10n.t("Live scores"), kit.glyph(WheelArt.Glyph.PULSE, 38), "cricketon");
+        s.add(GlassSheet.NOTE, L10n.t("Off: its button leaves the dock, and its results leave Search"), null, null);
+        s.add(GlassSheet.VALUE, L10n.t("Phone remote"), kit.glyph(WheelArt.Glyph.KEY, 38), "f:" + Features.PHONE);
+        s.add(GlassSheet.VALUE, L10n.t("Continue watching from apps"), kit.glyph(WheelArt.Glyph.PLAY, 38), "f:" + Features.APPS);
+        s.add(GlassSheet.VALUE, L10n.t("Save from YouTube (OK twice)"), kit.glyph(WheelArt.Glyph.DOWN, 38), "f:" + Features.YT_SAVE);
+        s.add(GlassSheet.NOTE, L10n.t("These three keep running while you're in other apps. Switch off what you don't use"), null, null);
+        s.addSection(L10n.t("Screensaver"), kit.glyph(WheelArt.Glyph.TV, 34));
+        s.add(GlassSheet.ACTION, L10n.t("Screensaver"), kit.glyph(WheelArt.Glyph.TV, 38), "dreamapp");
         if (!Screensavers.installed(c, Screensavers.AERIAL))
-            s.add(GlassSheet.ACTION, "Get Aerial Views (free)", kit.glyph(WheelArt.Glyph.DOWN, 38), "dreamget");
-        s.add(GlassSheet.ACTION, "Try it now", kit.glyph(WheelArt.Glyph.PLAY, 38), "dreamtry");
-        s.add(GlassSheet.ACTION, "TV's screensaver settings", kit.glyph(WheelArt.Glyph.GEAR, 38), "dreamsys");
-        s.addSection("Films and music", kit.glyph(WheelArt.Glyph.STAR, 34));
+            s.add(GlassSheet.ACTION, L10n.t("Get Aerial Views (free)"), kit.glyph(WheelArt.Glyph.DOWN, 38), "dreamget");
+        s.add(GlassSheet.ACTION, L10n.t("Try it now"), kit.glyph(WheelArt.Glyph.PLAY, 38), "dreamtry");
+        s.add(GlassSheet.ACTION, L10n.t("TV's screensaver settings"), kit.glyph(WheelArt.Glyph.GEAR, 38), "dreamsys");
+        s.addSection(L10n.t("Films and music"), kit.glyph(WheelArt.Glyph.STAR, 34));
+        s.add(GlassSheet.VALUE, c.getString(R.string.app_language), kit.glyph(WheelArt.Glyph.NOTE, 38), "applang");
         s.add(GlassSheet.ACTION, c.getString(R.string.content_style), kit.glyph(WheelArt.Glyph.STAR, 38), "style");
         s.add(GlassSheet.ACTION, c.getString(R.string.streaming_country), kit.glyph(WheelArt.Glyph.TV, 38), "country");
         s.add(GlassSheet.ACTION, c.getString(R.string.my_languages), kit.glyph(WheelArt.Glyph.NOTE, 38), "mylangs");
-        if (StreamRadar.usable()) s.add(GlassSheet.VALUE, "Picks from", kit.glyph(WheelArt.Glyph.STAR, 38), "picksfrom");
-        s.addSection("Phone and downloads", kit.glyph(WheelArt.Glyph.DRIVE, 34));
-        s.add(GlassSheet.ACTION, "Connect my phone", kit.glyph(WheelArt.Glyph.KEY, 38), "savephone");
-        s.add(GlassSheet.VALUE, "Save songs to", kit.glyph(WheelArt.Glyph.NOTE, 38), "saveaudio");
-        s.add(GlassSheet.VALUE, "Save videos to", kit.glyph(WheelArt.Glyph.FILM, 38), "savevideo");
+        if (StreamRadar.usable()) s.add(GlassSheet.VALUE, L10n.t("Picks from"), kit.glyph(WheelArt.Glyph.STAR, 38), "picksfrom");
+        if (OpenIn.choices(c).size() > 1) s.add(GlassSheet.VALUE, L10n.t("Play films in"), kit.glyph(WheelArt.Glyph.PLAY, 38), "openin");
+        s.addSection(L10n.t("Phone and downloads"), kit.glyph(WheelArt.Glyph.DRIVE, 34));
+        s.add(GlassSheet.ACTION, L10n.t("Connect my phone"), kit.glyph(WheelArt.Glyph.KEY, 38), "savephone");
+        s.add(GlassSheet.VALUE, L10n.t("Save songs to"), kit.glyph(WheelArt.Glyph.NOTE, 38), "saveaudio");
+        s.add(GlassSheet.VALUE, L10n.t("Save videos to"), kit.glyph(WheelArt.Glyph.FILM, 38), "savevideo");
         s.add(GlassSheet.ACTION, c.getString(R.string.storage), kit.glyph(WheelArt.Glyph.DRIVE, 38), "storage");
-        s.addSection("Updates and backup", kit.glyph(WheelArt.Glyph.INFO, 34));
+        s.addSection(L10n.t("Updates and backup"), kit.glyph(WheelArt.Glyph.INFO, 34));
+        if (Updater.available != null) s.dot();
         s.add(GlassSheet.ACTION, c.getString(R.string.updates), kit.glyph(WheelArt.Glyph.REDO, 38), "update");
+        if (Updater.available != null) s.dotRow();
         s.add(GlassSheet.ACTION, c.getString(R.string.backup_row), kit.glyph(WheelArt.Glyph.UPLOAD, 38), "backup");
         s.add(GlassSheet.ACTION, c.getString(R.string.restore_row), kit.glyph(WheelArt.Glyph.DOWN, 38), "restore");
         s.add(GlassSheet.ACTION, c.getString(R.string.tmdb_key_row), kit.glyph(WheelArt.Glyph.KEY, 38), "tmdbkey");
         s.add(GlassSheet.ACTION, c.getString(R.string.subs_key_row), kit.glyph(WheelArt.Glyph.SUBS, 38), "subskey");
-        s.addSection(Treat.TITLE, kit.glyph(WheelArt.Glyph.HEART, 34)).pane(new Treat(c));   // its own place, last on the left
+        s.addSection(L10n.t(Treat.TITLE), kit.glyph(WheelArt.Glyph.HEART, 34)).pane(new Treat(c));   // its own place, last on the left
         s.markMore("apps", "weather", "interval", "dreamapp", "style", "country", "mylangs", "savephone", "saver", "wifi", "bluetooth", "storage", "restore", "tmdbkey", "subskey");
         s.layoutPage(getWidth(), getHeight(), 1);
         sheet = s;
@@ -4021,10 +5003,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     /** The red button's settings: which button, and where songs and videos go. */
     private void openSaver(GlassSheet from) {
-        GlassSheet s = new GlassSheet(kit, "YouTube downloader", WheelArt.Glyph.DRIVE, "saver", "");
+        GlassSheet s = new GlassSheet(kit, L10n.t("YouTube downloader"), WheelArt.Glyph.DRIVE, "saver", "");
         s.parent = from;
-        s.add(GlassSheet.VALUE, "Save songs to", kit.glyph(WheelArt.Glyph.NOTE, 38), "saveaudio");
-        s.add(GlassSheet.VALUE, "Save videos to", kit.glyph(WheelArt.Glyph.FILM, 38), "savevideo");
+        s.add(GlassSheet.VALUE, L10n.t("Save songs to"), kit.glyph(WheelArt.Glyph.NOTE, 38), "saveaudio");
+        s.add(GlassSheet.VALUE, L10n.t("Save videos to"), kit.glyph(WheelArt.Glyph.FILM, 38), "savevideo");
         s.layout(getWidth(), getHeight(), 900, 9);
         sheet = s;
     }
@@ -4097,7 +5079,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             float mw = mark.getWidth() * sc, mh = mark.getHeight() * sc;
             c.drawBitmap(mark, null, new RectF(cx - mw / 2, cy - mh / 2, cx + mw / 2, cy + mh / 2), nImg);
         }
-        String label = fit(it.kind == ALL_APPS ? "All apps" : it.name, hAppName, r.width() - 20 * k);
+        String label = fit(it.kind == ALL_APPS ? L10n.t("All apps") : it.name, hAppName, r.width() - 20 * k);
         c.drawText(label, cx - hAppName.measureText(label) / 2, r.bottom - 26 * k, hAppName);
         if (moving) {   // arrows either side: it can move
             Paint ap = nk.inter(30, 700, 0, Color.WHITE);
@@ -4113,12 +5095,12 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         RectF p = edPanel((more.size() + ED_COLS - 1) / ED_COLS);
         Frost.panel(c, p, 40 * k, 1, k);
         Paint head = nk.inter(46, 500, -0.03f, Frost.INK), sec = nk.inter(26, 600, 0, Frost.INK), hint = nk.inter(22, 500, 0, Frost.MUTE);
-        c.drawText("Apps on Home", p.left + 48 * k, p.top + 76 * k, head);
+        c.drawText(L10n.t("Apps on Home"), p.left + 48 * k, p.top + 76 * k, head);
         float pad = 40, gap = 16, cw = (1560 - 2 * pad - (ED_COLS - 1) * gap) / ED_COLS, ch = 150;
         // On Home: the dock's apps, then All apps (always there, always last)
         List<String> dock = dockIds();
-        c.drawText("On Home", p.left + 48 * k, p.top + 140 * k, sec);
-        String h1 = appsMoving ? "\u2190 \u2192 to move   \u2193 takes it off Home   OK when done" : "OK on an app to move it or take it off";
+        c.drawText(L10n.t("On Home"), p.left + 48 * k, p.top + 140 * k, sec);
+        String h1 = appsMoving ? "\u2190 \u2192 to move   \u2193 takes it off Home   OK when done" : L10n.t("OK on an app to move it or take it off");
         c.drawText(h1, p.right - 48 * k - hint.measureText(h1), p.top + 140 * k, hint);
         float y = p.top / k + 162;
         for (int i = 0; i <= dock.size(); i++) {
@@ -4128,11 +5110,11 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         }
         // More apps: everything else on the TV
         float y2 = y + ch + 70;
-        c.drawText("More apps", p.left + 48 * k, y2 * k, sec);
-        String h2 = dock.size() >= DOCK_APPS ? "Home holds " + DOCK_APPS + " apps: take one off to add another" : "OK adds it to Home";
+        c.drawText(L10n.t("More apps"), p.left + 48 * k, y2 * k, sec);
+        String h2 = dock.size() >= DOCK_APPS ? L10n.t("Home holds ") + DOCK_APPS + L10n.t(" apps: take one off to add another") : L10n.t("OK adds it to Home");
         c.drawText(h2, p.right - 48 * k - hint.measureText(h2), y2 * k, hint);
         if (more.isEmpty()) {
-            c.drawText("Every app is on Home", p.left + 48 * k, (y2 + 70) * k, hint);
+            c.drawText(L10n.t("Every app is on Home"), p.left + 48 * k, (y2 + 70) * k, hint);
         }
         int selRow = appsSel / ED_COLS;
         if (selRow < appsScroll) appsScroll = selRow;
@@ -4144,7 +5126,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         }
         int rows = (more.size() + ED_COLS - 1) / ED_COLS;
         if (rows > ED_ROWS) {
-            String w = (appsScroll + 1) + "\u2013" + Math.min(rows, appsScroll + ED_ROWS) + " of " + rows + " rows";
+            String w = (appsScroll + 1) + "\u2013" + Math.min(rows, appsScroll + ED_ROWS) + L10n.t(" of ") + rows + L10n.t(" rows");
             c.drawText(w, p.right - 48 * k - hint.measureText(w), p.top + 76 * k, hint);
         }
         if (appsNote != null && SystemClock.uptimeMillis() < appsNoteUntil) {
@@ -4186,7 +5168,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                     }
                 } else if (d) {   // off Home
                     if (dock.size() <= 1) {
-                        appsNote = "Keep at least one app on Home";
+                        appsNote = L10n.t("Keep at least one app on Home");
                         appsNoteUntil = SystemClock.uptimeMillis() + 2400;
                     } else {
                         dock.remove(appsTopSel);
@@ -4226,7 +5208,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             List<Item> more = otherApps();
             if (appsSel >= more.size()) return;
             if (dock.size() >= DOCK_APPS) {
-                appsNote = "Home holds " + DOCK_APPS + " apps: take one off first";
+                appsNote = L10n.t("Home holds ") + DOCK_APPS + L10n.t(" apps: take one off first");
                 appsNoteUntil = SystemClock.uptimeMillis() + 2400;
             } else {
                 dock.add(more.get(appsSel).id);
@@ -4240,7 +5222,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     /** Which apps sit on Home, as tiles. OK adds or takes one away; they sit in the order you add them. */
     private void openAppsGrid(GlassSheet from) {
-        GlassSheet s = new GlassSheet(kit, "Apps on Home", WheelArt.Glyph.GRID, "appsgrid", "");
+        GlassSheet s = new GlassSheet(kit, L10n.t("Apps on Home"), WheelArt.Glyph.GRID, "appsgrid", "");
         s.gridCols = 5;
         List<String> chosen = order();
         List<String> candidates = new ArrayList<>(chosen);
@@ -4290,9 +5272,9 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             String[] ids = new String[v.length], names = new String[v.length];
             for (int i = 0; i < v.length; i++) {
                 ids[i] = String.valueOf(v[i]);
-                names[i] = v[i] >= 60 ? (v[i] / 60) + " min" : v[i] + " seconds";
+                names[i] = v[i] >= 60 ? (v[i] / 60) + L10n.t(" min") : v[i] + L10n.t(" seconds");
             }
-            openPicker(s, "Top picture changes every", "interval", ids, names, java.util.Collections.singletonList(String.valueOf(GlassBackdrop.intervalSeconds(prefs))));
+            openPicker(s, L10n.t("Top picture changes every"), "interval", ids, names, java.util.Collections.singletonList(String.valueOf(GlassBackdrop.intervalSeconds(prefs))));
         } else if (tag.equals("dreamapp")) {
             List<Screensavers.Saver> all = Screensavers.all(c);
             String[] ids = new String[all.size()], names = new String[all.size()];
@@ -4301,7 +5283,16 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 names[i] = all.get(i).name;
             }
             int now = Screensavers.currentIndex(c, all);
-            openPicker(s, "Screensaver", "saver", ids, names, java.util.Collections.singletonList(String.valueOf(now)));
+            openPicker(s, L10n.t("Screensaver"), "saver", ids, names, java.util.Collections.singletonList(String.valueOf(now)));
+        } else if (tag.equals("applang")) {
+            String[] names = new String[Lang.CODES.length];
+            for (int i = 0; i < names.length; i++) names[i] = Lang.name(Lang.CODES[i]);
+            openPicker(s, c.getString(R.string.app_language), "applang", Lang.CODES, names, java.util.Collections.singletonList(Lang.chosen()));
+        } else if (tag.equals("openin")) {
+            List<String> ch = OpenIn.choices(c);
+            String[] ids = ch.toArray(new String[0]), names = new String[ids.length];
+            for (int i = 0; i < ids.length; i++) names[i] = OpenIn.name(ids[i]);
+            openPicker(s, L10n.t("Play films in"), "openin", ids, names, java.util.Collections.singletonList(OpenIn.chosen(c)));
         } else if (tag.equals("style")) {
             String[] names = new String[Style.STYLES.length];
             for (int i = 0; i < names.length; i++) names[i] = Style.name(Style.STYLES[i]);
@@ -4309,7 +5300,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         } else if (tag.equals("country")) {
             String[] ids = new String[Style.COUNTRIES.length + 1], names = new String[ids.length];
             ids[0] = "auto";
-            names[0] = "Automatic";
+            names[0] = L10n.t("Automatic");
             for (int i = 0; i < Style.COUNTRIES.length; i++) {
                 ids[i + 1] = Style.COUNTRIES[i][0];
                 names[i + 1] = Style.COUNTRIES[i][1];
@@ -4337,7 +5328,14 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             r.checked = now.contains(p[2]);
             return;
         }
-        if (p[1].equals("interval")) prefs.edit().putInt("scene_seconds", Integer.parseInt(p[2])).apply();
+        if (p[1].equals("applang")) {
+            String code = p.length > 2 ? p[2] : "";
+            if (!code.equals(Lang.chosen())) {
+                Lang.choose(c, code);
+                langChanged = true;   // TV Town opens again in it when Customize closes
+            }
+        } else if (p[1].equals("openin")) OpenIn.choose(c, p[2]);
+        else if (p[1].equals("interval")) prefs.edit().putInt("scene_seconds", Integer.parseInt(p[2])).apply();
         else if (p[1].equals("saver")) {
             List<Screensavers.Saver> all = Screensavers.all(c);
             int i = Integer.parseInt(p[2]);
@@ -4354,14 +5352,14 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         Context c = getContext();
         if (next.kind >= 0) TvTownDream.setKind(c, next.kind);
         if (Screensavers.use(c, next.comp)) {
-            s.say(next.name + " is the screensaver");
+            s.say(next.name + L10n.t(" is the screensaver"));
             return;
         }
         if (RemoteKeys.READY.equals(RemoteKeys.state())) {   // the debugging link is already allowed: TV Town asks for the switch itself
             Screensavers.askToAllow(c);
-            s.say("Switching\u2026");
+            s.say(L10n.t("Switching\u2026"));
             postDelayed(() -> {
-                if (Screensavers.use(c, next.comp)) s.say(next.name + " is the screensaver");
+                if (Screensavers.use(c, next.comp)) s.say(next.name + L10n.t(" is the screensaver"));
                 invalidate();
             }, 1500);
             return;
@@ -4371,6 +5369,25 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         boolean direct = Screensavers.openTvSettings(c);
         android.widget.Toast.makeText(c, direct ? "Choose \"" + pick + "\" here"
                 : "Device Preferences \u2192 Screen saver \u2192 choose \"" + pick + "\"", android.widget.Toast.LENGTH_LONG).show();
+    }
+
+    /** OK on Updates with a new version: what's new in it, then Install or Later. */
+    private void openWhatsNew(GlassSheet from, Updater.Release u) {
+        GlassSheet s = new GlassSheet(kit, L10n.t("What's new in ") + u.version, WheelArt.Glyph.REDO, "whatsnew", "");
+        s.popupW = 1240;
+        s.rows.add(new GlassSheet.Row(GlassSheet.ACTION, L10n.t("Install ") + u.version, kit.glyph(WheelArt.Glyph.DOWN, 38), "upd:install"));
+        s.rows.add(new GlassSheet.Row(GlassSheet.ACTION, L10n.t("Later"), kit.glyph(WheelArt.Glyph.REDO, 38), "upd:later"));
+        List<String> lines = Updater.noteLines(u.notes, 100);
+        if (lines.isEmpty()) lines.add(L10n.t("Improvements and fixes."));
+        for (String l : lines) {
+            GlassSheet.Row r = new GlassSheet.Row(GlassSheet.NOTE, l, null, null);
+            r.readable = !l.isEmpty();   // Down steps through the notes, so a long list scrolls
+            s.rows.add(r);
+        }
+        s.layout(getWidth(), getHeight(), 1240, 9);
+        s.parent = from;
+        sheet = s;
+        invalidate();
     }
 
     private void closeSheet() {
@@ -4392,8 +5409,14 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             buildItems();
             // A new style or country: the featured titles and New this week are for the new country.
             if (!(Style.get() + "/" + Style.country()).equals(styleAtOpen)) refresh(true);
+            if (langChanged) {   // a new language: TV Town opens again, every screen and every film's words in it
+                langChanged = false;
+                restart();
+            }
         }
     }
+
+    private boolean langChanged;
 
     @Override
     @Nullable
@@ -4442,28 +5465,32 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             case "dreamapp":
                 return Screensavers.currentName(c);
             case "picksfrom":
-                return StreamRadar.chosen(c) ? "StreamRadar" : "TMDB";
+                return StreamRadar.chosen(c) ? L10n.t("StreamRadar") : "TMDB";
             case "saveaudio":
             case "savevideo": {
                 java.io.File f = YtSaver.folder(c, tag.equals("savevideo"));
-                return f == null ? "No drive" : f.getName();
+                return f == null ? L10n.t("No drive") : f.getName();
             }
             case "interval": {
                 int s = GlassBackdrop.intervalSeconds(prefs);
-                return s >= 60 ? (s / 60) + " min" : s + " s";
+                return s >= 60 ? (s / 60) + L10n.t(" min") : s + " s";
             }
             case "skipwatched":
                 return c.getString(Library.skipWatched(c) ? R.string.on : R.string.off);
             case "colourkeys":
                 return c.getString(HomeKeyService.colourKeys(c) ? R.string.on : R.string.off);
             case "apps":
-                return order().size() + " apps";
+                return order().size() + L10n.t(" apps");
             case "appearance":
-                return Frost.lighter ? "In a card" : "Full screen";
+                return Frost.lighter ? L10n.t("In a card") : L10n.t("Full screen");
+            case "openin":
+                return OpenIn.name(OpenIn.chosen(c));
+            case "applang":
+                return Lang.name(Lang.chosen());
             case "style":
                 return Style.name(Style.get());
             case "look":
-                return "Neon glass";
+                return L10n.t("Neon glass");
             case "glassbg":
                 return BG_NAMES[bgChoice()];
             case "mylangs":
@@ -4486,6 +5513,17 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         Context c = getContext();
         String tag = String.valueOf(r.tag);
         switch (tag) {
+            case "applang": {   // the next language; every screen opens again in it
+                int at = java.util.Arrays.asList(Lang.CODES).indexOf(Lang.chosen());
+                Lang.choose(c, Lang.CODES[Math.floorMod(at + (dir == 0 ? 1 : dir), Lang.CODES.length)]);
+                langChanged = true;
+                return;
+            }
+            case "openin": {
+                List<String> ch = OpenIn.choices(c);
+                OpenIn.choose(c, ch.get(Math.floorMod(ch.indexOf(OpenIn.chosen(c)) + (dir == 0 ? 1 : dir), ch.size())));
+                return;
+            }
             case "appearance":
                 Frost.setLighter(c, !Frost.lighter);
                 homeArtFor = "";   // the blurred picture is made differently for each look
@@ -4495,9 +5533,13 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 return;
             case "f:" + Features.PHONE:
             case "f:" + Features.APPS:
-            case "f:" + Features.YT_SAVE: {
+            case "f:" + Features.YT_SAVE:
+            case "f:" + Features.SURPRISE:
+            case "f:" + Features.MOVIES:
+            case "f:" + Features.MUSIC: {
                 String f = tag.substring(2);
                 Features.set(c, f, !Features.on(c, f));
+                invalidate();
                 return;
             }
             case "cricketon":
@@ -4512,7 +5554,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             }
             case "picksfrom":
                 if (!Tmdb.available()) {
-                    s.say("Add a TMDB key to switch");
+                    s.say(L10n.t("Add a TMDB key to switch"));
                     return;
                 }
                 StreamRadar.setChosen(c, !StreamRadar.chosen(c));
@@ -4585,8 +5627,19 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             openControlCenter();
             return;
         }
-        if (tag.equals("style") || tag.equals("country") || tag.equals("mylangs") || tag.equals("interval") || tag.equals("dreamapp")) {
+        if (tag.equals("style") || tag.equals("country") || tag.equals("mylangs") || tag.equals("interval") || tag.equals("dreamapp")
+                || tag.equals("applang") || tag.equals("openin") && OpenIn.choices(getContext()).size() > 2) {
             pickerFor(s, tag);
+            return;
+        }
+        if (tag.startsWith("upd:")) {
+            Updater.Release u = Updater.available;
+            if (tag.equals("upd:install") && u != null) Updater.install(getContext(), u, msg -> s.say(msg));
+            else closeSheet();
+            return;
+        }
+        if (tag.startsWith("cont:")) {
+            contOption(tag.substring(5));
             return;
         }
         if (tag.startsWith("pick:")) {
@@ -4602,7 +5655,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             return;
         }
         if (tag.equals("dreamtry")) {
-            if (!Screensavers.tryNow(getContext())) s.say("This TV can't start it from here: it starts on its own when the TV is idle");
+            if (!Screensavers.tryNow(getContext())) s.say(L10n.t("This TV can't start it from here: it starts on its own when the TV is idle"));
             return;
         }
         if (tag.equals("dreamget")) {
@@ -4657,7 +5710,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             case "update": {
                 Updater.Release u = Updater.available;
                 if (u != null) {
-                    Updater.install(getContext(), u, s::say);
+                    openWhatsNew(s, u);
                     return;
                 }
                 s.say(getContext().getString(R.string.updates_checking_now));
@@ -4832,13 +5885,15 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             pickerListener.switchKind(button);
             return;
         }
-        if (button == 0 && listener != null) listener.onMyMovies();
-        else if (button == 1 && listener != null) listener.onMyMusic();
-        else if (button == 2) openRandom(0);
-        else if (button == 3) openRandom(1);
+        Context fc = getContext();
+        if (button == 0 && listener != null && Features.on(fc, Features.MOVIES)) listener.onMyMovies();
+        else if (button == 1 && listener != null && Features.on(fc, Features.MUSIC)) listener.onMyMusic();
+        else if (button == 2 && Features.on(fc, Features.SURPRISE)) openRandom(0);
+        else if (button == 3 && Features.on(fc, Features.SURPRISE)) openRandom(1);
     }
 
     void openRandom(int kind) {
+        if (!Features.on(getContext(), Features.SURPRISE)) return;   // switched off in Customize
         if (kit == null || kind < 0 || kind > 3) return;
         reset();
         randSel = kind;
@@ -4889,6 +5944,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     private void setRow(Row r) {
         if (r == row) return;
+        boolean wasCovers = row == Row.CONT || row == Row.LIST || row == Row.NOTHING, covers = r == Row.CONT || r == Row.LIST || r == Row.NOTHING;
+        if (covers && !wasCovers) shelfAt = barAt = SystemClock.uptimeMillis();   // the bar turns away, the covers rise
+        else if (covers) shelfAt = SystemClock.uptimeMillis();                     // the next page of covers rises
+        if (wasCovers && !covers) barAt = SystemClock.uptimeMillis();               // the bar comes back
         row = r;
         rowChanged = sweepStart = SystemClock.uptimeMillis();
     }
@@ -4985,6 +6044,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
         if (!isSelect(keyCode)) return super.onKeyLongPress(keyCode, event);
         longPressed = true;
+        if (noOverlay() && row == Row.CONT && contAt < contRow().size()) {   // hold OK on a Continue title: its options
+            openContOptions(contRow().get(contAt));
+            return true;
+        }
         Apps.App app = null;
         if (allAppsOpen) {
             int idx = allPage * GRID_COLS * GRID_ROWS + allSel;

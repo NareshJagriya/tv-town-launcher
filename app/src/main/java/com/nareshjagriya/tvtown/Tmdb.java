@@ -172,6 +172,11 @@ final class Tmdb {
 
     /** A v3 API key goes in the URL; a longer v4 read token goes in the Authorization header. */
     private static JSONObject call(Context ctx, String path, Map<String, String> query, long fresh) throws IOException {
+        return call(ctx, path, query, fresh, null);
+    }
+
+    /** saveAs: a name to keep the answer under when the address changes daily (see Net.cached), or null. */
+    private static JSONObject call(Context ctx, String path, Map<String, String> query, long fresh, @Nullable String saveAs) throws IOException {
         String key = Keys.tmdb();
         if (key.isEmpty()) throw new Net.Failure("No TMDB key", 0);
         Uri.Builder b = Uri.parse(API + path).buildUpon();
@@ -182,7 +187,8 @@ final class Tmdb {
         if (bearer) headers.put("Authorization", "Bearer " + key);
         else b.appendQueryParameter("api_key", key);
         try {
-            return new JSONObject(Net.cached(ctx, b.build().toString(), headers, fresh, STALE, TIMEOUT));
+            String url = b.build().toString();
+            return new JSONObject(Net.cached(ctx, saveAs != null ? saveAs : url, url, headers, fresh, STALE, TIMEOUT));
         } catch (org.json.JSONException e) {
             throw new Net.Failure("Bad TMDB response", 0);
         }
@@ -191,7 +197,7 @@ final class Tmdb {
     private static Map<String, String> q(String... kv) {
         Map<String, String> m = new HashMap<>();
         for (int i = 0; i + 1 < kv.length; i += 2) if (kv[i + 1] != null) m.put(kv[i], kv[i + 1]);
-        m.put("language", Style.englishLocale());
+        m.put("language", Lang.tmdb());
         return m;
     }
 
@@ -322,26 +328,64 @@ final class Tmdb {
         String today = f.format(c.getTime());
         c.add(Calendar.DAY_OF_YEAR, -days);
         String since = f.format(c.getTime());
-        Map<String, Title> merged = new HashMap<>();
-        for (Services.Service s : services) {
-            String ids = providerIds(ctx, s);
-            if (ids == null) continue;
-            for (String type : new String[]{"movie", "tv"}) {
-                String from = "movie".equals(type) ? "primary_release_date.gte" : "first_air_date.gte";
-                String to = "movie".equals(type) ? "primary_release_date.lte" : "first_air_date.lte";
-                List<Title> r = parse(call(ctx, "/discover/" + type, q("watch_region", Style.country(), "with_watch_providers", ids,
-                        "with_watch_monetization_types", "flatrate|free|ads", "sort_by", "popularity.desc",
-                        from, since, to, today, "page", "1"), FRESH).optJSONArray("results"), type);
-                for (Title t : r) {
-                    if (t.backdropPath == null || merged.containsKey(t.key())) continue;
-                    t.service = s;
-                    merged.put(t.key(), t);
+        // Every app's films and series are asked for at once (four at a time), not one after another.
+        final boolean savedOnly = Net.savedOnly();
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(4);
+        List<Services.Service> asked = new ArrayList<>();
+        List<java.util.concurrent.Future<List<Title>>> jobs = new ArrayList<>();
+        try {
+            for (Services.Service s : services) {
+                String ids = providerIds(ctx, s);
+                if (ids == null) continue;
+                for (String type : new String[]{"movie", "tv"}) {
+                    String from = "movie".equals(type) ? "primary_release_date.gte" : "first_air_date.gte";
+                    String to = "movie".equals(type) ? "primary_release_date.lte" : "first_air_date.lte";
+                    asked.add(s);
+                    jobs.add(pool.submit(() -> {
+                        Net.savedOnly(savedOnly);
+                        return parse(call(ctx, "/discover/" + type, q("watch_region", Style.country(), "with_watch_providers", ids,
+                                "with_watch_monetization_types", "flatrate|free|ads", "sort_by", "popularity.desc",
+                                from, since, to, today, "page", "1"), FRESH,
+                                "tmdb-new/" + type + "/" + ids + "/" + Style.country() + "/" + Lang.tmdb() + "/" + days).optJSONArray("results"), type);
+                    }));
                 }
             }
+        } finally {
+            pool.shutdown();
         }
+        Map<String, Title> merged = new HashMap<>();
+        IOException failed = null;
+        for (int i = 0; i < jobs.size(); i++) {
+            try {
+                for (Title t : jobs.get(i).get()) {
+                    if (t.backdropPath == null || merged.containsKey(t.key())) continue;
+                    t.service = asked.get(i);
+                    merged.put(t.key(), t);
+                }
+            } catch (java.util.concurrent.ExecutionException e) {
+                failed = e.getCause() instanceof IOException ? (IOException) e.getCause() : new IOException(e.getCause());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException(e);
+            }
+        }
+        if (merged.isEmpty() && failed != null) throw failed;
         List<Title> out = new ArrayList<>(merged.values());
         Collections.sort(out, (a, b) -> Double.compare(b.popularity, a.popularity));
         return out.size() > 20 ? new ArrayList<>(out.subList(0, 20)) : out;
+    }
+
+    /** Titles TMDB suggests after this one ("because you watched"), best first. type: "movie" or "tv". */
+    static List<Title> recommendations(Context ctx, String type, int id) throws IOException {
+        if (!"movie".equals(type) && !"tv".equals(type) || id <= 0) return new ArrayList<>();
+        return parse(call(ctx, "/" + type + "/" + id + "/recommendations", q("page", "1"), DAY).optJSONArray("results"), type);
+    }
+
+    /** The IMDb number ("tt0111161") of a film or series, or null. Kept a month: it never changes. */
+    @Nullable
+    static String imdbId(Context ctx, String type, int id) throws IOException {
+        String v = call(ctx, "/" + type + "/" + id + "/external_ids", q(), 30 * DAY).optString("imdb_id", "");
+        return v.matches("tt\\d{5,10}") ? v : null;
     }
 
     /** Up to five leading actors, "A, B, C". */
@@ -373,6 +417,13 @@ final class Tmdb {
             }
         }
         return image(best, "w500");
+    }
+
+    /** A title's wide picture and its story, for Home's shelf (the same request as details, so it's cached). */
+    static String[] pictureAndStory(Context ctx, String type, int id) throws IOException {
+        JSONObject o = call(ctx, "/" + type + "/" + id, q("append_to_response", "videos"), DAY);
+        String path = o.optString("backdrop_path", "");
+        return new String[]{path.isEmpty() || "null".equals(path) ? null : image(path, "w1280"), o.optString("overview", "")};
     }
 
     /** Runtime, genre names and the YouTube trailer, in one request. Safe to call more than once. */

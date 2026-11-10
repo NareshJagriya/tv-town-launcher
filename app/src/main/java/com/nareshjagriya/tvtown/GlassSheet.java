@@ -48,6 +48,8 @@ final class GlassSheet {
         final Bitmap icon;
         final Object tag;
         boolean checked, more;   // more: opens further options
+        boolean dot;             // something new waits here (an update)
+        boolean readable;        // a note the focus can step through (What's new), so a long text scrolls
 
         Row(int kind, String label, @Nullable Bitmap icon, @Nullable Object tag) {
             this.kind = kind;
@@ -57,7 +59,7 @@ final class GlassSheet {
         }
 
         boolean selectable() {
-            return kind != HEADER && kind != NOTE;
+            return kind != HEADER && (kind != NOTE || readable);
         }
     }
 
@@ -120,12 +122,26 @@ final class GlassSheet {
         return this;
     }
 
+    /** The row just added has something new: a dot on its icon. */
+    GlassSheet dotRow() {
+        List<Row> l = sectionRows != null ? sectionRows.get(sectionRows.size() - 1) : rows;
+        if (!l.isEmpty()) l.get(l.size() - 1).dot = true;
+        return this;
+    }
+
     // Settings: a compact glass page, categories on its left and the chosen one's rows on its right.
     @Nullable
     List<List<Row>> sectionRows;
     private final List<String> sectionNames = new ArrayList<>();
     private final List<Bitmap> sectionIcons = new ArrayList<>();
     private final List<Object> sectionActions = new ArrayList<>();
+    private final java.util.Set<Integer> sectionDots = new java.util.HashSet<>();
+
+    /** The category just added has something new in it: a dot beside its name. */
+    GlassSheet dot() {
+        sectionDots.add(sectionNames.size() - 1);
+        return this;
+    }
     private final List<Pane> sectionPanes = new ArrayList<>();
     private final RectF outer = new RectF();
     int section;
@@ -375,6 +391,7 @@ final class GlassSheet {
                 kit.drawGlyph(c, sectionIcons.get(i), tmp.left + 42 * k, tmp.centerY(), i == section ? a : Math.round(190 * e));
                 row.setAlpha(i == section ? a : Math.round(205 * e));
                 c.drawText(sectionNames.get(i), tmp.left + 84 * k, tmp.centerY() + 11 * k, row);
+                if (sectionDots.contains(i)) Frost.dot(c, tmp.left + 84 * k + row.measureText(sectionNames.get(i)) + 18 * k, tmp.centerY() - 8 * k, k);
                 if (sectionActions.get(i) != null) drawArrow(c, tmp.right - 24 * k, tmp.centerY());
             }
             fill.setColor(0x1FFFFFFF);
@@ -384,7 +401,7 @@ final class GlassSheet {
                 c.drawText(android.text.TextUtils.ellipsize(note, new android.text.TextPaint(status), panel.width() - 96 * k, android.text.TextUtils.TruncateAt.END).toString(), panel.left + 48 * k, outer.bottom - 28 * k, status);
             }
         } else c.drawText(title, panel.left + 48 * k, panel.top + 76 * k, title_);
-        String corner = page ? null : note != null && now < noteUntil ? note : rows.size() > visible ? (sel + 1) + " of " + rows.size() : null;
+        String corner = page ? null : note != null && now < noteUntil ? note : rows.size() > visible ? (sel + 1) + L10n.t(" of ") + rows.size() : null;
         if (corner != null) {
             boolean said = note != null && now < noteUntil;
             status.setColor(said ? Color.WHITE : Frost.MUTE);
@@ -416,7 +433,7 @@ final class GlassSheet {
             plateTo = target;
             plateAt = now;
         }
-        if (sel >= 0 && sel < rows.size() && rows.get(sel).selectable() && !(page && inRail)) {
+        if (sel >= 0 && sel < rows.size() && rows.get(sel).selectable() && rows.get(sel).kind != NOTE && !(page && inRail)) {
             float y = plateTo;   // lands at once: no slide, so no trail behind the words
             tmp.set(panel.left + 20 * k, y + 4 * k, panel.right - 20 * k, y + rowH - 4 * k);
             Frost.lift(c, tmp, 28 * k, k);
@@ -432,7 +449,14 @@ final class GlassSheet {
                 continue;
             }
             if (x.kind == NOTE) {
-                notePaint.setAlpha(Math.round(Color.alpha(Frost.MUTE) * e));
+                boolean reading = x.readable && i == sel;   // the line you are on: brighter, with a mark beside it
+                if (reading) {
+                    fill.setShader(null);
+                    fill.setColor(0xFF9C84FF);
+                    c.drawRoundRect(panel.left + 26 * k, mid - 14 * k, panel.left + 31 * k, mid + 14 * k, 3 * k, 3 * k, fill);
+                }
+                boolean head = x.readable && x.label.equals(x.label.toUpperCase(java.util.Locale.getDefault())) && !x.label.startsWith("\u2022") && !x.label.startsWith(" ");
+                notePaint.setAlpha(Math.round((reading || head ? 255 : Color.alpha(Frost.MUTE)) * e));
                 c.drawText(x.label, panel.left + 48 * k, base, notePaint);
                 continue;
             }
@@ -447,17 +471,18 @@ final class GlassSheet {
                 } else {
                     kit.drawGlyph(c, x.icon, textX + 20 * k, mid, Math.round((i == sel ? 255 : 215) * e));
                 }
+                if (x.dot) Frost.dot(c, textX + 40 * k, mid - 16 * k, k);   // an update waits: on the row's icon
                 textX += 68 * k;
             }
             row.setAlpha(Math.round((i == sel ? 255 : 220) * e));
             float right = panel.right - 48 * k;
             String val = host.value(x);
             if (page && x.kind == VALUE) {   // a switch for on or off, else the choice in a small capsule
-                boolean onOff = "On".equals(val) || "Off".equals(val);
+                boolean onOff = L10n.isOn(val) || L10n.isOff(val);
                 float w = onOff ? 72 * k : value.measureText(String.valueOf(val)) + 44 * k;
                 c.drawText(android.text.TextUtils.ellipsize(x.label, new android.text.TextPaint(row), Math.max(80 * k, right - textX - w - 28 * k),
                         android.text.TextUtils.TruncateAt.END).toString(), textX, base, row);
-                if (onOff) drawSwitch(c, right - w, mid, w, "On".equals(val));
+                if (onOff) drawSwitch(c, right - w, mid, w, L10n.isOn(val));
                 else {
                     tmp.set(right - w, mid - 25 * k, right, mid + 25 * k);
                     fill.setColor(0x26FFFFFF);

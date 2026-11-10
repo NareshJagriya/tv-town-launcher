@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.2 (10 November 2026)
+
+### What's new
+
+- **Spanish:** TV Town in Español, chosen in Customize → Language. Film titles, stories and posters follow too, where TMDB has them in Spanish.
+- **Stremio and Nuvio:** Choose "Play films in" to open Watch now, Surprise Me and Discover picks straight on the title's page in Stremio or Nuvio. A title that isn't on your streaming apps opens there too.
+- **Surprise Me, redesigned:** Full screen like Home, with big mood pictures, tabs in one glass bar, languages as chips and full-screen picks with tall covers.
+- **Extras, rethought:** 12 tiles, adding Short Films, Recipes, Podcasts & Talks and Spirituality, with Documentaries reworked. Recipes, Podcasts & Talks, Spirituality and Documentaries let you tick what you like first (diet, cuisine, topic…) or add your own, with choices for India or the rest of the world. Sports Highlights is gone.
+- **Home shelf:** Press Down for Continue watching and My Watchlist as tall covers over the picture. Hold OK on a Continue title to mark it watched or remove it.
+- **Because you watched:** A new first row in Discover, based on what you've marked Watched.
+- **Switch off what you don't use:** Customize → Features can now hide Surprise Me, My Movies and My Music. Live scores moved there too.
+
+### More improvements
+
+- **Faster start:** Home shows its films at once instead of after a few seconds, and keeps working when TMDB is slow.
+- **Smoother and sharper:** 60 frames a second on Home where the TV keeps up, and full colour in large pictures.
+- **A cleaner look:** One focus style for every cover, smoked glass on the dock, a new Discover sidebar, and text that stays readable on bright pictures.
+- **Easier choices:** Settings with more than two options open a list.
+- **Update notice:** A dot on Customize and Updates when a new version is out, and What's new before you install it.
+
+### Bug fixes
+
+- The Home button now works from every TV Town screen and pop-up, and no longer flashes Google's home first.
+- The empty shelf no longer draws over the film's title and buttons.
+- Search no longer labels a title "streaming" when it isn't.
+- Two Surprise Me moods no longer share the same picture.
+
 ## 1.1 (9 November 2026)
 
 ### What's new

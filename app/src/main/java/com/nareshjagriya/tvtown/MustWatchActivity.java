@@ -11,6 +11,11 @@ import android.widget.Toast;
 /** Must-Watch (MustWatchView), opened from Discover. Playing and trailers work as in Discover. */
 public class MustWatchActivity extends Activity implements MustWatchView.Listener {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Lang.wrap(base));   // the language chosen in Customize
+    }
+
     private MustWatchView view;
     private final Handler handler = new Handler(Looper.getMainLooper());
 

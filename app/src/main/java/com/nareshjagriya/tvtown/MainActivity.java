@@ -37,6 +37,11 @@ import java.util.Random;
  */
 public class MainActivity extends Activity implements HomeView.Listener {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Lang.wrap(base));   // the language chosen in Customize
+    }
+
     /** Set when the home helper opened TV Town (so it is not taken as the viewer choosing TV Town again). */
     static final String EXTRA_FROM_HELPER = "from_helper";
     /** From the helper: Home was pressed (rather than Back out of an app). */
@@ -122,7 +127,10 @@ public class MainActivity extends Activity implements HomeView.Listener {
         updateWifi();
         wheel.setDrive(MyMovies.driveMounted(this));
         handler.postDelayed(minuteTick, MINUTE_MS);
-        if (getSharedPreferences("home", MODE_PRIVATE).getBoolean("welcomed", false)) Perms.askOnce(this);
+        if (getSharedPreferences("home", MODE_PRIVATE).getBoolean("welcomed", false)) {
+            Perms.askOnce(this);
+            Perms.askTvListings(this, false);   // without it Continue Watching can't see your apps
+        }
         handler.postDelayed(() -> {
             if (!isFinishing() && hasWindowFocus()) Treat.maybeNudge(this);
         }, 5000);
@@ -223,7 +231,10 @@ public class MainActivity extends Activity implements HomeView.Listener {
         boolean helper = intent.getBooleanExtra(EXTRA_FROM_HELPER, false);
         if (random >= 0) wheel.colourButton(random);                                     // a coloured button
         else if (helper && !intent.getBooleanExtra(EXTRA_HOME_KEY, false)) wheel.returnToResults();   // Back out of an app
-        else wheel.reset();   // Home: close whatever is open
+        else {   // Home: close whatever is open, Search too
+            TvKeyboard.closeIfOpen();
+            wheel.reset();
+        }
         chosenFromAppList(intent);
     }
 
@@ -262,7 +273,7 @@ public class MainActivity extends Activity implements HomeView.Listener {
     public void onVoice() {
         Intent i = new Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, "en-IN")
+                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, Lang.speech())
                 .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, getString(R.string.voice_prompt))
                 .putExtra(android.speech.RecognizerIntent.EXTRA_MAX_RESULTS, 1);
         try {
@@ -357,6 +368,14 @@ public class MainActivity extends Activity implements HomeView.Listener {
     public void onPlay(Tmdb.Title t) {
         Toast.makeText(this, getString(R.string.opening, t.title), Toast.LENGTH_SHORT).show();
         new Thread(() -> {
+            String in = OpenIn.chosen(this);
+            if (!OpenIn.APPS.equals(in)) {   // Customize says Stremio or Nuvio: straight to the title's page there
+                Intent i = OpenIn.intent(this, t, in);
+                if (i != null) {
+                    handler.post(() -> open(i, null));
+                    return;
+                }
+            }
             Services.Service s = t.service;
             if (s == null) {
                 try {
@@ -371,6 +390,17 @@ public class MainActivity extends Activity implements HomeView.Listener {
             DeepLinks.Plan plan = service != null ? DeepLinks.plan(this, t, service) : null;
             handler.post(() -> {
                 if (plan == null || plan.intent == null) {
+                    String alt = OpenIn.fallback(this);   // on no streaming app: Stremio or Nuvio, when installed
+                    if (alt != null) {
+                        new Thread(() -> {
+                            Intent i = OpenIn.intent(this, t, alt);
+                            handler.post(() -> {
+                                if (i != null) open(i, null);
+                                else Toast.makeText(this, getString(R.string.not_streaming, t.title), Toast.LENGTH_LONG).show();
+                            });
+                        }, "open-in").start();
+                        return;
+                    }
                     Toast.makeText(this, getString(R.string.not_streaming, t.title), Toast.LENGTH_LONG).show();
                     return;
                 }
@@ -746,5 +776,11 @@ public class MainActivity extends Activity implements HomeView.Listener {
         } catch (Exception ignored) {
         }
         wheel.setOnline(online);
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
+        super.onRequestPermissionsResult(code, perms, results);
+        if (code == Perms.ASK_TV_LISTINGS && wheel != null) wheel.findContinue();   // allowed: look again at once
     }
 }

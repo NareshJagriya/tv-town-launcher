@@ -140,7 +140,7 @@ final class Backup {
         for (File f : places(ctx)) {
             File dir = f.getParentFile();
             try {
-                if (dir != null && !dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException("no folder");
+                if (dir != null && !dir.isDirectory() && !dir.mkdirs()) throw new java.io.IOException(L10n.t("no folder"));
                 try (FileOutputStream out = new FileOutputStream(f)) {
                     out.write(data);
                 }

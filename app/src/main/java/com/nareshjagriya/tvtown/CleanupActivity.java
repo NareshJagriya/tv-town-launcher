@@ -33,6 +33,11 @@ import java.util.concurrent.ExecutorService;
  */
 public class CleanupActivity extends Activity {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Lang.wrap(base));   // the language chosen in Customize
+    }
+
     private Page page;
 
     @Override
@@ -85,7 +90,7 @@ public class CleanupActivity extends Activity {
     private static final class Page extends View {
 
         private static final int B_CLOSE = 0, B_SAFE = 1, B_RESTORE = 2, BUTTONS = 3;
-        private static final String[] BUTTON = {"Close background apps", "Switch off the safe ones", "Turn all back on"};
+        private static final String[] BUTTON = {L10n.t("Close background apps"), L10n.t("Switch off the safe ones"), L10n.t("Turn all back on")};
         private static final float LIST_L = 80, LIST_R = 1080, LIST_TOP = 352, ROW_H = 74, HEAD_H = 56, LIST_BOTTOM = 1040;
 
         final ExecutorService work = Work.pool(1);
@@ -138,27 +143,27 @@ public class CleanupActivity extends Activity {
         void load() {
             loading = true;
             work.execute(() -> {
-                String out = TvShell.run(getContext(), "pm list packages -e; echo '=====';"
-                        + " pm list packages -d; echo '=====';"
+                String out = TvShell.run(getContext(), L10n.t("pm list packages -e; echo '=====';")
+                        + L10n.t(" pm list packages -d; echo '=====';")
                         + " pm query-services -a android.media.tv.TvInputService; echo '=====';"
-                        + " settings get secure default_input_method; echo '=====';"
+                        + L10n.t(" settings get secure default_input_method; echo '=====';")
                         + " cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME; echo '=====';"
-                        + " settings get secure screensaver_components; echo '=====';"
-                        + " dumpsys meminfo", 60_000);
+                        + L10n.t(" settings get secure screensaver_components; echo '=====';")
+                        + L10n.t(" dumpsys meminfo"), 60_000);
                 main.post(() -> {
                     loading = false;
                     memory();
                     if (out == null) {
                         canSwitch = false;
                         note = TvShell.last == TvShell.DEBUGGING_OFF
-                                ? "To switch apps off, turn on USB debugging once: Settings → Device Preferences → About → press OK on Build 7 times, then Developer options → USB debugging. Close background apps works anyway."
-                                : "The TV asked whether to allow TV Town: choose Allow (tick Always), then open this again. Close background apps works anyway.";
+                                ? L10n.t("To switch apps off, turn on USB debugging once: Settings → Device Preferences → About → press OK on Build 7 times, then Developer options → USB debugging. Close background apps works anyway.")
+                                : L10n.t("The TV asked whether to allow TV Town: choose Allow (tick Always), then open this again. Close background apps works anyway.");
                         invalidate();
                         return;
                     }
                     canSwitch = true;
                     read(out);
-                    if (rows.isEmpty()) note = "Nothing on TV Town's list is on this TV: it's clean already.";
+                    if (rows.isEmpty()) note = L10n.t("Nothing on TV Town's list is on this TV: it's clean already.");
                     invalidate();
                 });
             });
@@ -231,7 +236,7 @@ public class CleanupActivity extends Activity {
          */
         private static Closed closeNow(Context c) {
             Closed out = new Closed();
-            String meminfo = TvShell.run(c, "pm list packages -s; echo '====='; dumpsys meminfo; echo '====='; "
+            String meminfo = TvShell.run(c, L10n.t("pm list packages -s; echo '====='; dumpsys meminfo; echo '====='; ")
                     + "cmd package query-activities --brief -a android.intent.action.MAIN -c android.intent.category.HOME", 60_000);
             if (meminfo == null) {
                 out.kb = TvTools.freeUpMemory(c) * 1024;   // without the debugging connection: what Android lets an app close
@@ -258,14 +263,14 @@ public class CleanupActivity extends Activity {
 
         /** Close apps on its own: what it did, in a line. */
         private void closeBackground() {
-            note = "Closing apps running in the background…";
+            note = L10n.t("Closing apps running in the background…");
             invalidate();
             Context c = getContext();
             work.execute(() -> {
                 Closed cl = closeNow(c);
-                String said = cl.n > 0 ? "Closed " + cl.n + (cl.n == 1 ? " app" : " apps") + " that were using " + Cleanup.mb(cl.kb) + " ("
-                        + TextUtils.join(", ", cl.names) + (cl.n > cl.names.size() ? "…" : "") + "). A few, like the Play Store, start again by themselves."
-                        : cl.kb > 0 ? Cleanup.mb(cl.kb) + " freed" : "Nothing was running in the background";
+                String said = cl.n > 0 ? L10n.t("Closed ") + cl.n + (cl.n == 1 ? L10n.t(" app") : L10n.t(" apps")) + L10n.t(" that were using ") + Cleanup.mb(cl.kb) + " ("
+                        + TextUtils.join(", ", cl.names) + (cl.n > cl.names.size() ? "…" : "") + L10n.t("). A few, like the Play Store, start again by themselves.")
+                        : cl.kb > 0 ? Cleanup.mb(cl.kb) + L10n.t(" freed") : L10n.t("Nothing was running in the background");
                 main.post(() -> {
                     memory();
                     note = said;
@@ -279,7 +284,7 @@ public class CleanupActivity extends Activity {
         private void toggle(Row r) {
             if (!canSwitch || r.busy) return;
             if (r.needed) {
-                note = r.app.name + " is in use by your TV, so it stays on";
+                note = r.app.name + L10n.t(" is in use by your TV, so it stays on");
                 invalidate();
                 return;
             }
@@ -290,7 +295,7 @@ public class CleanupActivity extends Activity {
             invalidate();
             work.execute(() -> {
                 String res = Cleanup.cleanName(r.pkg)
-                        ? TvShell.run(c, (off ? "pm disable-user --user 0 " : "pm enable --user 0 ") + r.pkg, 30_000) : null;
+                        ? TvShell.run(c, (off ? L10n.t("pm disable-user --user 0 ") : L10n.t("pm enable --user 0 ")) + r.pkg, 30_000) : null;
                 boolean done = res != null && res.contains(off ? "disabled" : "enabled");
                 main.post(() -> {
                     r.busy = false;
@@ -301,10 +306,10 @@ public class CleanupActivity extends Activity {
                         if (off) s.add(r.pkg);
                         else s.remove(r.pkg);
                         prefs.edit().putStringSet("off", s).apply();
-                        note = off ? r.app.name + " is off" + (was > 0 ? ": the " + Cleanup.mb(was) + " it was using is free, and it won't start again."
-                                : ". It wasn't running just now, so nothing frees today, but it can't start later and take memory.")
-                                : r.app.name + " is back on. It may start again and use memory.";
-                    } else note = "Couldn't change " + r.app.name;
+                        note = off ? r.app.name + L10n.t(" is off") + (was > 0 ? L10n.t(": the ") + Cleanup.mb(was) + L10n.t(" it was using is free, and it won't start again.")
+                                : L10n.t(". It wasn't running just now, so nothing frees today, but it can't start later and take memory."))
+                                : r.app.name + L10n.t(" is back on. It may start again and use memory.");
+                    } else note = L10n.t("Couldn't change ") + r.app.name;
                     memory();
                     invalidate();
                 });
@@ -314,7 +319,7 @@ public class CleanupActivity extends Activity {
         /** The safe ones that are on: off, one after another. How many were asked. */
         private int switchOffSafe() {
             if (!canSwitch) {
-                if (loading) note = "Still looking at this TV\u2026 try again in a moment";
+                if (loading) note = L10n.t("Still looking at this TV\u2026 try again in a moment");
                 invalidate();
                 return 0;
             }
@@ -323,7 +328,7 @@ public class CleanupActivity extends Activity {
                 toggle(r);
                 n++;
             }
-            if (n == 0) note = "The apps the TV doesn't need are already off";
+            if (n == 0) note = L10n.t("The apps the TV doesn't need are already off");
             return n;
         }
 
@@ -350,17 +355,17 @@ public class CleanupActivity extends Activity {
             steps = true;
             freedMb = -1;
             for (int i = 0; i < STEPS; i++) stepState[i] = 0;
-            stepText[0] = "Lite mode";
-            stepText[1] = "Switching off extras";
-            stepText[2] = "Closing apps left running";
+            stepText[0] = L10n.t("Lite mode");
+            stepText[1] = L10n.t("Switching off extras");
+            stepText[2] = L10n.t("Closing apps left running");
             note = "";
             Context c = getContext();
             long before = TvTools.freeMemoryMb(c);
             Lite.set(c, true);
             stepState[0] = 2;
-            stepText[0] = "Lite mode is on";
+            stepText[0] = L10n.t("Lite mode is on");
             stepState[1] = 1;   // working from the start: the TV may first be asked (the permission question)
-            stepText[1] = "Getting ready\u2026";
+            stepText[1] = L10n.t("Getting ready\u2026");
             invalidate();
             work.execute(() -> {   // after the first look at the TV (queued before this), so the list of apps is known
                 List<Row> safe = new ArrayList<>();
@@ -374,11 +379,11 @@ public class CleanupActivity extends Activity {
                 } catch (InterruptedException e) {
                     return;
                 }
-                step(1, 1, "Switching off extras\u2026");
+                step(1, 1, L10n.t("Switching off extras\u2026"));
                 int off = 0;
                 Set<String> mine = switchedByUs();
                 for (Row r : safe) {
-                    String res = TvShell.run(c, "pm disable-user --user 0 " + r.pkg, 30_000);
+                    String res = TvShell.run(c, L10n.t("pm disable-user --user 0 ") + r.pkg, 30_000);
                     if (res != null && res.contains("disabled")) {
                         off++;
                         mine.add(r.pkg);
@@ -389,9 +394,9 @@ public class CleanupActivity extends Activity {
                     }
                 }
                 prefs.edit().putStringSet("off", mine).apply();
-                step(1, 2, !canSwitch ? "Switching off needs USB debugging once" : off > 0 ? off + (off == 1 ? " app" : " apps") + " the TV doesn't need are off"
-                        : "Extras were already off");
-                step(2, 1, "Closing apps left running\u2026");
+                step(1, 2, !canSwitch ? L10n.t("Switching off needs USB debugging once") : off > 0 ? off + (off == 1 ? L10n.t(" app") : L10n.t(" apps")) + L10n.t(" the TV doesn't need are off")
+                        : L10n.t("Extras were already off"));
+                step(2, 1, L10n.t("Closing apps left running\u2026"));
                 Closed cl = closeNow(c);
                 try {
                     Thread.sleep(1500);   // the memory shows up free a moment later
@@ -399,7 +404,7 @@ public class CleanupActivity extends Activity {
                     return;
                 }
                 long after = TvTools.freeMemoryMb(c);
-                step(2, 2, cl.n > 0 ? "Closed " + cl.n + (cl.n == 1 ? " app" : " apps") + " (" + Cleanup.mb(cl.kb) + ")" : "Nothing was running in the background");
+                step(2, 2, cl.n > 0 ? L10n.t("Closed ") + cl.n + (cl.n == 1 ? L10n.t(" app") : L10n.t(" apps")) + " (" + Cleanup.mb(cl.kb) + ")" : L10n.t("Nothing was running in the background"));
                 main.post(() -> {
                     allRunning = false;
                     freedMb = Math.max(0, after - before);
@@ -413,8 +418,8 @@ public class CleanupActivity extends Activity {
 
         private void lite() {
             Lite.set(getContext(), !Lite.on);
-            note = Lite.on ? "Lite mode is on: plain glass, no animations, smaller pictures. Home shows the change when you go back."
-                    : "Lite mode is off: everything looks as before.";
+            note = Lite.on ? L10n.t("Lite mode is on: plain glass, no animations, smaller pictures. Home shows the change when you go back.")
+                    : L10n.t("Lite mode is off: everything looks as before.");
         }
 
         /** Everything as it was: the apps TV Town switched off back on, and Lite mode off. */
@@ -422,7 +427,7 @@ public class CleanupActivity extends Activity {
             boolean wasLite = Lite.on;
             Lite.set(getContext(), false);
             if (switchedByUs().isEmpty()) {
-                note = wasLite ? "Lite mode is off. TV Town hadn't switched any apps off." : "Nothing to undo: TV Town hasn't changed anything";
+                note = wasLite ? L10n.t("Lite mode is off. TV Town hadn't switched any apps off.") : L10n.t("Nothing to undo: TV Town hasn't changed anything");
                 invalidate();
                 return;
             }
@@ -432,23 +437,23 @@ public class CleanupActivity extends Activity {
         private void restoreAll() {
             Set<String> s = switchedByUs();
             if (s.isEmpty()) {
-                note = "TV Town hasn't switched anything off";
+                note = L10n.t("TV Town hasn't switched anything off");
                 invalidate();
                 return;
             }
             Context c = getContext();
-            note = "Turning everything back on…";
+            note = L10n.t("Turning everything back on…");
             invalidate();
             work.execute(() -> {
                 StringBuilder cmd = new StringBuilder();
-                for (String p : s) if (Cleanup.cleanName(p)) cmd.append("pm enable --user 0 ").append(p).append("; ");
+                for (String p : s) if (Cleanup.cleanName(p)) cmd.append(L10n.t("pm enable --user 0 ")).append(p).append("; ");
                 String res = TvShell.run(c, cmd.toString(), 30_000);
                 main.post(() -> {
                     if (res != null) {
                         prefs.edit().remove("off").apply();
-                        note = "Everything TV Town switched off is back on";
+                        note = L10n.t("Everything TV Town switched off is back on");
                         load();
-                    } else note = "Couldn't reach the TV's settings";
+                    } else note = L10n.t("Couldn't reach the TV's settings");
                     invalidate();
                 });
             });
@@ -465,10 +470,10 @@ public class CleanupActivity extends Activity {
         }
 
         private static final String[][] CHOICE = {
-                {"Close apps", "Apps left running", "stop"},
-                {"Switch off extras", "Only the safe ones", "power"},
-                {"Lite mode", "Lighter look", "leaf"},
-                {"Undo everything", "Back as it was", "redo"}};
+                {L10n.t("Close apps"), L10n.t("Apps left running"), "stop"},
+                {L10n.t("Switch off extras"), L10n.t("Only the safe ones"), "power"},
+                {L10n.t("Lite mode"), L10n.t("Lighter look"), "leaf"},
+                {L10n.t("Undo everything"), L10n.t("Back as it was"), "redo"}};
         private static final int M_BIG = 0, M_LIST = 5;   // menuSel: 0 the big button, 1-4 the tiles (two by two), 5 the list link
 
         // The ring's sweep: from the last value to the new one, eased, whenever the memory is read again.
@@ -526,17 +531,17 @@ public class CleanupActivity extends Activity {
             arc.setShader(null);
             String mb = Math.round(totalMb * v) + "";
             c.drawText(mb, cx - title.measureText(mb) / 2, cy + 8 * k, title);
-            String l1 = "MB available", l2 = "of " + totalMb + " MB";
+            String l1 = L10n.t("MB available"), l2 = "of " + totalMb + L10n.t(" MB");
             c.drawText(l1, cx - muted.measureText(l1) / 2, cy + 48 * k, muted);
             c.drawText(l2, (L0 + 230) * k - muted.measureText(l2) / 2, cy + R + 64 * k, muted);
-            String l3 = freedMb > 0 ? "+" + freedMb + " MB freed" : "It changes on its own";
+            String l3 = freedMb > 0 ? "+" + freedMb + L10n.t(" MB freed") : L10n.t("It changes on its own");
             Paint tiny = new Paint(chip);
             tiny.setColor(freedMb > 0 ? 0xFF22C55E : 0x99FFFFFF);
             c.drawText(l3, (L0 + 230) * k - tiny.measureText(l3) / 2, cy + R + 100 * k, tiny);
             // ---- right: title, big button, tiles, link
             float x = L0 + 470, rw = W - 470 - 56;
-            c.drawText("Speed up your TV", x * k, (T0 + 92) * k, title);
-            c.drawText("Make TV Town and your TV feel quicker", x * k, (T0 + 134) * k, muted);
+            c.drawText(L10n.t("Speed up your TV"), x * k, (T0 + 92) * k, title);
+            c.drawText(L10n.t("Make TV Town and your TV feel quicker"), x * k, (T0 + 134) * k, muted);
             RectF bigB = gr(x, T0 + 168, rw, 120);
             boolean bf = menuSel == M_BIG;
             c.save();
@@ -555,8 +560,8 @@ public class CleanupActivity extends Activity {
             }
             Bitmap bolt = LineIcon.icon("sparkle", 46 * k);
             c.drawBitmap(bolt, bigB.left + 36 * k, bigB.centerY() - bolt.getHeight() / 2f, null);
-            c.drawText("Speed it all up", bigB.left + 104 * k, bigB.top + 54 * k, big);
-            c.drawText(fit("Closes apps, switches off extras and turns on Lite mode", muted, bigB.width() - 140 * k), bigB.left + 104 * k, bigB.top + 90 * k, muted);
+            c.drawText(L10n.t("Speed it all up"), bigB.left + 104 * k, bigB.top + 54 * k, big);
+            c.drawText(fit(L10n.t("Closes apps, switches off extras and turns on Lite mode"), muted, bigB.width() - 140 * k), bigB.left + 104 * k, bigB.top + 90 * k, muted);
             c.restore();
             float tw = (rw - 20) / 2, th = 132;
             if (steps) {   // Speed it all up, step by step: a spinner while working, then a tick and what it did
@@ -589,7 +594,7 @@ public class CleanupActivity extends Activity {
                     c.drawText(fit(stepText[i] == null ? "" : stepText[i], tp, (rw - 140) * k), sx + 48 * k, sy + 10 * k, tp);
                 }
                 if (!allRunning) {
-                    String hint = "Press any button to go on";
+                    String hint = L10n.t("Press any button to go on");
                     c.drawText(hint, (x + 56) * k + 48 * k, (T0 + 312 + 2 * th + 18 - 24) * k, chip);
                 }
                 if (allRunning && !Lite.on) postInvalidateOnAnimation();
@@ -612,11 +617,11 @@ public class CleanupActivity extends Activity {
                 c.drawCircle(ix, iy, 32 * k, fill);
                 Bitmap g = LineIcon.icon(CHOICE[i][2], 32 * k);
                 c.drawBitmap(g, ix - g.getWidth() / 2f, iy - g.getHeight() / 2f, null);
-                String right = i == 2 ? (Lite.on ? "On" : "Off") : "";
+                String right = i == 2 ? (Lite.on ? L10n.t("On") : L10n.t("Off")) : "";
                 float room = r.width() - 124 * k - (right.isEmpty() ? 20 * k : chip.measureText(right) + 84 * k);
                 c.drawText(fit(CHOICE[i][0], text, room), r.left + 100 * k, r.centerY() - 6 * k, text);
-                String sub = i != 1 ? CHOICE[i][1] : canSwitch ? (safeOn() == 0 ? "All switched off" : safeOn() + " safe apps still on")
-                        : loading ? "Checking\u2026" : CHOICE[i][1];
+                String sub = i != 1 ? CHOICE[i][1] : canSwitch ? (safeOn() == 0 ? L10n.t("All switched off") : safeOn() + L10n.t(" safe apps still on"))
+                        : loading ? L10n.t("Checking\u2026") : CHOICE[i][1];
                 c.drawText(fit(sub, muted, room), r.left + 100 * k, r.centerY() + 30 * k, muted);
                 if (!right.isEmpty()) {
                     RectF pill = new RectF(r.right - 24 * k - chip.measureText(right) - 40 * k, r.centerY() - 21 * k, r.right - 24 * k, r.centerY() + 21 * k);
@@ -627,7 +632,7 @@ public class CleanupActivity extends Activity {
                 c.restore();
             }
             // the link to the list
-            String link = "Choose apps one by one  ›";
+            String link = L10n.t("Choose apps one by one  ›");
             RectF lr = gr(x, T0 + 612, small.measureText(link) / k + 48, 54);
             if (menuSel == M_LIST) Frost.plate(c, lr, 27 * k, k);
             c.drawText(link, lr.left + 24 * k, lr.centerY() + 8 * k, small);
@@ -665,11 +670,11 @@ public class CleanupActivity extends Activity {
                 drawMenu(c);
                 return;
             }
-            c.drawText("Apps you can switch off", 80 * k, 100 * k, title);
+            c.drawText(L10n.t("Apps you can switch off"), 80 * k, 100 * k, title);
             // Memory: a bar with what is free.
-            String m = freeMb + " MB available of " + totalMb + " MB";
+            String m = freeMb + L10n.t(" MB available of ") + totalMb + L10n.t(" MB");
             c.drawText(m, 80 * k, 160 * k, text);
-            c.drawText("It moves on its own as the TV starts and stops apps", 80 * k + text.measureText(m) + 28 * k, 160 * k, muted);
+            c.drawText(L10n.t("It moves on its own as the TV starts and stops apps"), 80 * k + text.measureText(m) + 28 * k, 160 * k, muted);
             RectF bar = gr(80, 180, 760, 14);
             fill.setColor(0x26FFFFFF);
             c.drawRoundRect(bar, 7 * k, 7 * k, fill);
@@ -702,7 +707,7 @@ public class CleanupActivity extends Activity {
         private void drawList(Canvas c) {
             float y0 = LIST_TOP + noteH();
             if (loading) {
-                c.drawText("Checking…", LIST_L * k, (y0 + 40) * k, muted);
+                c.drawText(L10n.t("Checking…"), LIST_L * k, (y0 + 40) * k, muted);
                 return;
             }
             int fitRows = (int) ((LIST_BOTTOM - y0 - 2 * HEAD_H) / ROW_H);
@@ -717,7 +722,7 @@ public class CleanupActivity extends Activity {
             for (int i = top; i < rows.size(); i++) {
                 Row r = rows.get(i);
                 if (lastSafe == null || lastSafe != r.app.safe) {
-                    c.drawText(r.app.safe ? "SAFE TO SWITCH OFF" : "ONLY IF YOU DON'T USE IT", (LIST_L + 20) * k, (y + 38) * k, chip);
+                    c.drawText(r.app.safe ? L10n.t("SAFE TO SWITCH OFF") : L10n.t("ONLY IF YOU DON'T USE IT"), (LIST_L + 20) * k, (y + 38) * k, chip);
                     y += HEAD_H;
                     lastSafe = r.app.safe;
                 }
@@ -727,7 +732,7 @@ public class CleanupActivity extends Activity {
                 text.setAlpha(r.on ? 255 : 150);
                 c.drawText(fit(r.app.name, text, 520 * k), rr.left + 24 * k, rr.centerY() + 10 * k, text);
                 text.setAlpha(255);
-                String state = r.busy ? "…" : r.needed ? "Needed" : r.on ? "On" : switchedByUs().contains(r.pkg) ? "Off" : "Off by TV";
+                String state = r.busy ? "…" : r.needed ? L10n.t("Needed") : r.on ? L10n.t("On") : switchedByUs().contains(r.pkg) ? L10n.t("Off") : L10n.t("Off by TV");
                 RectF pill = new RectF(rr.right - (chip.measureText(state) + 56 * k) - 20 * k, rr.centerY() - 22 * k, rr.right - 20 * k, rr.centerY() + 22 * k);
                 fill.setColor(r.on ? 0x33FFFFFF : 0x22FF7A6B);
                 c.drawRoundRect(pill, 22 * k, 22 * k, fill);
@@ -746,8 +751,8 @@ public class CleanupActivity extends Activity {
             if (focus < 0 || focus >= rows.size()) {
                 RectF p = gr(1140, LIST_TOP + noteH(), 700, 330);
                 Frost.panel(c, p, 32 * k, 1, k);
-                String[] lines = {"Close apps frees memory now:", "apps you left running behind.", "Home screens are never closed.",
-                        "", "Switching off lasts until you turn it back on.", "Nothing is ever uninstalled."};
+                String[] lines = {L10n.t("Close apps frees memory now:"), L10n.t("apps you left running behind."), L10n.t("Home screens are never closed."),
+                        "", L10n.t("Switching off lasts until you turn it back on."), L10n.t("Nothing is ever uninstalled.")};
                 for (int i = 0; i < lines.length; i++) c.drawText(lines[i], p.left + 36 * k, p.top + (64 + i * 42) * k, i == 0 ? big : muted);
                 return;
             }
@@ -759,15 +764,15 @@ public class CleanupActivity extends Activity {
             StaticText.draw(c, r.app.what, muted, tx, p.top + 108 * k, room, 2);
             float y = p.top + 196 * k;
             if (!r.app.ifOff.isEmpty()) {
-                StaticText.draw(c, "Off: " + r.app.ifOff, small, tx, y, room, 2);
+                StaticText.draw(c, L10n.t("Off: ") + r.app.ifOff, small, tx, y, room, 2);
                 y += 90 * k;
             }
             if (r.kb > 0) {
-                c.drawText("Using " + Cleanup.mb(r.kb) + " now", tx, y, small);
+                c.drawText(L10n.t("Using ") + Cleanup.mb(r.kb) + L10n.t(" now"), tx, y, small);
                 y += 50 * k;
             }
-            String ok = r.needed ? "Your TV is using it: it stays on" : !canSwitch ? "Allow TV Town first (see above)"
-                    : r.on ? "OK switches it off" : "OK turns it back on";
+            String ok = r.needed ? L10n.t("Your TV is using it: it stays on") : !canSwitch ? L10n.t("Allow TV Town first (see above)")
+                    : r.on ? L10n.t("OK switches it off") : L10n.t("OK turns it back on");
             c.drawText(ok, tx, p.bottom - 36 * k, chip);
         }
 

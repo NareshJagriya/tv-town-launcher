@@ -21,6 +21,11 @@ import java.util.List;
 /** Where saved songs or videos go: a small glass list. Save here, New folder, then the folders inside this one. */
 public class SaveFolderActivity extends Activity {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Lang.wrap(base));   // the language chosen in Customize
+    }
+
     static final String EXTRA_VIDEO = "video";
     private static final int ROWS = 8;
 
@@ -36,7 +41,7 @@ public class SaveFolderActivity extends Activity {
         video = getIntent().getBooleanExtra(EXTRA_VIDEO, false);
         root = drive(this);
         if (root == null) {
-            HomeKeyService.note("Plug in a drive to save to", 5000);
+            HomeKeyService.note(L10n.t("Plug in a drive to save to"), 5000);
             finish();
             return;
         }
@@ -66,8 +71,8 @@ public class SaveFolderActivity extends Activity {
 
     private void load() {
         rows.clear();
-        rows.add("Save here");
-        rows.add("New folder");
+        rows.add(L10n.t("Save here"));
+        rows.add(L10n.t("New folder"));
         File[] in = here.listFiles(f -> f.isDirectory() && !f.getName().startsWith("."));
         if (in != null) {
             Arrays.sort(in, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
@@ -83,7 +88,7 @@ public class SaveFolderActivity extends Activity {
             YtSaver.setFolder(this, video, here);
             finish();
         } else if (sel == 1) {
-            TvKeyboard.ask(this, "New folder", "Folder name", null, "Create", true, name -> {
+            TvKeyboard.ask(this, L10n.t("New folder"), L10n.t("Folder name"), null, L10n.t("Create"), true, name -> {
                 String n = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", " ").trim();
                 if (n.isEmpty() || n.startsWith(".")) return;
                 File f = new File(here, n);
@@ -91,7 +96,7 @@ public class SaveFolderActivity extends Activity {
                     here = f;
                     load();
                 } else {
-                    HomeKeyService.note("Couldn't make that folder", 4000);
+                    HomeKeyService.note(L10n.t("Couldn't make that folder"), 4000);
                 }
             });
         } else {
@@ -159,7 +164,7 @@ public class SaveFolderActivity extends Activity {
             RectF box = new RectF((getWidth() - pw) / 2, (getHeight() - ph) / 2, (getWidth() + pw) / 2, (getHeight() + ph) / 2);
             c.drawRoundRect(box, 34 * k, 34 * k, plate);
             c.drawRoundRect(box, 34 * k, 34 * k, edge);
-            c.drawText(video ? "Save videos to" : "Save songs to", box.left + pad, box.top + 56 * k, big);
+            c.drawText(video ? L10n.t("Save videos to") : L10n.t("Save songs to"), box.left + pad, box.top + 56 * k, big);
             String path = here.equals(root) ? "Drive" : "Drive" + here.getPath().substring(root.getPath().length()).replace("/", "  ›  ");
             c.drawText(TextUtils.ellipsize(path, new TextPaint(small), pw - 2 * pad, TextUtils.TruncateAt.START).toString(), box.left + pad, box.top + 96 * k, small);
             float y = box.top + 120 * k;

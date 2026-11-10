@@ -32,19 +32,23 @@ final class CardArt {
         return Style.key("v5/" + kind + "/" + card.label + "/" + language);   // each style its own pictures
     }
 
-    /** Pictures taken by a card, per pop-up kind and language. */
-    private static final java.util.Map<String, java.util.Set<String>> taken = new java.util.HashMap<>();
+    /** Pictures taken, each with the card that has it, per pop-up kind and language. */
+    private static final java.util.Map<String, java.util.Map<String, String>> taken = new java.util.HashMap<>();
 
     /** Takes the first picture no other card has; when all are taken, the first one. null for none. */
-    private static synchronized String claim(int kind, String language, List<String> candidates, boolean lastTry) {
-        java.util.Set<String> set = taken.computeIfAbsent(Style.get() + "/" + kind + "/" + language, x -> new java.util.HashSet<>());
+    private static synchronized String claim(int kind, String language, List<String> candidates, boolean lastTry, String owner) {
+        java.util.Map<String, String> set = taken.computeIfAbsent(Style.get() + "/" + kind + "/" + language, x -> new java.util.HashMap<>());
         for (String url : candidates) {
-            if (set.add(url)) return url;
+            String has = set.get(url);
+            if (has == null || has.equals(owner)) {
+                set.put(url, owner);
+                return url;
+            }
         }
         return lastTry && !candidates.isEmpty() ? candidates.get(0) : null;
     }
 
-    /** The picture found before (up to a week ago), or null. */
+    /** The picture found before (up to a week ago), or null; also null when another card already shows it. */
     @Nullable
     static String cached(Context ctx, int kind, Picks.Entry card, String language) {
         SharedPreferences p = prefs(ctx);
@@ -53,7 +57,10 @@ final class CardArt {
         String url = p.getString(k, null);
         if (url == null || !url.startsWith("https://")) return null;
         synchronized (CardArt.class) {
-            taken.computeIfAbsent(Style.get() + "/" + kind + "/" + language, x -> new java.util.HashSet<>()).add(url);
+            java.util.Map<String, String> set = taken.computeIfAbsent(Style.get() + "/" + kind + "/" + language, x -> new java.util.HashMap<>());
+            String has = set.get(url);
+            if (has != null && !has.equals(card.label)) return null;   // two cards with one picture: this one finds another
+            set.put(url, card.label);
         }
         return url;
     }
@@ -66,7 +73,7 @@ final class CardArt {
         List<Picks.Entry> parts = card.on();
         int tries = Math.min(3, parts.size());
         for (int i = 0; i < tries && url == null; i++) {
-            url = claim(kind, language, candidates(ctx, kind, parts.get(i), language, card.label), i == tries - 1);
+            url = claim(kind, language, candidates(ctx, kind, parts.get(i), language, card.label), i == tries - 1, card.label);
         }
         if (url != null) {
             String k = key(kind, card, language);

@@ -32,19 +32,19 @@ final class DiscoverKinds {
     static final String NEW = "new", TRENDING = "trending", TOP_RATED = "top-rated", HIDDEN_GEMS = "hidden-gems";
 
     /** The genres, in the order shown: the most asked-for first, then the classic genres, then the mixes. */
-    static final String[] GENRES = {"Anime", "K-Drama", "Action", "Comedy", "Thriller", "Romance", "Horror", "Sci-Fi",
-            "Crime", "Drama", "Mystery", "Fantasy", "Adventure", "Family", "Kids", "Animation", "Documentary",
-            "Action comedy", "Romantic comedy", "Crime thriller", "Sci-fi thriller", "Horror thriller", "Crime drama",
-            "War", "Reality"};
+    static final String[] GENRES = {L10n.t("Anime"), L10n.t("K-Drama"), L10n.t("Action"), L10n.t("Comedy"), L10n.t("Thriller"), L10n.t("Romance"), L10n.t("Horror"), L10n.t("Sci-Fi"),
+            L10n.t("Crime"), L10n.t("Drama"), L10n.t("Mystery"), L10n.t("Fantasy"), L10n.t("Adventure"), L10n.t("Family"), L10n.t("Kids"), L10n.t("Animation"), L10n.t("Documentary"),
+            L10n.t("Action comedy"), L10n.t("Romantic comedy"), L10n.t("Crime thriller"), L10n.t("Sci-fi thriller"), L10n.t("Horror thriller"), L10n.t("Crime drama"),
+            L10n.t("War"), L10n.t("Reality")};
 
     static final List<Kind> ALL;
 
     static {
         List<Kind> l = new ArrayList<>();
-        l.add(new Kind(NEW, "New", false));
-        l.add(new Kind(TRENDING, "Trending", false));
-        l.add(new Kind(TOP_RATED, "Top rated", false));
-        l.add(new Kind(HIDDEN_GEMS, "Hidden gems", false));
+        l.add(new Kind(NEW, L10n.t("New"), false));
+        l.add(new Kind(TRENDING, L10n.t("Trending"), false));
+        l.add(new Kind(TOP_RATED, L10n.t("Top rated"), false));
+        l.add(new Kind(HIDDEN_GEMS, L10n.t("Hidden gems"), false));
         for (String g : GENRES) l.add(new Kind(idOf(g), g, true));
         ALL = Collections.unmodifiableList(l);
     }
@@ -73,9 +73,9 @@ final class DiscoverKinds {
     static Tmdb.Category category(Kind k) {
         switch (k.id) {
             case NEW: return null;
-            case TRENDING: return named("Popular");
-            case TOP_RATED: return named("Top rated");
-            case HIDDEN_GEMS: return named("Hidden gems");
+            case TRENDING: return named(L10n.t("Popular"));
+            case TOP_RATED: return named(L10n.t("Top rated"));
+            case HIDDEN_GEMS: return named(L10n.t("Hidden gems"));
             case "anime": return new Tmdb.Category("Genres", k.name).genres("16", "16").lang("ja");
             case "k-drama": return new Tmdb.Category("Genres", k.name).genres("18", "18").lang("ko");
             default: return named(k.name);

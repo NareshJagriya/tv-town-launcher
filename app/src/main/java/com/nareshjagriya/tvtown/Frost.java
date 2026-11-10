@@ -191,6 +191,26 @@ final class Frost {
      * The main button of a page (Play, Trailer, Speed it all up, Surprise me): deep jewel glass, dark violet into plum,
      * a sharp shine on its top half and a fine lilac edge. No glow. Selected, it brightens and gains a white edge.
      */
+    /** The jewel for a large tile (Surprise me): deeper and with a quieter shine, so a big block of it isn't milky or loud. */
+    static void heroDeep(Canvas c, RectF r, float rad, boolean selected, float k) {
+        fill.setColor(Color.WHITE);
+        fill.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, selected ? 0xFF4B34B8 : 0xFF35258A, selected ? 0xFF7A2A72 : 0xFF581F58,
+                Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        c.save();
+        c.clipRect(r.left, r.top, r.right, r.top + r.height() * 0.42f);
+        fill.setShader(new LinearGradient(0, r.top, 0, r.top + r.height() * 0.42f, 0x1FFFFFFF, 0x05FFFFFF, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        c.restore();
+        fill.setShader(null);
+        line.setShader(null);
+        float in = 0.8f * k;
+        line.setStrokeWidth(selected ? Math.max(1.5f, 2 * k) : Math.max(1, 1.2f * k));
+        line.setColor(selected ? 0xD9FFFFFF : 0x4DC8B4FF);
+        c.drawRoundRect(r.left + in, r.top + in, r.right - in, r.bottom - in, rad - in, rad - in, line);
+        topEdge(c, r, rad, k, selected ? 0xFFFFFFFF : 0x8CFFFFFF);
+    }
+
     static void hero(Canvas c, RectF r, float rad, boolean selected, float k) {
         fill.setColor(Color.WHITE);
         fill.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, selected ? 0xFF5D45D6 : 0xFF4B34B8, selected ? 0xFF973A8C : 0xFF7A2A72,
@@ -322,6 +342,7 @@ final class Frost {
             return LILAC;
         }
         if (best == null) return LILAC;
+        if (best[0] > 5 && best[0] < 95) return LILAC;   // rust, brown, ochre and olive read as mud on glass: the violet instead
         best[1] = Math.max(0.55f, Math.min(0.85f, best[1]));
         best[2] = 0.72f;
         return Color.HSVToColor(best);
@@ -531,6 +552,79 @@ final class Frost {
      * hint. Selected: clear glass with a white edge, a typing line and an "OK to type" tag on the right.
      * `words` gives the font and size; its colour is set here and put back.
      */
+    // ---- Posters: one focus look everywhere (Discover, Surprise Me, the shelf) ----------------------------------
+
+    /** Something new waits here (an update): a small coral dot with a dark ring, so it reads on any picture. */
+    static void dot(Canvas c, float cx, float cy, float k) {
+        fill.setShader(null);
+        fill.setColor(0xCC000000);
+        c.drawCircle(cx, cy, 9 * k, fill);
+        fill.setColor(0xFFFF5A6E);
+        c.drawCircle(cx, cy, 6.5f * k, fill);
+    }
+
+    /** How much a chosen poster grows. */
+    static final float POSTER_GROW = 1.07f;
+
+    /** The chosen poster's place: its own, grown from the centre (no frame around it, no gap). */
+    static RectF posterGrown(RectF r, float grow) {
+        float dx = r.width() * (grow - 1) / 2, dy = r.height() * (grow - 1) / 2;
+        return new RectF(r.left - dx, r.top - dy, r.right + dx, r.bottom + dy);
+    }
+
+    /** Under a chosen poster: a deep, soft shadow, so it lifts off the page. Draw before the picture. */
+    static void posterShadow(Canvas c, RectF r, float rad, float k) {
+        fill.setShader(null);
+        fill.setColor(0xFF000000);
+        fill.setShadowLayer(34 * k, 0, 16 * k, 0xB3000000);
+        c.drawRoundRect(r, rad, rad, fill);
+        fill.clearShadowLayer();
+    }
+
+    /** Over a chosen poster: a crisp white edge hugging it (no gap), and a faint sheen on its top. Draw after the picture. */
+    static void posterRing(Canvas c, RectF r, float rad, float k) {
+        fill.setColor(Color.WHITE);
+        fill.setShader(new LinearGradient(0, r.top, 0, r.top + r.height() * 0.35f, 0x24FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        fill.setShader(null);
+        line.setShader(null);
+        float w = Math.max(2.5f, 4 * k);
+        line.setStrokeWidth(w);
+        line.setColor(Color.WHITE);
+        c.drawRoundRect(r.left + w / 2, r.top + w / 2, r.right - w / 2, r.bottom - w / 2, rad - w / 2, rad - w / 2, line);
+    }
+
+    /** Over a poster that isn't chosen while its row is: a slight dim, so the chosen one leads. */
+    static void posterDim(Canvas c, RectF r, float rad) {
+        fill.setShader(null);
+        fill.setColor(0x47000000);
+        c.drawRoundRect(r, rad, rad, fill);
+    }
+
+    /**
+     * The search bar's smoked glass, for any bar or button on Home: a dark base so it reads on any picture, a soft
+     * white glass a step lighter, a fine edge and light along the top. Lite: plain dark glass.
+     */
+    /** 0 to 1: how pale the picture behind Home's bars is. Pale: the smoke is deeper and less milky, so the bars stay dark glass. */
+    static float smokeDeep;
+
+    static void smoked(Canvas c, RectF r, float rad, float k) {
+        fill.setShader(null);
+        fill.setColor(Math.round(0x73 + smokeDeep * (0xB8 - 0x73)) << 24);
+        c.drawRoundRect(r, rad, rad, fill);
+        fill.setColor(Color.WHITE);
+        fill.setShader(new LinearGradient(0, r.top, 0, r.bottom, Math.round(0x29 - smokeDeep * 0x14) << 24 | 0xFFFFFF,
+                Math.round(0x17 - smokeDeep * 0x0C) << 24 | 0xFFFFFF, Shader.TileMode.CLAMP));
+        c.drawRoundRect(r, rad, rad, fill);
+        fill.setShader(null);
+        line.setShader(null);
+        float in = 0.8f * k;
+        line.setStrokeWidth(Math.max(1, 1.2f * k));
+        line.setColor(0x38FFFFFF);
+        c.drawRoundRect(r.left + in, r.top + in, r.right - in, r.bottom - in, rad - in, rad - in, line);
+        topEdge(c, r, rad, k, 0x73FFFFFF);
+    }
+
     static void searchBar(Canvas c, RectF r, float k, boolean selected, String text, boolean isHint, Paint words) {
         float rad = r.height() / 2;
         fill.setShader(null);   // a dark base first, so the words read over a bright picture too
@@ -562,20 +656,20 @@ final class Frost {
         // the words, and when selected the typing line and what OK does
         float x = disc.right + 14 * k, right = r.right - rad * 0.6f;
         if (selected) {
-            tagPaint.setTextSize(17 * k);
-            String tag = "OK to type";
-            float tw = tagPaint.measureText(tag) + 22 * k, th = 30 * k;
+            tagPaint.setTextSize(20 * k);
+            String tag = L10n.t("OK to type");
+            float tw = tagPaint.measureText(tag) + 24 * k, th = 34 * k;
             RectF t = new RectF(r.right - 12 * k - tw, cy - th / 2, r.right - 12 * k, cy + th / 2);
             fill.setColor(0x59000000);
             c.drawRoundRect(t, th / 2, th / 2, fill);
-            c.drawText(tag, t.left + 11 * k, cy + 6 * k, tagPaint);
+            c.drawText(tag, t.left + 12 * k, cy + 7 * k, tagPaint);
             right = t.left - 10 * k;
             fill.setColor(Color.WHITE);
             c.drawRect(x, cy - 13 * k, x + 2 * k, cy + 13 * k, fill);
             x += 8 * k;
         }
         int was = words.getColor();
-        if (isHint && selected && words.measureText(text) > right - x) text = "Search";   // the tag needs the room
+        if (isHint && selected && words.measureText(text) > right - x) text = L10n.t("Search");   // the tag needs the room
         words.setColor(isHint ? (selected ? 0xE6FFFFFF : 0xC7FFFFFF) : Color.WHITE);
         String fitted = android.text.TextUtils.ellipsize(text, new android.text.TextPaint(words), Math.max(0, right - x),
                 android.text.TextUtils.TruncateAt.END).toString();

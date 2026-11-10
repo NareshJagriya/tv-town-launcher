@@ -110,7 +110,7 @@ final class TvKeyboard extends View {
 
     /** A search of YouTube only, to save something: nothing from this TV in the list. */
     static void youtube(Activity a, @Nullable String initial, Listener listener) {
-        TvKeyboard v = new TvKeyboard(a, "YouTube song, video or link", true, false, false, null, null, listener);
+        TvKeyboard v = new TvKeyboard(a, L10n.t("YouTube song, video or link"), true, false, false, null, null, listener);
         v.youtube = true;
         v.index = new ArrayList<>();
         show(a, v, initial);
@@ -131,7 +131,7 @@ final class TvKeyboard extends View {
     // ---- Search: the whole screen ------------------------------------------------------------------------
 
     private static final float PAGE_T = 190, PAGE_B = 1024;
-    private static final int RECENT = 9, MAX_RECENT = 6, IN_APP = 10;   // IN_APP: "Search in Nuvio": the words, in that app
+    private static final int RECENT = 9, MAX_RECENT = 6, IN_APP = 10;   // IN_APP: L10n.t("Search in Nuvio"): the words, in that app
     private boolean page, searching;
     private final ArtStage stage = new ArtStage(this);
     private final Paint sprite = new Paint(Paint.FILTER_BITMAP_FLAG | Paint.ANTI_ALIAS_FLAG), slot = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -147,7 +147,7 @@ final class TvKeyboard extends View {
 
     /** Search everywhere at once: keyboard on the left, what it finds on the right, and it stays while you open things. */
     static void page(Activity a, @Nullable String initial, Runnable closed) {
-        TvKeyboard v = new TvKeyboard(a, "Films, songs, apps, YouTube", true, false, false, null, "Results", new Listener() {
+        TvKeyboard v = new TvKeyboard(a, L10n.t("Films, songs, apps, YouTube"), true, false, false, null, L10n.t("Results"), new Listener() {
             @Override
             public void onSearch(String text) {
             }
@@ -186,7 +186,7 @@ final class TvKeyboard extends View {
 
     private List<Hit> recentHits() {
         List<Hit> out = new ArrayList<>();
-        for (String w : recents().getString("recent", "").split("\n")) if (!w.trim().isEmpty()) out.add(new Hit(RECENT, w, "Recent search"));
+        for (String w : recents().getString("recent", "").split("\n")) if (!w.trim().isEmpty()) out.add(new Hit(RECENT, w, L10n.t("Recent search")));
         return out;
     }
 
@@ -284,7 +284,7 @@ final class TvKeyboard extends View {
         long now = android.os.SystemClock.uptimeMillis();
         Frost.page(c, new RectF(0, 0, getWidth(), getHeight()));   // the shiny black page, as My Movies and Discover
         heading.setColor(Color.WHITE);
-        c.drawText("Search", 64 * k, 170 * k, heading);
+        c.drawText(L10n.t("Search"), 64 * k, 170 * k, heading);
         r.set(panelL * k, panelT * k, panelR * k, panelB * k);
         Frost.panel(c, r, 44 * k, 1, k);
         r.set((panelR + 24) * k, panelT * k, 1856 * k, panelB * k);
@@ -299,7 +299,7 @@ final class TvKeyboard extends View {
         if (list >= 0 && hits.size() > rowsShown) {
             note.setColor(Frost.MUTE);
             note.setTextAlign(Paint.Align.RIGHT);
-            c.drawText((list + 1) + " of " + hits.size(), 1856 * k, 170 * k, note);
+            c.drawText((list + 1) + L10n.t(" of ") + hits.size(), 1856 * k, 170 * k, note);
             note.setTextAlign(Paint.Align.LEFT);
         }
         boolean places = whereShown();
@@ -308,9 +308,9 @@ final class TvKeyboard extends View {
         if (hits.isEmpty()) {
             note.setColor(Frost.MUTE);
             String typed = text.toString().trim();
-            String say = typed.isEmpty() ? "Films, songs, apps and YouTube appear here as you type"
-                    : where != 0 && !allHits.isEmpty() ? "Nothing in " + WHERE[where] + " for \u201C" + typed + "\u201D"
-                    : index == null ? "Reading your drive" : searching ? "Searching" : "Nothing found for \u201C" + typed + "\u201D";
+            String say = typed.isEmpty() ? L10n.t("Films, songs, apps and YouTube appear here as you type")
+                    : where != 0 && !allHits.isEmpty() ? L10n.t("Nothing in ") + WHERE[where] + L10n.t(" for \u201C") + typed + "\u201D"
+                    : index == null ? L10n.t("Reading your drive") : searching ? L10n.t("Searching") : L10n.t("Nothing found for \u201C") + typed + "\u201D";
             c.drawText(String.valueOf(TextUtils.ellipsize(say, tp(note), (listR - listX - 44) * k, TextUtils.TruncateAt.END)), (listX + 22) * k, (listT + 60) * k, note);
             return;
         }
@@ -423,7 +423,7 @@ final class TvKeyboard extends View {
         this.textOnly = textOnly;
         this.capWords = capWords;
         this.title = title;
-        this.okLabel = "Search";   // the same key everywhere: Search, with the magnifier
+        this.okLabel = L10n.t("Search");   // the same key everywhere: Search, with the magnifier
         this.hint = hint;
         this.withOnline = withOnline;
         this.listener = listener;
@@ -473,14 +473,14 @@ final class TvKeyboard extends View {
         Set<String> seen = new HashSet<>();
         try {
             if (MyMovies.driveMounted(ctx)) {
-                for (MyMovies.Video v : MyMovies.scan(ctx)) {
+                if (Features.on(ctx, Features.MOVIES)) for (MyMovies.Video v : MyMovies.scan(ctx)) {
                     MyMovies.Parsed p = MyMovies.parse(v.name, v.folder, "");
                     MyMovies.Match m = MyMovies.saved(ctx, MyMovies.matchKey(v, p));
                     String name = m != null ? m.title : p.title.isEmpty() ? v.name : p.title;
                     int year = m != null && m.year > 0 ? m.year : p.year;
                     if (seen.add("f" + name)) {
                         Hit h = new Hit(p.series ? SERIES : FILM, name,
-                                (p.series ? "Series" : "Film") + (year > 0 ? " · " + year : "") + " · on your drive");
+                                (p.series ? L10n.t("Series") : L10n.t("Film")) + (year > 0 ? " · " + year : "") + L10n.t(" · on your drive"));
                         if (m != null) {
                             h.picture = m.poster;
                             h.backdrop = m.backdrop != null ? m.backdrop : m.poster;
@@ -488,23 +488,23 @@ final class TvKeyboard extends View {
                         out.add(h);
                     }
                 }
-                for (MyMusic.Song s : MyMusic.read(ctx)) {
+                if (Features.on(ctx, Features.MUSIC)) for (MyMusic.Song s : MyMusic.read(ctx)) {
                     if (s.title != null && !s.title.trim().isEmpty()) {
-                        Hit h = new Hit(SONG, s.title.trim(), "Song" + (s.artist != null && !s.artist.isEmpty() ? " · " + MyMusic.mainArtist(s.artist) : ""));
+                        Hit h = new Hit(SONG, s.title.trim(), L10n.t("Song") + (s.artist != null && !s.artist.isEmpty() ? " · " + MyMusic.mainArtist(s.artist) : ""));
                         h.key = s.key();
                         h.song = s;
                         out.add(h);
                     }
                     String singer = MyMusic.mainArtist(s.artist);
-                    if (singer != null && singer.trim().length() > 1 && seen.add("s" + singer)) out.add(new Hit(SINGER, singer.trim(), "Singer"));
-                    if (s.album != null && s.album.trim().length() > 1 && seen.add("a" + s.album)) out.add(new Hit(ALBUM, s.album.trim(), "Album or film songs"));
-                    if (s.folder != null && s.folder.trim().length() > 1 && seen.add("o" + s.folder)) out.add(new Hit(FOLDER, s.folder.trim(), "Music folder"));
+                    if (singer != null && singer.trim().length() > 1 && seen.add("s" + singer)) out.add(new Hit(SINGER, singer.trim(), L10n.t("Singer")));
+                    if (s.album != null && s.album.trim().length() > 1 && seen.add("a" + s.album)) out.add(new Hit(ALBUM, s.album.trim(), L10n.t("Album or film songs")));
+                    if (s.folder != null && s.folder.trim().length() > 1 && seen.add("o" + s.folder)) out.add(new Hit(FOLDER, s.folder.trim(), L10n.t("Music folder")));
                 }
             }
             PackageManager pm = ctx.getPackageManager();
             Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
             for (ResolveInfo i : pm.queryIntentActivities(launcher, 0)) {
-                Hit h = new Hit(APP, String.valueOf(i.loadLabel(pm)), "App");
+                Hit h = new Hit(APP, String.valueOf(i.loadLabel(pm)), L10n.t("App"));
                 h.key = i.activityInfo.packageName;
                 if (!ctx.getPackageName().equals(h.key)) out.add(h);
             }
@@ -616,7 +616,7 @@ final class TvKeyboard extends View {
                     String name = SearchMatch.plain(t.title);
                     String[] nw = SearchMatch.words(name);
                     if (SearchMatch.score(q, w, s, name, nw, SearchMatch.sounds(nw)) == SearchMatch.NONE) continue;   // its own idea of a match: not shown
-                    Hit h = new Hit(STREAM, t.title, ("tv".equals(t.type) ? "Series" : "Movie") + (t.year > 0 ? " · " + t.year : "") + " · streaming");
+                    Hit h = new Hit(STREAM, t.title, ("tv".equals(t.type) ? L10n.t("Series") : L10n.t("Movie")) + (t.year > 0 ? " · " + t.year : ""));
                     h.online = t;
                     h.picture = t.poster();
                     h.backdrop = t.backdrop() != null ? t.backdrop() : t.poster();
@@ -635,7 +635,7 @@ final class TvKeyboard extends View {
             try {
                 for (Songs.Pick p : Songs.searchVideos(typed, 8)) {
                     if (p.playlist) continue;
-                    Hit h = new Hit(YOUTUBE, p.title, "YouTube" + (p.by != null && !p.by.isEmpty() ? " · " + p.by : "") + (p.seconds > 0 ? " · " + YtSaver.clock(p.seconds) : ""));
+                    Hit h = new Hit(YOUTUBE, p.title, L10n.t("YouTube") + (p.by != null && !p.by.isEmpty() ? " · " + p.by : "") + (p.seconds > 0 ? " · " + YtSaver.clock(p.seconds) : ""));
                     h.key = p.id;
                     h.picture = p.thumb;
                     h.backdrop = p.thumb;
@@ -666,7 +666,7 @@ final class TvKeyboard extends View {
         String q = text.toString().trim();
         if (page && q.length() >= 2) {   // then every app that takes a search: Netflix, Prime Video, Nuvio, Stremio…
             for (String[] app : PhoneRemote.searchableApps(getContext())) {
-                Hit h = new Hit(IN_APP, "Search in " + app[1], "\u201C" + q + "\u201D in the app");
+                Hit h = new Hit(IN_APP, L10n.t("Search in ") + app[1], "\u201C" + q + "\u201D in the app");
                 h.key = app[0];
                 all.add(h);
             }
@@ -682,7 +682,7 @@ final class TvKeyboard extends View {
     }
 
     // ---- where to look: All, Your drive, Streaming, Music, Apps (the full search page) ----
-    private static final String[] WHERE = {"All", "Your drive", "Streaming", "Music", "Apps"};
+    private static final String[] WHERE = {L10n.t("All"), L10n.t("Your drive"), L10n.t("Streaming"), L10n.t("Music"), L10n.t("Apps")};
     private int where;               // the place chosen
     private boolean inWhere;         // the remote is on the places' row
     private List<Hit> allHits = new ArrayList<>();
@@ -1068,6 +1068,12 @@ final class TvKeyboard extends View {
         }
     }
 
+    /** Home pressed: the open keyboard or Search page goes. */
+    static void closeIfOpen() {
+        TvKeyboard k = current;
+        if (k != null) k.close();
+    }
+
     private void close() {
         if (closing) return;
         closing = true;
@@ -1158,7 +1164,7 @@ final class TvKeyboard extends View {
         note.setColor(Frost.MUTE);
         note.setTextAlign(page ? Paint.Align.LEFT : Paint.Align.RIGHT);
         float tx = page ? x + size + 24 * k : x - 24 * k;
-        c.drawText("Scan to type on your phone", tx, y + size / 2 + 10 * k, note);
+        c.drawText(L10n.t("Scan to type on your phone"), tx, y + size / 2 + 10 * k, note);
         note.setTextAlign(Paint.Align.LEFT);
         note.setColor(Color.WHITE);
     }
@@ -1339,17 +1345,17 @@ final class TvKeyboard extends View {
     private String word(int key) {
         switch (key) {
             case K_SPACE:
-                return "Space";
+                return L10n.t("Space");
             case K_DELETE:
-                return "Delete";
+                return L10n.t("Delete");
             case K_PHONE:
-                return qr != null ? "Hide the phone code" : "Type on your phone";
+                return qr != null ? L10n.t("Hide the phone code") : L10n.t("Type on your phone");
             case K_SYMBOLS:
                 return symbols ? "abc" : "#+=";
             case K_SHIFT:
-                return "Aa";
+                return L10n.t("Aa");
             case K_CLEAR:
-                return "Clear all";
+                return L10n.t("Clear all");
             default:
                 return okLabel;
         }
@@ -1359,9 +1365,9 @@ final class TvKeyboard extends View {
         float w = (listR - listX) * k;
         if (hits.isEmpty()) {
             note.setColor(Frost.FAINT);
-            String say = youtube ? (text.toString().trim().length() < 2 ? "Results appear as you type" : "Searching YouTube")
-                    : text.toString().trim().isEmpty() ? "Suggestions appear as you type"
-                    : index == null ? "Reading your drive" : "No matches yet";
+            String say = youtube ? (text.toString().trim().length() < 2 ? L10n.t("Results appear as you type") : L10n.t("Searching YouTube"))
+                    : text.toString().trim().isEmpty() ? L10n.t("Suggestions appear as you type")
+                    : index == null ? L10n.t("Reading your drive") : L10n.t("No matches yet");
             c.drawText(say, (listX + 22) * k, (top + 44) * k, note);
             return;
         }
@@ -1398,7 +1404,7 @@ final class TvKeyboard extends View {
         c.drawBitmap(qr, mid - qr.getWidth() / 2f, y, null);
         note.setColor(Frost.MUTE);
         note.setTextAlign(Paint.Align.CENTER);
-        c.drawText("Scan to type on your phone", mid, y + qr.getHeight() + 50 * k, note);
+        c.drawText(L10n.t("Scan to type on your phone"), mid, y + qr.getHeight() + 50 * k, note);
         note.setTextAlign(Paint.Align.LEFT);
         note.setColor(Color.WHITE);
     }

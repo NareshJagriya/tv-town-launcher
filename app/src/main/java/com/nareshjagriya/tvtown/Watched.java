@@ -160,6 +160,13 @@ final class Watched {
         return out;
     }
 
+    /** Marked watched (hold OK on Home's shelf): the title leaves what TV Town saw playing. */
+    static synchronized void forget(Context c, String title) {
+        List<Item> all = list(c);
+        String t = title.trim();
+        if (all.removeIf(it -> it.title != null && it.title.trim().equalsIgnoreCase(t))) save(c, all);
+    }
+
     private static void save(Context c, List<Item> all) {
         JSONArray a = new JSONArray();
         try {

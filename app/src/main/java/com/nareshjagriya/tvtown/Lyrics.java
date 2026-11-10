@@ -43,8 +43,8 @@ final class Lyrics {
 
     static final String SCRIPT_HINDI = "hi", SCRIPT_LATIN = "en";
     private static final String API = "https://lrclib.net/api/search";
-    private static final Map<String, String> HEADERS = Collections.singletonMap("User-Agent",
-            "TV Town Launcher " + BuildConfig.VERSION_NAME + " (Android TV home screen)");
+    private static final Map<String, String> HEADERS = Collections.singletonMap(L10n.t("User-Agent"),
+            L10n.t("TV Town Launcher ") + BuildConfig.VERSION_NAME + L10n.t(" (Android TV home screen)"));
 
     /**
      * The song's timed lyrics; an empty list when there are none, null when LRCLIB could not be reached (try again
@@ -57,7 +57,7 @@ final class Lyrics {
         java.io.File drive = DriveStore.volumeOf(s.path);
         JSONObject known = DriveStore.map(drive, "lyrics");
         JSONObject was = known.optJSONObject(s.key());
-        String asked = s.title + "|" + s.artist;   // a "not found" stands only while the song's name is the same
+        String asked = s.title + "|" + s.artist;   // a L10n.t("not found") stands only while the song's name is the same
         if (was != null && asked.equals(was.optString("asked")) && (was.optInt("v") >= SEARCH_VERSION || was.has("picked"))) {
             if (was.has("stretched")) return stretch(was.optString("stretched"), was.optDouble("ratio", 1));
             if (was.has("rough")) return spread(was.optString("rough"), s.durationMs);
@@ -149,11 +149,11 @@ final class Lyrics {
             }
         }
         if (!reached) return null;   // LRCLIB not reached: tried again later
-        if (got != null) {   // kept as "Song.lrc" beside the song: on the drive, readable by other players too
+        if (got != null) {   // kept as L10n.t("Song.lrc") beside the song: on the drive, readable by other players too
             if (s.path != null) {
                 int dot = s.path.lastIndexOf('.');
                 DriveStore.write(new java.io.File((dot > 0 ? s.path.substring(0, dot) : s.path) + ".lrc"),
-                        "[by:TV Town]\n[la:" + script + "]\n" + got);
+                        L10n.t("[by:TV Town]\n[la:") + script + "]\n" + got);
             }
             return parse(got);
         }
@@ -279,7 +279,7 @@ final class Lyrics {
             if (s.path != null) {
                 int dot = s.path.lastIndexOf('.');
                 DriveStore.write(new java.io.File((dot > 0 ? s.path.substring(0, dot) : s.path) + ".lrc"),
-                        "[by:TV Town]\n[la:" + script + "]\n" + c.text);
+                        L10n.t("[by:TV Town]\n[la:") + script + "]\n" + c.text);
             }
             return parse(c.text);
         }

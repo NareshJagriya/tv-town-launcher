@@ -18,6 +18,8 @@ public class TvTownApp extends Application {
         super.onCreate();
         app = this;
         Style.init(this);
+        Lang.init(this);
+        L10n.init(this);   // the chosen language's words (nothing to load for English)
         Frost.init(this);
         Lite.init(this);
         ServiceRepair.restore(this);   // the home helper, if a force stop switched it off

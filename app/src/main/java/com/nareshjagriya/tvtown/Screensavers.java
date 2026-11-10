@@ -55,9 +55,9 @@ final class Screensavers {
         PackageManager pm = c.getPackageManager();
         List<Saver> out = new ArrayList<>();
         ComponentName mine = new ComponentName(c, TvTownDream.class);
-        out.add(new Saver("Film pictures", mine, 1));
-        out.add(new Saver("Clock", mine, 2));
-        if (TvTownDream.hasVideos(c)) out.add(new Saver("Your videos", mine, 0));
+        out.add(new Saver(L10n.t("Film pictures"), mine, 1));
+        out.add(new Saver(L10n.t("Clock"), mine, 2));
+        if (TvTownDream.hasVideos(c)) out.add(new Saver(L10n.t("Your videos"), mine, 0));
         for (ResolveInfo ri : pm.queryIntentServices(new Intent(DreamService.SERVICE_INTERFACE), PackageManager.GET_META_DATA)) {
             if (ri.serviceInfo.packageName.equals(c.getPackageName())) continue;
             out.add(new Saver(String.valueOf(ri.loadLabel(pm)), new ComponentName(ri.serviceInfo.packageName, ri.serviceInfo.name), -1));
@@ -74,7 +74,7 @@ final class Screensavers {
             Saver s = all.get(i);
             if (!s.comp.equals(now)) continue;
             if (s.kind < 0 || s.kind == kind) return i;
-            if (s.kind == 1) fallback = i;   // "your videos" with none on the drive shows the film pictures
+            if (s.kind == 1) fallback = i;   // L10n.t("your videos") with none on the drive shows the film pictures
         }
         return fallback;
     }
@@ -99,7 +99,7 @@ final class Screensavers {
     static String currentName(Context c) {
         List<Saver> all = all(c);
         int i = currentIndex(c, all);
-        return i >= 0 ? all.get(i).name : "None";
+        return i >= 0 ? all.get(i).name : L10n.t("None");
     }
 
     static boolean allowed(Context c) {

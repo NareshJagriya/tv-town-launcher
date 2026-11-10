@@ -44,6 +44,8 @@ final class Picks {
         boolean hidden;           // a card hidden in Customize (kept there, not on the pop-up)
         java.util.function.Function<String, Tune> adder;   // a card: how a typed name becomes a part (null: none)
         String addHint;           // a card: what to type ("A singer's name")
+        boolean asks;             // an Extras tile that asks first (Topics): Recipes, Podcasts…
+        String topicSig;          // a card built from what was ticked (Topics.card): kept apart from other choices
 
         Entry(String emoji, String label, int color) {
             this.emoji = emoji;
@@ -53,7 +55,7 @@ final class Picks {
 
         /** Stable name for remembering what it has given: "Thriller & Crime". */
         String key() {
-            return label;
+            return topicSig == null ? label : label + "#" + topicSig;
         }
 
         /** The parts in use (all of them when every one is switched off). */
@@ -860,17 +862,11 @@ final class Picks {
         names(c, "A news channel, like \"NDTV India\"", Picks::newsTune, "Aaj Tak", "ABP News", "India TV", "Zee News",
                 "NDTV India", "ABP Majha", "TV9 Marathi", "Zee 24 Taas", "News18 Lokmat", "Saam TV");
 
-        c = card(l, "🏏", "Sports Highlights", 0xFF3DDC97);
-        names(c, "A league or channel, like \"Pro Kabaddi\"", Picks::sportsTune, "ICC", "IPL", "BCCI", "Pro Kabaddi",
-                "Indian Super League", "Premier League", "Formula 1");
 
         c = card(l, "🎞️", "Free Full Movies", 0xFF5B8CFF);
         names(c, "A YouTube movie channel, like \"Shemaroo\"", Picks::movieChannelTune, "Goldmines", "Shemaroo",
                 "Rajshri", "Ultra Movie Parlour", "Pen Movies", "Venus Movies");
 
-        c = card(l, "🌍", "Documentaries", 0xFF5B8CFF);
-        names(c, "A channel, like \"Epic Channel\"", Picks::documentaryTune, "National Geographic", "BBC Earth",
-                "DW Documentary", "Free Documentary", "Epic Channel", "Real Stories");
 
         c = card(l, "🌧️", "Ambient & Relax", 0xFF36C8F4);
         phrase(c, "Rain sounds", "rain sounds for sleep|rain and thunder sounds").length(600, 43200).noTail();
@@ -881,7 +877,41 @@ final class Picks {
                 .allow("instrumental");
         phrases(c, Picks::longTune);
         c.addHint = "Something to search for, like \"thunderstorm sounds\"";
-        return l;
+        extrasNew(l, true);
+        return ordered(l);
+    }
+
+    /** Short Films, and the tiles that ask first (Topics): Recipes, Podcasts & Talks, Spirituality, Documentaries. */
+    private static void extrasNew(List<Entry> l, boolean india) {
+        Entry c = card(l, "🎬", "Short Films", 0xFFB06BFF);
+        if (india) phrase(c, "Hindi short films", "hindi short film|award winning hindi short film|large short films")
+                .lang("Hindi").length(300, 2700).noTail().never("#shorts|trailer|reel");
+        phrase(c, "Short films", "award winning short film|short film|best short film")
+                .length(300, 2700).noTail().never("#shorts|trailer|reel");
+        phrase(c, "Animated shorts", "animated short film|pixar style short film").length(180, 1800).noTail().never("#shorts|trailer");
+        phrases(c, n -> new Tune(n + " short film").length(300, 2700).noTail().never("#shorts|trailer"));
+        c.addHint = "A kind of short film, like \"thriller short film\"";
+        topicTile(l, "🍳", Topics.RECIPES, 0xFFFF9F43, "easy recipe");
+        topicTile(l, "🎙️", Topics.PODCASTS, 0xFF5B8CFF, "podcast full episode");
+        topicTile(l, "🪷", Topics.SPIRITUALITY, 0xFFFFC93C, "guided meditation");
+        topicTile(l, "🌍", Topics.DOCS, 0xFF3DDC97, "full documentary");
+    }
+
+    private static void topicTile(List<Entry> l, String emoji, String label, int color, String pictureWords) {
+        Entry c = card(l, emoji, label, color);
+        c.asks = true;
+        phrase(c, label, pictureWords).length(180, 7200).noTail();   // for its picture, and if nothing is ticked
+    }
+
+    /** Extras in a useful order: twelve, four to a row. */
+    private static List<Entry> ordered(List<Entry> l) {
+        String[] want = {"Trailers", "Short Films", "Stand-up Comedy", Topics.RECIPES, Topics.PODCASTS, Topics.DOCS,
+                Topics.SPIRITUALITY, "Classic TV Shows", "Classic TV", "TV Comedy", "Cartoons", "Free Full Movies", "Free Movies",
+                "Live News", "Ambient & Relax"};
+        List<Entry> out = new ArrayList<>();
+        for (String w : want) for (Entry e : l) if (e.label.equals(w) && !out.contains(e)) out.add(e);
+        for (Entry e : l) if (!out.contains(e)) out.add(e);
+        return out;
     }
 
     static Tune sportsTune(String name) {
@@ -1049,13 +1079,7 @@ final class Picks {
         names(c, "A news channel, like \"CNN\"", Picks::newsTune, "ABC News", "NBC News", "CBS News", "LiveNOW from FOX",
                 "Sky News", "BBC News", "Bloomberg Television", "Al Jazeera English", "DW News", "CNA");
 
-        c = card(l, "🏈", "Sports Highlights", 0xFF3DDC97);
-        names(c, "A league or channel, like \"MLS\"", Picks::sportsTune, "NFL", "NBA", "MLB", "NHL", "Premier League",
-                "UEFA Champions League", "Formula 1", "ESPN", "WWE");
 
-        c = card(l, "🌍", "Documentaries", 0xFF5B8CFF);
-        names(c, "A channel, like \"PBS\"", Picks::documentaryTune, "National Geographic", "BBC Earth", "PBS",
-                "FRONTLINE PBS", "DW Documentary", "Real Stories", "Free Documentary", "Vice");
 
         c = card(l, "🎞️", "Free Movies", 0xFFB06BFF);
         names(c, "A YouTube movie channel, like \"Popcornflix\"", Picks::freeMovieTune, "FilmRise Movies", "Popcornflix",
@@ -1070,7 +1094,8 @@ final class Picks {
         phrase(c, "Jazz café", "jazz cafe music|coffee shop jazz").length(600, 43200).noTail().allow("instrumental");
         phrases(c, Picks::longTune);
         c.addHint = "Something to search for, like \"thunderstorm sounds\"";
-        return l;
+        extrasNew(l, false);
+        return ordered(l);
     }
 
     // ---- Mixed: some of the Indian cards, some of the Global ones ----------------------------------
@@ -1187,13 +1212,7 @@ final class Picks {
         names(c, "A news channel, like \"WION\"", Picks::newsTune, "Aaj Tak", "NDTV India", "NDTV 24x7", "India Today",
                 "BBC News", "Sky News", "Al Jazeera English", "ABC News", "DW News");
 
-        c = card(l, "🏏", "Sports Highlights", 0xFF3DDC97);
-        names(c, "A league or channel, like \"NBA\"", Picks::sportsTune, "ICC", "IPL", "BCCI", "Premier League",
-                "UEFA Champions League", "Formula 1", "NBA", "Pro Kabaddi");
 
-        c = card(l, "🌍", "Documentaries", 0xFF5B8CFF);
-        names(c, "A channel, like \"PBS\"", Picks::documentaryTune, "National Geographic", "BBC Earth", "DW Documentary",
-                "Free Documentary", "Epic Channel", "Real Stories");
 
         c = card(l, "🎞️", "Free Full Movies", 0xFFB06BFF);
         named(c, Picks::movieChannelTune, "Goldmines", "Shemaroo", "Rajshri");
@@ -1210,7 +1229,8 @@ final class Picks {
                 .allow("instrumental");
         phrases(c, Picks::longTune);
         c.addHint = "Something to search for, like \"thunderstorm sounds\"";
-        return l;
+        extrasNew(l, true);
+        return ordered(l);
     }
 
     // ---- searches --------------------------------------------------------------------------------

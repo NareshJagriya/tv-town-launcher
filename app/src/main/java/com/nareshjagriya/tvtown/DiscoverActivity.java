@@ -33,6 +33,11 @@ import java.util.concurrent.ExecutorService;
  */
 public class DiscoverActivity extends Activity {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Lang.wrap(base));   // the language chosen in Customize
+    }
+
     /** A search to run straight away (voice, or a suggestion from the keyboard). */
     static final String EXTRA_QUERY = "query";
     /** A kind to open at: an id from DiscoverKinds ("anime", "top-rated") or loose words ("K Drama"). */
@@ -106,7 +111,7 @@ public class DiscoverActivity extends Activity {
     private static final class Page extends View {
 
         private static final String RESULTS = "results";
-        private static final String[] TYPES = {"Movies and series", "Movies", "Series"};
+        private static final String[] TYPES = {L10n.t("Movies and series"), L10n.t("Movies"), L10n.t("Series")};
         private static final int CAP_SEARCH = 0, CAP_TYPE = 1, CAP_LANG = 2, CAPS = 3;
         private static final int RAIL = 0, ROWS = 1, BAR = 2;   // where the focus is
         // Layout, in design pixels: the list on the left, the rows from ROWS_X to the screen's edge.
@@ -215,7 +220,7 @@ public class DiscoverActivity extends Activity {
                     post(() -> {
                         Map<String, Shelf> by = new LinkedHashMap<>();
                         for (Tmdb.Title t : got) {
-                            String app = t.service != null ? t.service.name : "Elsewhere";
+                            String app = t.service != null ? t.service.name : L10n.t("Elsewhere");
                             Shelf sh = by.get(app);
                             if (sh == null) by.put(app, sh = new Shelf(app, null));
                             sh.items.add(t);
@@ -230,6 +235,7 @@ public class DiscoverActivity extends Activity {
             }
             DiscoverKinds.Kind kind = DiscoverKinds.find(e.id);
             Tmdb.Category cat = kind != null ? DiscoverKinds.category(kind) : null;
+            if (e.id.equals(DiscoverKinds.NEW)) becauseYouWatched(e);
             for (Services.Service s : Services.installedOrPopular(ctx)) {
                 Loader l;
                 if (e.id.equals(DiscoverKinds.NEW)) {
@@ -242,6 +248,30 @@ public class DiscoverActivity extends Activity {
                 } else l = () -> discover(cat, s, code);
                 e.rows.add(new Shelf(s.name, l));
             }
+        }
+
+        /**
+         * The first row where Discover opens: titles like the last film or series you marked Watched (the best rated
+         * of your last five), leaving out what you've already seen. No watched titles, or no TMDB: no row.
+         */
+        private void becauseYouWatched(Entry e) {
+            Context ctx = getContext();
+            if (!Catalog.tmdb()) return;
+            List<Library.Entry> seen = new ArrayList<>();
+            for (Library.Entry x : Library.all(ctx)) if (x.status == Library.WATCHED && x.tmdbId > 0) seen.add(x);
+            if (seen.isEmpty()) return;
+            Collections.sort(seen, (a, b) -> Long.compare(b.time, a.time));
+            Library.Entry from = seen.get(0);
+            for (int i = 1; i < Math.min(5, seen.size()); i++) if (seen.get(i).rating > from.rating) from = seen.get(i);
+            final Library.Entry src = from;
+            final java.util.Set<String> watched = Library.watched(ctx);
+            e.rows.add(new Shelf(L10n.t("Because you watched ") + src.title, () -> {
+                List<Tmdb.Title> out = new ArrayList<>();
+                for (Tmdb.Title t : Tmdb.recommendations(ctx, "tv".equals(src.type) ? "tv" : "movie", src.tmdbId)) {
+                    if (out.size() < 20 && typeOk(t) && hasPicture(t) && !watched.contains(Library.keyOf(t))) out.add(t);
+                }
+                return out;
+            }));
         }
 
         private boolean typeOk(Tmdb.Title t) {
@@ -375,7 +405,7 @@ public class DiscoverActivity extends Activity {
             Frost.frame(this);   // selections glide (Frost.plate)
             long now = SystemClock.uptimeMillis();
             stage.drawSoft(c, now, new RectF(), 24 * k);
-            c.drawText("Discover", LEFT * k, 92 * k, heading);
+            c.drawText(L10n.t("Discover"), LEFT * k, 92 * k, heading);
             Entry e = kinds.get(kindSel);
             drawRail(c, now);
             drawRows(c, e, now);
@@ -408,30 +438,50 @@ public class DiscoverActivity extends Activity {
                 railAt = now;
             }
             float scroll = Frost.glide(railFrom, railTo, now, railAt);
+            // The rail is one piece of Home's smoked glass, from the title to the foot of the screen
+            RectF panel = gr(LEFT - 18, 132, RAIL_W + 36, 1040 - 132);
+            Frost.smoked(c, panel, 36 * k, k);
             c.save();
-            c.clipRect(0, 128 * k, (LEFT + RAIL_W + 20) * k, getHeight());
+            c.clipRect(panel.left, panel.top + 8 * k, panel.right, panel.bottom - 8 * k);
             for (int i = 0; i < kinds.size(); i++) {
                 Entry e = kinds.get(i);
                 float top = itemY(i) - scroll;
                 if (top + ITEM_H < 120 || top > 1080) continue;
-                if (e.genre && (i == 0 || !kinds.get(i - 1).genre))
-                    c.drawText("GENRES", (LEFT + 22) * k, (top - 18) * k, label);
+                if (e.genre && (i == 0 || !kinds.get(i - 1).genre)) {   // a fine line, then the heading
+                    plain.setColor(0x26FFFFFF);
+                    c.drawRect((LEFT + 18) * k, (top - 50) * k, (LEFT + RAIL_W - 18) * k, (top - 50) * k + Math.max(1, k), plain);
+                    c.drawText(L10n.t("GENRES"), (LEFT + 22) * k, (top - 16) * k, label);
+                }
                 RectF r = gr(LEFT, top, RAIL_W, ITEM_H - 6);
-                boolean on = i == kindSel;
-                if (on && focus == RAIL && menu < 0) Frost.lift(c, r, 22 * k, k);
-                else if (on) {   // chosen, but the focus is elsewhere
-                    plain.setColor(0x2EFFFFFF);
+                boolean on = i == kindSel, here = on && focus == RAIL && menu < 0;
+                if (here) Frost.plate(c, r, 22 * k, k);   // the focus: the clear glass every list in TV Town has
+                else if (on) {   // chosen, but the focus is on the posters: a quiet pill
+                    plain.setColor(0x1FFFFFFF);
                     c.drawRoundRect(r, 22 * k, 22 * k, plain);
                 }
-                railText.setAlpha(on ? 255 : 205);
-                float tx = r.left + 24 * k;
+                if (on) {   // the chosen kind's mark: a short jewel bar at the left edge
+                    plain.setShader(new android.graphics.LinearGradient(0, r.top, 0, r.bottom, 0xFF8A6BFF, 0xFFD9468F, android.graphics.Shader.TileMode.CLAMP));
+                    plain.setAlpha(here ? 255 : 200);
+                    float bh = r.height() * 0.46f;
+                    c.drawRoundRect(r.left + 8 * k, r.centerY() - bh / 2, r.left + 13 * k, r.centerY() + bh / 2, 3 * k, 3 * k, plain);
+                    plain.setShader(null);
+                    plain.setAlpha(255);
+                }
+                railText.setAlpha(on ? 255 : 190);
+                railText.setFakeBoldText(on);
+                float tx = r.left + 30 * k;
                 if (!e.genre) {
-                    kit.drawGlyph(c, kit.glyph(glyphOf(e), 28), r.left + 40 * k, r.centerY(), on ? 255 : 205);
-                    tx = r.left + 72 * k;
+                    kit.drawGlyph(c, kit.glyph(glyphOf(e), 28), r.left + 48 * k, r.centerY(), on ? 255 : 190);
+                    tx = r.left + 80 * k;
+                } else {   // a genre: a small dot in place of an icon, so the column lines up
+                    plain.setColor(on ? 0xFFE7DCFF : 0x66FFFFFF);
+                    c.drawCircle(r.left + 48 * k, r.centerY(), 4.5f * k, plain);
+                    tx = r.left + 80 * k;
                 }
                 c.drawText(fit(e.name, railText, r.right - tx - 20 * k), tx, r.centerY() + 10 * k, railText);
             }
             railText.setAlpha(255);
+            railText.setFakeBoldText(false);
             c.restore();
         }
 
@@ -459,7 +509,7 @@ public class DiscoverActivity extends Activity {
             }
             if (!hasCovers(e) && !stillLoading(e)) {
                 boolean narrowed = type != 0 || lang != 0;
-                c.drawText(e.id.equals(RESULTS) ? "Nothing found" : "Nothing here on your apps", ROWS_X * k, (TOP + 40) * k, rowHead);
+                c.drawText(e.id.equals(RESULTS) ? L10n.t("Nothing found") : L10n.t("Nothing here on your apps"), ROWS_X * k, (TOP + 40) * k, rowHead);
                 c.drawText(narrowed ? "Try Movies and series, or All languages" : e.id.equals(RESULTS) ? "Try other words" : "Try another kind on the left",
                         ROWS_X * k, (TOP + 84) * k, meta);
                 c.restore();
@@ -472,7 +522,7 @@ public class DiscoverActivity extends Activity {
                 Shelf sh = e.rows.get(r);
                 c.drawText(sh.name, ROWS_X * k, (y + 34) * k, rowHead);
                 if (sh.loaded && !sh.items.isEmpty()) {
-                    String n = sh.items.size() + (sh.items.size() == 1 ? " title" : " titles");
+                    String n = sh.items.size() + (sh.items.size() == 1 ? L10n.t(" title") : L10n.t(" titles"));
                     c.drawText(n, ROWS_X * k + rowHead.measureText(sh.name) + 18 * k, (y + 34) * k, rowCount);
                 }
                 if (!sh.loaded) {
@@ -483,18 +533,26 @@ public class DiscoverActivity extends Activity {
                 for (int i = Math.max(0, (int) Math.floor(scroll)); i < sh.items.size() && i < scroll + COLS + 1; i++) {
                     RectF rc = gr(ROWS_X + (i - scroll) * (w + GAP), y + HEAD_H, w, h);
                     Tmdb.Title t = sh.items.get(i);
-                    if (focus == ROWS && r == e.row && i == sh.sel)
-                        Frost.plate(c, new RectF(rc.left - 10 * k, rc.top - 10 * k, rc.right + 10 * k, rc.bottom + (TEXT_H - 4) * k), 24 * k, k);
+                    boolean chosen = focus == ROWS && r == e.row && i == sh.sel, rowOn = focus == ROWS && r == e.row;
+                    RectF pr = chosen ? Frost.posterGrown(rc, Frost.POSTER_GROW) : rc;   // the chosen poster grows; no frame round it
+                    if (chosen) Frost.posterShadow(c, pr, 24 * k, k);
                     String pic = t.poster() != null ? t.poster() : t.backdropCard();
                     Bitmap b = pic != null ? ImageCache.get(pic, this::postInvalidate, null, Math.round(rc.width())) : null;
-                    if (b != null) drawCover(c, b, rc);
-                    else blank(c, rc);
-                    c.drawText(fit(t.title, coverName, rc.width()), rc.left, rc.bottom + 38 * k, coverName);
+                    if (b != null) drawCover(c, b, pr);
+                    else blank(c, pr);
+                    if (chosen) Frost.posterRing(c, pr, 24 * k, k);
+                    else if (rowOn) Frost.posterDim(c, rc, 24 * k);
+                    coverName.setAlpha(chosen || !rowOn ? 255 : 170);
+                    meta.setAlpha(chosen || !rowOn ? 255 : 150);
+                    float ty = chosen ? pr.bottom - rc.bottom : 0;   // the words move down with the grown poster
+                    c.drawText(fit(t.title, coverName, rc.width()), rc.left, rc.bottom + 38 * k + ty, coverName);
                     List<String> line = new ArrayList<>();
-                    line.add(t.isSeries() ? "Series" : "Film");
+                    line.add(t.isSeries() ? L10n.t("Series") : L10n.t("Film"));
                     if (t.year > 0) line.add(String.valueOf(t.year));
                     if (t.rating > 0) line.add("★ " + String.format(java.util.Locale.US, "%.1f", t.rating));
-                    c.drawText(fit(TextUtils.join("  ·  ", line), meta, rc.width()), rc.left, rc.bottom + 70 * k, meta);
+                    c.drawText(fit(TextUtils.join("  ·  ", line), meta, rc.width()), rc.left, rc.bottom + 70 * k + ty, meta);
+                    coverName.setAlpha(255);
+                    meta.setAlpha(255);
                 }
             }
             c.restore();
@@ -506,9 +564,9 @@ public class DiscoverActivity extends Activity {
 
         private String capWord(int i) {
             switch (i) {
-                case CAP_SEARCH: return query != null ? query : "Search";
+                case CAP_SEARCH: return query != null ? query : L10n.t("Search");
                 case CAP_TYPE: return TYPES[type] + "  ▾";
-                default: return (lang == 0 ? "All languages" : Tmdb.languages()[lang][0]) + "  ▾";
+                default: return (lang == 0 ? L10n.t("All languages") : Tmdb.languages()[lang][0]) + "  ▾";
             }
         }
 
@@ -530,7 +588,7 @@ public class DiscoverActivity extends Activity {
             for (int i = 0; i < CAPS; i++) {
                 RectF r = capRect(i);
                 if (i == CAP_SEARCH) {   // a black box to type in, ringed when chosen
-                    Frost.searchBar(c, r, k, focus == BAR && cap == i, query != null ? query : "Search films", query == null, capText);
+                    Frost.searchBar(c, r, k, focus == BAR && cap == i, query != null ? query : L10n.t("Search films"), query == null, capText);
                     continue;
                 }
                 if (focus == BAR && cap == i && menu != i) Frost.plate(c, r, 36 * k, k);
@@ -542,7 +600,7 @@ public class DiscoverActivity extends Activity {
             if (menu == CAP_TYPE) return TYPES;
             String[][] l = Tmdb.languages();
             String[] out = new String[l.length];
-            for (int i = 0; i < l.length; i++) out[i] = i == 0 ? "All languages" : l[i][0];
+            for (int i = 0; i < l.length; i++) out[i] = i == 0 ? L10n.t("All languages") : l[i][0];
             return out;
         }
 
@@ -729,7 +787,7 @@ public class DiscoverActivity extends Activity {
         }
 
         private void askSearch() {
-            TvKeyboard.open(act, "Film, series, song, singer or app", query, true, new TvKeyboard.Listener() {
+            TvKeyboard.open(act, L10n.t("Film, series, song, singer or app"), query, true, new TvKeyboard.Listener() {
                 @Override
                 public void onSearch(String text) {
                     if (!text.trim().isEmpty()) search(text.trim());

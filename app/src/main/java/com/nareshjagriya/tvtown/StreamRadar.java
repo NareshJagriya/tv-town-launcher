@@ -69,7 +69,11 @@ final class StreamRadar {
         ExecutorService pool = Executors.newFixedThreadPool(4);   // a small TV: a few at a time
         try {
             List<Future<Tmdb.Title>> jobs = new ArrayList<>();
-            for (JSONObject o : wanted) jobs.add(pool.submit(() -> title(ctx, o, mine, null)));
+            final boolean savedOnly = Net.savedOnly();
+            for (JSONObject o : wanted) jobs.add(pool.submit(() -> {
+                Net.savedOnly(savedOnly);
+                return title(ctx, o, mine, null);
+            }));
             List<Tmdb.Title> out = new ArrayList<>();
             for (Future<Tmdb.Title> f : jobs) {
                 try {

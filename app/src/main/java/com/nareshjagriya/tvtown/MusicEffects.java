@@ -20,8 +20,8 @@ final class MusicEffects {
 
     /** The first SIDE effects keep to the left and right, leaving the middle clear for the lyrics. */
     static final int SIDE = 5;
-    static final String[] NAMES = {"Rising bars", "Rising lines", "Side waves", "Side rings", "Rising dots", "Beat flower", "Colour waves",
-            "Spectrum", "Liquid light", "Star warp", "Fireworks"};
+    static final String[] NAMES = {L10n.t("Rising bars"), L10n.t("Rising lines"), L10n.t("Side waves"), L10n.t("Side rings"), L10n.t("Rising dots"), L10n.t("Beat flower"), L10n.t("Colour waves"),
+            L10n.t("Spectrum"), L10n.t("Liquid light"), L10n.t("Star warp"), L10n.t("Fireworks")};
 
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG), line = new Paint(Paint.ANTI_ALIAS_FLAG), add = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path path = new Path();

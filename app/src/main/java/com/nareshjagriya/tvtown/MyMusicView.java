@@ -68,11 +68,11 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
 
     // Tabs, then buttons, in the top bar.
     private static final int T_FOLDERS = 0, T_ARTISTS = 1, T_SONGS = 2, T_FAVS = 3, T_SEARCH = 4, B_DOWNLOADED = 5, B_SHUFFLE = 6, B_SURPRISE = 7, B_NOW = 8;
-    private static final String[] TAB_TEXT = {"Folders", "Artists", "All songs", "❤Favourites", "", "⬇  Downloaded", "", ""};
+    private static final String[] TAB_TEXT = {L10n.t("Folders"), L10n.t("Artists"), L10n.t("All songs"), "❤Favourites", "", L10n.t("⬇  Downloaded"), "", ""};
 
     // Music bar styles.
     static final int VIS_WAVE = 0, VIS_AURORA = 1, VIS_BARS = 2, VIS_HALO = 3, VIS_TRANCE = 4, VIS_OFF = 5;
-    private static final String[] VIS_NAMES = {"Glow line", "Glow line", "Glow line", "Glow line", "Glow line", "Effects off"};
+    private static final String[] VIS_NAMES = {L10n.t("Glow line"), L10n.t("Glow line"), L10n.t("Glow line"), L10n.t("Glow line"), L10n.t("Glow line"), L10n.t("Effects off")};
 
     // Layout, in design pixels.
     private static final float PAD = 80, GRID_TOP = 136, COL_GAP = 24, TEXT_H = 0, ROW_GAP = 24, ROW_H = 68;
@@ -297,10 +297,18 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             List<MyMusic.Song> songs = mounted ? MyMusic.read(ctx) : new ArrayList<>();
             android.util.Log.d("TVTownTime", "music scan " + songs.size() + " in " + (SystemClock.uptimeMillis() - t0) + " ms");
             SongMatch.flush(ctx);   // details moved from the TV to the drive while reading are written now
-            main.post(() -> show(gen, mounted, songs, true));
+            main.post(() -> {
+                show(gen, mounted, songs, true);
+                // Opens on your music, like My Movies opens on your films: Search is one press up, not the first stop
+                if (!keyed && inBar && barSel == T_SEARCH && pendingFind == null && hasContent()) {
+                    inBar = false;
+                    invalidate();
+                }
+            });
         });
     }
 
+    private boolean keyed;   // a key has been pressed here: the focus is yours from then on
     private String pendingKey, pendingFind;
 
     /** Plays this song, with the rest of its folder after it, once the drive has been read. */
@@ -603,7 +611,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             main.post(() -> {
                 if (lyricsSource != source || !key.equals(lyricsKey) || !Lyrics.SCRIPT_HINDI.equals(script)) return;
                 if (hindi != null) lyrics = hindi;
-                else say("Can't reach the converter: showing English letters");
+                else say(L10n.t("Can't reach the converter: showing English letters"));
                 invalidate();
             });
         });
@@ -758,6 +766,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        keyed = true;
         // A held (or repeating) arrow moves at a steady pace, not as fast as the remote repeats.
         if (event.getRepeatCount() > 0 && keyCode >= KeyEvent.KEYCODE_DPAD_UP && keyCode <= KeyEvent.KEYCODE_DPAD_RIGHT) {
             long t = SystemClock.uptimeMillis();
@@ -962,7 +971,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 return true;
             }
             MyMusic.Song s = l.get(rowSel);
-            if (col == 0) play(l, rowSel, false, group != null ? group.name : tab == T_FAVS ? "Favourites" : tab == B_DOWNLOADED ? "Downloaded" : "All songs");
+            if (col == 0) play(l, rowSel, false, group != null ? group.name : tab == T_FAVS ? L10n.t("Favourites") : tab == B_DOWNLOADED ? L10n.t("Downloaded") : L10n.t("All songs"));
             else if (col == 1) {
                 boolean on = !MyMusic.favourite(getContext(), s);
                 MyMusic.setFavourite(getContext(), s, on);
@@ -999,7 +1008,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 listMove(Math.max(first, rowSel - listRows()));
                 return true;
             case KeyEvent.KEYCODE_MEDIA_PLAY: case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
-                play(l, Math.max(0, rowSel), false, group != null ? group.name : "All songs");
+                play(l, Math.max(0, rowSel), false, group != null ? group.name : L10n.t("All songs"));
                 return true;
             default: return false;
         }
@@ -1038,10 +1047,10 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         List<String> out = new ArrayList<>();
         MyMusic.Song s = editing;
         out.add("✏Name:  " + s.title);
-        out.add("Artist:  " + (s.artist.isEmpty() ? "—" : s.artist));
-        out.add("Genre:  " + (s.genre.isEmpty() ? "—" : s.genre));
-        out.add("Find the right details and cover online");
-        if (MyMusic.edited(getContext(), s)) out.add("↺  Undo my changes");
+        out.add(L10n.t("Artist:  ") + (s.artist.isEmpty() ? "—" : s.artist));
+        out.add(L10n.t("Genre:  ") + (s.genre.isEmpty() ? "—" : s.genre));
+        out.add(L10n.t("Find the right details and cover online"));
+        if (MyMusic.edited(getContext(), s)) out.add(L10n.t("↺  Undo my changes"));
         return out;
     }
 
@@ -1050,14 +1059,14 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         if (ok) {
             MyMusic.Song s = editing;
             switch (editSel) {
-                case 0: ask("Song name", s.title, t -> { if (!t.isEmpty()) MyMusic.edit(getContext(), s, t, null, null, null); }); break;
-                case 1: ask("Artist", s.artist, t -> MyMusic.edit(getContext(), s, null, t, null, null)); break;
-                case 2: ask("Genre (for example Ghazal, Sufi, Retro)", s.genre, t -> MyMusic.edit(getContext(), s, null, null, t, null)); break;
+                case 0: ask(L10n.t("Song name"), s.title, t -> { if (!t.isEmpty()) MyMusic.edit(getContext(), s, t, null, null, null); }); break;
+                case 1: ask(L10n.t("Artist"), s.artist, t -> MyMusic.edit(getContext(), s, null, t, null, null)); break;
+                case 2: ask(L10n.t("Genre (for example Ghazal, Sufi, Retro)"), s.genre, t -> MyMusic.edit(getContext(), s, null, null, t, null)); break;
                 case 3: findOnline(s.title + " " + MyMusic.mainArtist(s.artist)); break;
                 default:
                     MyMusic.clearEdits(getContext(), s);
                     editing = null;
-                    say("↺  Back to the file's own details");
+                    say(L10n.t("↺  Back to the file's own details"));
                     rescan();
             }
             return true;
@@ -1117,7 +1126,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         if (ok) {
             if (editSel >= found.size()) {
                 MyMusic.Song s = editing;
-                if (listener != null) listener.onType("Search for the song", s.title, t -> {
+                if (listener != null) listener.onType(L10n.t("Search for the song"), s.title, t -> {
                     if (t != null && !t.trim().isEmpty()) findOnline(t.trim());
                 });
                 return true;
@@ -1199,24 +1208,24 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             case C_NEXT: player.next(); break;
             case C_SHUFFLE:
                 player.setShuffle(!player.shuffle());
-                say(player.shuffle() ? "Shuffle on" : "Shuffle off");
+                say(player.shuffle() ? L10n.t("Shuffle on") : L10n.t("Shuffle off"));
                 break;
             case C_REPEAT:
                 player.cycleRepeat();
-                say(player.repeat() == MusicPlayer.REPEAT_ONE ? "Repeat this song" : player.repeat() == MusicPlayer.REPEAT_ALL
-                        ? "Repeat all" : "Repeat off");
+                say(player.repeat() == MusicPlayer.REPEAT_ONE ? L10n.t("Repeat this song") : player.repeat() == MusicPlayer.REPEAT_ALL
+                        ? L10n.t("Repeat all") : L10n.t("Repeat off"));
                 break;
             case C_FAV:
                 if (s != null) {
                     boolean on = !MyMusic.favourite(getContext(), s);
                     MyMusic.setFavourite(getContext(), s, on);
-                    say(on ? "❤Added to Favourites" : "Taken out of Favourites");
+                    say(on ? L10n.t("❤Added to Favourites") : L10n.t("Taken out of Favourites"));
                 }
                 break;
             case C_LYRICS:
                 lyricsOn = !lyricsOn;
                 MyMusic.settings(getContext()).edit().putBoolean("lyrics", lyricsOn).apply();
-                say(lyricsOn ? "Lyrics on" : "Lyrics off");
+                say(lyricsOn ? L10n.t("Lyrics on") : L10n.t("Lyrics off"));
                 break;
             case C_VIS: break;
             case C_SLEEP: {
@@ -1230,7 +1239,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 }
                 next = SLEEPS[(idx + 1) % SLEEPS.length];
                 player.sleepIn(next);
-                say(next > 0 ? "Music stops in " + next + " min" : next < 0 ? "Stops after this song" : "Sleep timer off");
+                say(next > 0 ? L10n.t("Music stops in ") + next + L10n.t(" min") : next < 0 ? L10n.t("Stops after this song") : L10n.t("Sleep timer off"));
                 break;
             }
             case C_OFF:
@@ -1244,8 +1253,8 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
 
     // What's behind the player, and everything else you can set, in one side panel with four tabs.
     private static final int SHOW_VIDEOS = 0, SHOW_RECORD = 1, SHOW_EFFECTS = 2;
-    private static final String[] TABS = {"Effects", "Videos", "Cover", "Controls"};
-    private static final String[] CHANGE_NAMES = {"Stay on this one", "Every 30 seconds", "With each song"};
+    private static final String[] TABS = {L10n.t("Effects"), L10n.t("Videos"), L10n.t("Cover"), L10n.t("Controls")};
+    private static final String[] CHANGE_NAMES = {L10n.t("Stay on this one"), L10n.t("Every 30 seconds"), L10n.t("With each song")};
     private final MusicEffects effects = new MusicEffects();
     private int moreTab;
 
@@ -1291,23 +1300,23 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
 
     private String rowLabel(String id) {
         switch (id) {
-            case "fx": return "Effects";
-            case "effect": return "Effect";
-            case "change": return "Changes";
-            case "line": return "Music line";
-            case "videos": return "Music videos";
-            case "scene": return "Next video";
-            case "style": return "Show as";
-            case "spin": return "Spinning";
-            case "arm": return "Tone arm";
-            case "lyrics": return "Show lyrics";
-            case "timing": return "Lyrics timing";
-            case "script": return "Lyrics written in";
-            case "find": return lyrics.isEmpty() || lyricsApprox ? "Find lyrics" : "Find other lyrics";
-            case "sleep": return "Sleep timer";
-            case "off": return "Turn screen off";
-            case "fix": return "Fix song details";
-            default: return "Stop music";
+            case "fx": return L10n.t("Effects");
+            case "effect": return L10n.t("Effect");
+            case "change": return L10n.t("Changes");
+            case "line": return L10n.t("Music line");
+            case "videos": return L10n.t("Music videos");
+            case "scene": return L10n.t("Next video");
+            case "style": return L10n.t("Show as");
+            case "spin": return L10n.t("Spinning");
+            case "arm": return L10n.t("Tone arm");
+            case "lyrics": return L10n.t("Show lyrics");
+            case "timing": return L10n.t("Lyrics timing");
+            case "script": return L10n.t("Lyrics written in");
+            case "find": return lyrics.isEmpty() || lyricsApprox ? L10n.t("Find lyrics") : L10n.t("Find other lyrics");
+            case "sleep": return L10n.t("Sleep timer");
+            case "off": return L10n.t("Turn screen off");
+            case "fix": return L10n.t("Fix song details");
+            default: return L10n.t("Stop music");
         }
     }
 
@@ -1317,18 +1326,18 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         MyMusic.Song s = player.current();
         int z = player.sleepLeft();
         switch (id) {
-            case "fx": return pref("music_show") == SHOW_EFFECTS ? "On" : "Off";
-            case "videos": return pref("music_show") == SHOW_VIDEOS ? "On" : "Off";
-            case "line": return vis != VIS_OFF ? "On" : "Off";
-            case "spin": return pref("music_nospin") == 1 ? "Off" : "On";
-            case "arm": return pref("music_noarm") == 1 ? "Off" : "On";
-            case "lyrics": return lyricsOn ? "On" : "Off";
+            case "fx": return pref("music_show") == SHOW_EFFECTS ? L10n.t("On") : L10n.t("Off");
+            case "videos": return pref("music_show") == SHOW_VIDEOS ? L10n.t("On") : L10n.t("Off");
+            case "line": return vis != VIS_OFF ? L10n.t("On") : L10n.t("Off");
+            case "spin": return pref("music_nospin") == 1 ? L10n.t("Off") : L10n.t("On");
+            case "arm": return pref("music_noarm") == 1 ? L10n.t("Off") : L10n.t("On");
+            case "lyrics": return lyricsOn ? L10n.t("On") : L10n.t("Off");
             case "effect": return MusicEffects.NAMES[Math.floorMod(pref("music_fx"), MusicEffects.NAMES.length)];
             case "change": return CHANGE_NAMES[pref("music_fx_change")];
             case "style": return pref("music_style") == 1 ? "Album cover" : "Vinyl record";
             case "timing": return String.format(Locale.US, "%+.1f s", (s != null ? MyMusic.lyricsOffset(getContext(), s) : 0) / 1000f);
-            case "script": return Lyrics.SCRIPT_HINDI.equals(script) ? "Hindi" : "English";
-            case "sleep": return z == 0 ? "Off" : z < 0 ? "End of song" : z + " min";
+            case "script": return Lyrics.SCRIPT_HINDI.equals(script) ? L10n.t("Hindi") : L10n.t("English");
+            case "sleep": return z == 0 ? L10n.t("Off") : z < 0 ? L10n.t("End of song") : z + L10n.t(" min");
             default: return null;
         }
     }
@@ -1479,7 +1488,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
 
     // Which remote button does what in the player, chosen in Customize.
     static final String KEY_SCRIPT = "key_lyrics_script", KEY_FIND = "key_lyrics_find";
-    static final String[] MUSIC_KEYS = {"Off", "Text", "Subtitle", "Red", "Green", "Yellow", "Blue"};
+    static final String[] MUSIC_KEYS = {L10n.t("Off"), L10n.t("Text"), L10n.t("Subtitle"), L10n.t("Red"), L10n.t("Green"), L10n.t("Yellow"), L10n.t("Blue")};
 
     /** The button chosen for a job (an index of MUSIC_KEYS): Text changes the writing and Subtitle finds lyrics unless changed. */
     static int musicKeyFor(Context c, String job) {
@@ -1511,7 +1520,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
     private void askLyrics(MyMusic.Song s) {
         if (listener == null) return;
         String first = MyMusic.mainArtist(s.artist);
-        listener.onType("Find lyrics: song name and singer", (s.title + " " + first).trim(), words -> {
+        listener.onType(L10n.t("Find lyrics: song name and singer"), (s.title + " " + first).trim(), words -> {
             if (words == null || words.trim().isEmpty()) return;
             lyricChoices = new ArrayList<>();
             lyricLooking = true;
@@ -1523,7 +1532,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                     lyricLooking = false;
                     if (got == null) {
                         lyricChoices = null;
-                        say("The lyrics site is busy. Try again in a minute.");
+                        say(L10n.t("The lyrics site is busy. Try again in a minute."));
                     } else lyricChoices = got;
                     invalidate();
                 });
@@ -1542,7 +1551,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 lyricsApprox = lines instanceof Lyrics.Rough;
                 lyricsLoading = false;
                 MyMusic.setLyricsOffset(getContext(), s, 0);
-                say(c.timed ? "Lyrics saved with the song" : "Lyrics saved (rough timing)");
+                say(c.timed ? L10n.t("Lyrics saved with the song") : L10n.t("Lyrics saved (rough timing)"));
             } else if (s != null) askLyrics(s);   // the last line: other words
             lyricChoices = null;
             return true;
@@ -1564,15 +1573,15 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         fill.setColor(0xF20D0D0F);   // Home's dark glass
         c.drawRoundRect(p, 30 * k, 30 * k, fill);
         big.setAlpha(255);
-        c.drawText("Find lyrics", p.left + 44 * k, p.top + 70 * k, big);
+        c.drawText(L10n.t("Find lyrics"), p.left + 44 * k, p.top + 70 * k, big);
         MyMusic.Song s = player.current();
         rowMeta.setAlpha(180);
-        if (s != null) c.drawText("Your song is " + MyMovies.clock(s.durationMs) + " long: the closest length keeps best time.",
+        if (s != null) c.drawText(L10n.t("Your song is ") + MyMovies.clock(s.durationMs) + L10n.t(" long: the closest length keeps best time."),
                 p.left + 44 * k, p.top + 112 * k, rowMeta);
         float y = p.top + 140 * k;
         if (lyricLooking) {
             sub.setAlpha(230);
-            c.drawText("Looking…", p.left + 44 * k, y + 60 * k, sub);
+            c.drawText(L10n.t("Looking…"), p.left + 44 * k, y + 60 * k, sub);
             return;
         }
         int n = lyricChoices.size() + 1, visible = 6, first = Math.max(0, Math.min(n - visible, lyricSel - 2));
@@ -1585,7 +1594,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             }
             if (i == lyricChoices.size()) {
                 chipBold.setAlpha(255);
-                c.drawText(lyricChoices.isEmpty() ? "Nothing found.  ✏Try other words…" : "✏Try other words…", r.left + 24 * k, r.centerY() + 9 * k, chipBold);
+                c.drawText(lyricChoices.isEmpty() ? L10n.t("Nothing found.  ✏Try other words…") : L10n.t("✏Try other words…"), r.left + 24 * k, r.centerY() + 9 * k, chipBold);
                 continue;
             }
             Lyrics.Choice ch = lyricChoices.get(i);
@@ -1593,7 +1602,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             c.drawText(ellipsize(ch.title + "  ·  " + ch.artist, rowTitle, r.width() - 48 * k), r.left + 24 * k, r.top + 38 * k, rowTitle);
             rowMeta.setAlpha(200);
             String first4 = ch.text.replaceAll("\\[[^\\]]*\\]", " ").replaceAll("\\s+", " ").trim();
-            String meta = (ch.timed ? "timed" : "≈ plain") + "  ·  " + MyMovies.clock(ch.seconds * 1000) + "  ·  " + first4;
+            String meta = (ch.timed ? "timed" : L10n.t("≈ plain")) + "  ·  " + MyMovies.clock(ch.seconds * 1000) + "  ·  " + first4;
             c.drawText(ellipsize(meta, rowMeta, r.width() - 48 * k), r.left + 24 * k, r.top + 72 * k, rowMeta);
         }
     }
@@ -1772,13 +1781,13 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
     // focused one's name under it), then what is playing.
     private static final String[] ACTION_NAMES = {"Search", "Shuffle all", "Surprise me"};
 
-    private static final String[] SIDE_NAMES = {"Folders", "Artists", "All songs", "Favourites", "Search", "Downloaded", "Shuffle all", "Surprise me", "Now playing"};
+    private static final String[] SIDE_NAMES = {L10n.t("Folders"), L10n.t("Artists"), L10n.t("All songs"), L10n.t("Favourites"), L10n.t("Search"), L10n.t("Downloaded"), L10n.t("Shuffle all"), L10n.t("Surprise me"), L10n.t("Now playing")};
     private static final WheelArt.Glyph[] SIDE_GLYPHS = {WheelArt.Glyph.GRID, WheelArt.Glyph.TELESCOPE, WheelArt.Glyph.NOTE, WheelArt.Glyph.CHECK,
             WheelArt.Glyph.SEARCH, WheelArt.Glyph.DRIVE, WheelArt.Glyph.SHUFFLE, WheelArt.Glyph.PLAY, WheelArt.Glyph.NOTE};
 
     private String tabWord(int t) {
-        if (t == 0) return tab == T_SEARCH ? "Folders" : SIDE_NAMES[tab];
-        if (t == T_SEARCH) return query.isEmpty() ? "Search songs" : query;
+        if (t == 0) return tab == T_SEARCH ? L10n.t("Folders") : SIDE_NAMES[tab];
+        if (t == T_SEARCH) return query.isEmpty() ? L10n.t("Search songs") : query;
         String label = SIDE_NAMES[t];
         if (t == B_NOW) {
             MyMusic.Song cur = player.current();
@@ -1805,7 +1814,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
 
     private float capWidth(int t) {
         if (t == T_SEARCH) return 360 * k;   // a search bar, not a button
-        if (t == 0) return chip.measureText(SHOW) + chipBold.measureText(tabWord(0) + "  \u25BE") + 60 * k;
+        if (t == 0) return chip.measureText(SHOW) + chipBold.measureText(tabWord(0) + L10n.t("  \u25BE")) + 60 * k;
         return Math.min(260 * k, chipBold.measureText(tabWord(t))) + 56 * k;
     }
 
@@ -1840,7 +1849,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 chip.setColor(0xB4FFFFFF);
                 c.drawText(SHOW, r.left + 30 * k, r.centerY() + 9 * k, chip);
                 chip.setColor(was);
-                c.drawText(tabWord(0) + "  \u25BE", r.left + 30 * k + chip.measureText(SHOW), r.centerY() + 9 * k, chipBold);
+                c.drawText(tabWord(0) + L10n.t("  \u25BE"), r.left + 30 * k + chip.measureText(SHOW), r.centerY() + 9 * k, chipBold);
             } else c.drawText(ellipsize(tabWord(t), chipBold, r.width() - 40 * k), r.left + 28 * k, r.centerY() + 9 * k, chipBold);
         }
         if (inBar && editing == null && barSel == 0 && viewOpen) {   // Show's menu, open
@@ -2159,12 +2168,21 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             String nm = ellipsize(g.name, np, r.width() - 12 * k);
             c.drawText(nm, cx - np.measureText(nm) / 2, cov.bottom + 44 * k, np);
             cardMeta.setColor(Frost.MUTE);
-            String m = g.songs.size() + " songs";
+            String m = g.songs.size() + L10n.t(" songs");
             c.drawText(m, cx - cardMeta.measureText(m) / 2, cov.bottom + 78 * k, cardMeta);
             return;
         }
         int col = NEON[Math.abs(g.name.hashCode()) % NEON.length];
-        if (cardFocused) Frost.plate(c, r, 28 * k, k, deep(col));
+        if (cardFocused) {
+            Frost.plate(c, r, 28 * k, k, deep(col));
+            // the same crisp white frame every other selection in TV Town has, so the chosen folder is unmistakable
+            Paint ring = new Paint(Paint.ANTI_ALIAS_FLAG);
+            ring.setStyle(Paint.Style.STROKE);
+            ring.setStrokeWidth(Math.max(2f, 3 * k));
+            ring.setColor(0xF2FFFFFF);
+            float in = ring.getStrokeWidth() / 2;
+            c.drawRoundRect(r.left + in, r.top + in, r.right - in, r.bottom - in, 28 * k - in, 28 * k - in, ring);
+        }
         else {
             fill.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, (col & 0x00FFFFFF) | 0x52000000, (col & 0x00FFFFFF) | 0x14000000, Shader.TileMode.CLAMP));
             c.drawRoundRect(r, 28 * k, 28 * k, fill);
@@ -2186,7 +2204,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         cardMeta.setColor(cardFocused ? Color.WHITE : 0xD9FFFFFF);
         cardMeta.setTextSize(24 * k);
         cardMeta.clearShadowLayer();
-        c.drawText(g.songs.size() + " songs", tx, cy + 26 * k, cardMeta);
+        c.drawText(g.songs.size() + L10n.t(" songs"), tx, cy + 26 * k, cardMeta);
         c.drawText(ellipsize(MyMusic.length(g.durationMs()), cardMeta, tw), tx, cy + 58 * k, cardMeta);
         if (MyMusic.favouriteFolder(getContext(), g.name)) {
             Bitmap h = kit.glyph(WheelArt.Glyph.HEART, 26);
@@ -2253,7 +2271,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         float tx = r.left + 24 * k, tw = r.width() - 48 * k;
         String name = g.name.isEmpty() ? "" : g.name.substring(0, 1).toUpperCase(Locale.ROOT) + g.name.substring(1);
         c.drawText(ellipsize(name, np, tw), tx, r.bottom - 52 * k, np);
-        String meta = g.songs.size() + " songs  ·  " + MyMusic.length(g.durationMs());
+        String meta = g.songs.size() + L10n.t(" songs  ·  ") + MyMusic.length(g.durationMs());
         if (tab == T_FOLDERS && MyMusic.favouriteFolder(getContext(), g.name)) meta = "❤" + meta;
         cardMeta.setAlpha(225);
         c.drawText(ellipsize(meta, cardMeta, tw), tx, r.bottom - 20 * k, cardMeta);
@@ -2290,9 +2308,9 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             vinyl(c, L + 46 * k, top + 48 * k, 46 * k, Lite.on ? 0 : (now % 6000) / 6000f * 360, labelOf(group), NEON[Math.abs(group.name.hashCode()) % NEON.length]);
             c.drawText(ellipsize(group.name, tp, maxName), L + 116 * k, top + 44 * k, tp);
             mutedRow().setColor(0xD9FFFFFF);
-            c.drawText(group.songs.size() + " songs  ·  " + MyMusic.length(group.durationMs()), L + 116 * k, top + 82 * k, mutedRow());
-            String[] b = tab == T_FOLDERS ? new String[]{"Play all", "Shuffle",
-                    MyMusic.favouriteFolder(getContext(), group.name) ? "♥ Favourite" : "Favourite"} : new String[]{"Play all", "Shuffle"};
+            c.drawText(group.songs.size() + L10n.t(" songs  ·  ") + MyMusic.length(group.durationMs()), L + 116 * k, top + 82 * k, mutedRow());
+            String[] b = tab == T_FOLDERS ? new String[]{L10n.t("Play all"), L10n.t("Shuffle"),
+                    MyMusic.favouriteFolder(getContext(), group.name) ? L10n.t("♥ Favourite") : L10n.t("Favourite")} : new String[]{L10n.t("Play all"), L10n.t("Shuffle")};
             float bx = R;
             for (int i = b.length - 1; i >= 0; i--) {
                 float w = chipBold.measureText(b[i]) + 56 * k;
@@ -2306,9 +2324,9 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             top += 112 * k;
         }
         if (l.isEmpty()) {
-            String msg = tab == B_DOWNLOADED ? "Nothing downloaded yet. Pause a video on YouTube, then press the download button." : tab == T_FAVS ? "No favourites yet. Press → on a song and OK on the heart."
-                    : tab == T_SEARCH ? (query.isEmpty() ? "Press OK on Search and type a song, film, singer or folder." : "Nothing matches “" + query + "”.")
-                    : "No songs here.";
+            String msg = tab == B_DOWNLOADED ? L10n.t("Nothing downloaded yet. Pause a video on YouTube, then press the download button.") : tab == T_FAVS ? L10n.t("No favourites yet. Press → on a song and OK on the heart.")
+                    : tab == T_SEARCH ? (query.isEmpty() ? L10n.t("Press OK on Search and type a song, film, singer or folder.") : L10n.t("Nothing matches “") + query + "”.")
+                    : L10n.t("No songs here.");
             sub.setAlpha(230);
             c.drawText(msg, getWidth() / 2f - sub.measureText(msg) / 2, top + 120 * k, sub);
             return;
@@ -2351,8 +2369,8 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             String len = MyMovies.clock(x.durationMs);
             float lenLeft = lenX - muted.measureText(len), albumEnd = lenLeft - 24 * k;
             if (hasLyrics(x)) {   // a green tick: lyrics are ready for this song
-                float wx = lenLeft - 28 * k - muted.measureText("Lyrics");
-                c.drawText("Lyrics", wx, base, muted);
+                float wx = lenLeft - 28 * k - muted.measureText(L10n.t("Lyrics"));
+                c.drawText(L10n.t("Lyrics"), wx, base, muted);
                 Frost.tick(c, wx - 22 * k, r.centerY(), 13 * k, k);
                 albumEnd = wx - 48 * k;
             }
@@ -2406,11 +2424,11 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         if (hasLyrics(s)) {
             Frost.tick(c, p.left + pad + 13 * k, y - 8 * k, 13 * k, k);
             rowMeta.setColor(Frost.MUTE);
-            c.drawText("Lyrics available", p.left + pad + 36 * k, y, rowMeta);
+            c.drawText(L10n.t("Lyrics available"), p.left + pad + 36 * k, y, rowMeta);
             rowMeta.setColor(0xFFD8D8D6);
             y += 44 * k;
         }
-        String[][] facts = {{"Film / album", s.album}, {"Genre", s.genre}, {"Length", MyMovies.clock(s.durationMs)}, {"Folder", s.folder}};
+        String[][] facts = {{L10n.t("Film / album"), s.album}, {L10n.t("Genre"), s.genre}, {L10n.t("Length"), MyMovies.clock(s.durationMs)}, {L10n.t("Folder"), s.folder}};
         for (String[] f : facts) {
             if (f[1] == null || f[1].isEmpty() || y > p.bottom - 40 * k) continue;
             fill.setColor(0x14FFFFFF);
@@ -2467,13 +2485,13 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         c.drawText(ellipsize(editing.title, big, p.right - cov.right - 80 * k), cov.right + 30 * k, cov.top + 50 * k, big);
         rowMeta.setAlpha(170);
         c.drawText(ellipsize("" + editing.name, rowMeta, p.right - cov.right - 80 * k), cov.right + 30 * k, cov.top + 92 * k, rowMeta);
-        c.drawText(finding ? "Choose the right one: name, artist, genre and cover are all taken from it."
-                : "Your changes are kept on the TV; the file stays as it is.", cov.right + 30 * k, cov.top + 126 * k, rowMeta);
+        c.drawText(finding ? L10n.t("Choose the right one: name, artist, genre and cover are all taken from it.")
+                : L10n.t("Your changes are kept on the TV; the file stays as it is."), cov.right + 30 * k, cov.top + 126 * k, rowMeta);
         float y = cov.bottom + 30 * k;
         if (finding) {
             if (findLoading) {
                 sub.setAlpha(230);
-                c.drawText("Looking…", p.left + 44 * k, y + 50 * k, sub);
+                c.drawText(L10n.t("Looking…"), p.left + 44 * k, y + 50 * k, sub);
                 return;
             }
             int n = found.size() + 1, visible = 5, firstRow = Math.max(0, Math.min(n - visible, editSel - 2));
@@ -2486,7 +2504,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 }
                 if (i == found.size()) {
                     chipBold.setAlpha(255);
-                    c.drawText(found.isEmpty() ? "Nothing found. Search with other words…" : "Search with other words…",
+                    c.drawText(found.isEmpty() ? L10n.t("Nothing found. Search with other words…") : L10n.t("Search with other words…"),
                             r.left + 24 * k, r.centerY() + 9 * k, chipBold);
                     continue;
                 }
@@ -2551,7 +2569,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             c.drawColor(Color.BLACK);
             long slot = now / 30_000;
             Random r = new Random(slot);
-            String t = "♪  " + s.title + "   ·   press any button";
+            String t = "♪  " + s.title + L10n.t("   ·   press any button");
             sub.setAlpha(55);
             c.drawText(t, PAD * k + r.nextFloat() * (getWidth() - 2 * PAD * k - sub.measureText(t)), 120 * k + r.nextFloat() * (getHeight() - 240 * k), sub);
             return;
@@ -2605,7 +2623,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 while (size > 40 * k && h.measureText(s.title) > 1020 * k) h.setTextSize(size -= 4 * k);
                 c.drawText(ellipsize(s.title, h, 1020 * k), 820 * k, 450 * k, h);
                 sub.setAlpha(210);
-                c.drawText(lyricsLoading ? "Finding the lyrics…" : "No lyrics yet", 820 * k, 504 * k, sub);
+                c.drawText(lyricsLoading ? L10n.t("Finding the lyrics…") : L10n.t("No lyrics yet"), 820 * k, 504 * k, sub);
             }
             return;
         }
@@ -2710,7 +2728,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
     // menu on the right. Arrows move along the buttons in the order they are drawn (CTRL_ORDER).
 
     private static final int[] CTRL_ORDER = {C_SHUFFLE, C_PREV, C_PLAY, C_NEXT, C_REPEAT, C_FAV, C_MORE};
-    private static final String[] CTRL_NAMES = {"Shuffle", "Previous", "Play or pause", "Next", "Repeat", "Favourite", "Options"};
+    private static final String[] CTRL_NAMES = {L10n.t("Shuffle"), L10n.t("Previous"), L10n.t("Play or pause"), L10n.t("Next"), L10n.t("Repeat"), L10n.t("Favourite"), L10n.t("Options")};
     private Paint gTitle, gLine, gSmall, gMenu, gMenuOn, gTime;
     private final Paint gFill = new Paint(Paint.ANTI_ALIAS_FLAG), gEdge = new Paint(Paint.ANTI_ALIAS_FLAG), gIcon = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path gPath = new Path();
@@ -2797,7 +2815,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         if (!moreOpen) c.drawText(clock, 1840 * k - gTime.measureText(clock), 84 * k, gTime);
         int z = player.sleepLeft();
         if (z != 0 && !moreOpen) {
-            String zz = z < 0 ? "Sleep after this song" : "Sleep in " + z + " min";
+            String zz = z < 0 ? L10n.t("Sleep after this song") : L10n.t("Sleep in ") + z + L10n.t(" min");
             c.drawText(zz, 1840 * k - gSmall.measureText(zz), 122 * k, gSmall);
         }
         // The dock: glass, the same in every mode.
@@ -2828,7 +2846,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         c.drawText(time, right - gSmall.measureText(time), mid + 30 * k, gSmall);
         List<MyMusic.Song> next = player.upNext(1);
         if (!next.isEmpty()) {
-            String nx = ellipsize("Next: " + next.get(0).title, gSmall, 420 * k);
+            String nx = ellipsize(L10n.t("Next: ") + next.get(0).title, gSmall, 420 * k);
             c.drawText(nx, right - gSmall.measureText(nx), mid - 4 * k, gSmall);
         }
         // Middle: the buttons.
@@ -2958,8 +2976,8 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             c.drawText(rowLabel(rows[i]), r.left + 24 * k, r.centerY() + 9 * k, lp);
             String val = rowValue(rows[i]);
             float right = r.right - 24 * k;
-            if ("On".equals(val) || "Off".equals(val)) {   // a switch
-                boolean yes = "On".equals(val);
+            if (L10n.isOn(val) || L10n.isOff(val)) {   // a switch
+                boolean yes = L10n.isOn(val);
                 RectF sw = new RectF(right - 68 * k, r.centerY() - 19 * k, right, r.centerY() + 19 * k);
                 gFill.setColor(yes ? 0xFF2BC56F : 0x4DFFFFFF);
                 c.drawRoundRect(sw, 19 * k, 19 * k, gFill);

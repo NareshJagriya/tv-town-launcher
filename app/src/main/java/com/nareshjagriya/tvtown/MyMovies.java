@@ -48,7 +48,7 @@ final class MyMovies {
     /** One video file on the drive. */
     static final class Video {
         long id, size, added, durationMs;
-        String volume, name, folder, rel;   // rel: the folder's path on the drive ("Movies/The Pianist (2002)/")
+        String volume, name, folder, rel;   // rel: the folder's path on the drive (L10n.t("Movies/The Pianist (2002)/"))
         Uri uri;
 
         /** Stays the same while the file does (name and size), across drives and re-plugs. */
@@ -141,14 +141,14 @@ final class MyMovies {
             + "|\\bSeason\\s*(\\d{1,2})\\s*Episode\\s*(\\d{1,3})\\b");
     private static final Pattern YEAR = Pattern.compile("[\\[(]?\\b((?:19[2-9]|20[0-4])\\d)\\b[\\])]?");
     private static final Pattern JUNK = Pattern.compile("(?i)\\b(480p|576p|720p|1080p|2160p|4k|uhd|hdr|hdr10|x26[45]|h ?26[45]"
-            + "|hevc|avc|blu ?ray|brrip|bdrip|web ?dl|webrip|web|hdrip|dvdrip|dvdscr|hdtv|hdcam|camrip|cam|aac\\S*|ac3|dd5\\S*"
+            + L10n.t("|hevc|avc|blu ?ray|brrip|bdrip|web ?dl|webrip|web|hdrip|dvdrip|dvdscr|hdtv|hdcam|camrip|cam|aac\\S*|ac3|dd5\\S*")
             + "|ddp\\S*|dts|10bit|8bit|hindi|english|tamil|telugu|dual|multi|esub|esubs|subs|proper|repack|extended|unrated"
             + "|remastered|yify|yts\\S*|rarbg|internal|line)\\b");
 
     /** Cleans a file name (and its folder, when the name alone says too little) into a title and year, or an episode. */
     static Parsed parse(String fileName, String folder, String parent) {
         Parsed p = parseName(EXT.matcher(fileName).replaceFirst(""));
-        if (p.series && p.title.length() < 2) {   // "S01E02.mkv" inside "Show/Season 1"
+        if (p.series && p.title.length() < 2) {   // L10n.t("S01E02.mkv") inside L10n.t("Show/Season 1")
             Parsed f = parseName(folder.matches("(?i)season\\s*\\d+|s\\d+") ? parent : folder);
             p.title = f.title;
         }
@@ -156,7 +156,7 @@ final class MyMovies {
             Parsed f = parseName(folder);
             if (f.title.length() >= 2) return f;
         }
-        if (!p.series && p.year == 0 && !folder.isEmpty()) {   // "The Pianist (2002)/movie.mp4"
+        if (!p.series && p.year == 0 && !folder.isEmpty()) {   // L10n.t("The Pianist (2002)/movie.mp4")
             Parsed f = parseName(folder);
             if (f.year > 0 && Songs.squash(f.title).equals(Songs.squash(p.title))) p.year = f.year;
         }

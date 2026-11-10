@@ -2,7 +2,7 @@
 
 **A glass home screen for Android TV and Google TV: what to watch, from every app you have, without the ads.**
 
-Version 1.1 · Android TV and Google TV 9 and later · runs well on a 1 GB TV · free and open source
+Version 1.2 · Android TV and Google TV 9 and later · runs well on a 1 GB TV · free and open source
 
 **Install it in a minute:** on your TV, get **Downloader** from the Play Store and enter the code **9356599**. [Step-by-step guide →](INSTALL.md) Updates come from inside TV Town.
 
@@ -15,13 +15,16 @@ Version 1.1 · Android TV and Google TV 9 and later · runs well on a 1 GB TV ·
 ## What makes it special
 
 - 🖼️ **A home like a cinema:** what's new on your apps fills the whole screen, with no ads.
-- ⏯️ **Continue Watching:** pick up where you left off on your streaming apps and your own drive, with a progress bar on every cover.
+- ⏯️ **Continue Watching:** pick up where you left off on your streaming apps and your own drive, as tall covers with how far you've got.
+- 🍳 **Extras that ask first:** tick what you like for Recipes, Podcasts & Talks, Spirituality and Documentaries, or add your own, and get videos to match.
+- 🌐 **English and Español:** menus, film titles and stories in Spanish.
+- 🔗 **Stremio and Nuvio:** open any pick straight on its page in Stremio or Nuvio.
 - 🚀 **Speed Up Your TV:** close apps left running, switch off what a TV doesn't need, and turn on Lite mode, all with one button.
 - ⌨️ **Its own keyboard, made for the remote:** films, series, songs, apps and YouTube in one search, narrowed to your drive, streaming, music or apps, or typed on your phone.
 - 🎵 **Its own music player:** your songs as a record collection, karaoke lyrics, and eleven effects that move with the music.
 - 🎛️ **Control Center:** home screen, sound, inputs, Speed up, speed test, sleep timer, power-on and sports, one press away.
 - 🎬 **My Movies:** your drive becomes a cinema, with big covers, ratings and filters.
-- 🎲 **Surprise Me:** pick a mood, and get picks on the apps you actually have.
+- 🎲 **Surprise Me:** pick a mood, full screen, and get picks on the apps you actually have.
 - ✨ **Clean and calm:** shiny black pages and pop-ups, a clear glass highlight that lands at once, and a dock whose highlight glides in each app's own colour.
 - 📥 **YouTube downloads:** save what's playing, a song name or a link, as MP3 or MP4, right on your drive.
 - 🔄 **Share:** move songs and films between your phone and the TV's drive, both ways, with no cables or cloud.

@@ -110,18 +110,40 @@ final class Net {
      */
     static String cached(Context ctx, String url, @Nullable Map<String, String> headers, long maxAgeMs, long staleMs,
                          int timeoutMs) throws IOException {
-        File f = cacheFile(ctx, url);
+        return cached(ctx, url, url, headers, maxAgeMs, staleMs, timeoutMs);
+    }
+
+    /** Set on a thread that wants only what is already saved (Home's first picture after a start): no network at all. */
+    private static final ThreadLocal<Boolean> SAVED_ONLY = new ThreadLocal<>();
+
+    static boolean savedOnly() {
+        return Boolean.TRUE.equals(SAVED_ONLY.get());
+    }
+
+    static void savedOnly(boolean on) {
+        SAVED_ONLY.set(on);
+    }
+
+    /**
+     * The same, saved under `key` instead of the address: for addresses that change every day (they carry today's
+     * date) but ask the same question, so yesterday's answer can still be shown while today's loads.
+     */
+    static String cached(Context ctx, String key, String url, @Nullable Map<String, String> headers, long maxAgeMs,
+                         long staleMs, int timeoutMs) throws IOException {
+        File f = cacheFile(ctx, key);
         long age = f.exists() ? System.currentTimeMillis() - f.lastModified() : Long.MAX_VALUE;
-        if (age < maxAgeMs) {
+        if (age < maxAgeMs || savedOnly() && age < staleMs) {
             String hit = read(f);
             if (hit != null) return hit;
         }
+        if (savedOnly()) throw new Failure("Not saved", 0);
+        boolean spare = age < staleMs;   // an older copy is at hand: one quick try, not three slow ones
         try {
-            byte[] b = get(url, headers, timeoutMs, 2);
+            byte[] b = get(url, headers, spare ? Math.min(timeoutMs, 4000) : timeoutMs, spare ? 0 : 2);
             write(f, b);
             return text(b);
         } catch (IOException e) {
-            if (age < staleMs) {
+            if (spare) {
                 String stale = read(f);
                 if (stale != null) return stale;
             }

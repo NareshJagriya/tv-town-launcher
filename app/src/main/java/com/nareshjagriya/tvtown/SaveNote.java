@@ -201,20 +201,20 @@ final class SaveNote extends View {
             c.drawText(fit(title, big, w - 2 * pad), pad, 62 * k, big);
             c.drawText(fit(by, small, w - 2 * pad), pad, 100 * k, small);
             float top = 132 * k, ch = 68 * k, cw = 150 * k;
-            chip(c, new RectF(pad, top, pad + cw, top + ch), "Audio", !video);
-            chip(c, new RectF(pad + cw + 14 * k, top, pad + 2 * cw + 14 * k, top + ch), "Video", video);
+            chip(c, new RectF(pad, top, pad + cw, top + ch), L10n.t("Audio"), !video);
+            chip(c, new RectF(pad + cw + 14 * k, top, pad + 2 * cw + 14 * k, top + ch), L10n.t("Video"), video);
             Paint hint = new Paint(small);
             hint.setTextAlign(Paint.Align.RIGHT);
-            c.drawText("Back to cancel", w - pad, top + ch / 2 - (hint.ascent() + hint.descent()) / 2, hint);
+            c.drawText(L10n.t("Back to cancel"), w - pad, top + ch / 2 - (hint.ascent() + hint.descent()) / 2, hint);
         } else if (code != null) {
             float q = 300 * k, x = (w - q) / 2, y = 42 * k;
             c.drawBitmap(code, null, new RectF(x, y, x + q, y + q), null);
             Paint a = new Paint(big);
             a.setTextAlign(Paint.Align.CENTER);
-            c.drawText("Your phone as a remote", w / 2f, y + q + 58 * k, a);
+            c.drawText(L10n.t("Your phone as a remote"), w / 2f, y + q + 58 * k, a);
             Paint b = new Paint(small);
             b.setTextAlign(Paint.Align.CENTER);
-            c.drawText("Scan once, add to home screen", w / 2f, y + q + 98 * k, b);
+            c.drawText(L10n.t("Scan once, add to home screen"), w / 2f, y + q + 98 * k, b);
         }
     }
 }

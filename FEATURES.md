@@ -26,16 +26,16 @@ The newest titles on your apps, with their logos, a summary, Watch now and More 
 
 ![Full-picture Home](media/screenshots/01-home/home.jpg)
 
-### Continue watching
+### Continue watching and My Watchlist
 
-Press Down for up to 15 films and series you're in the middle of, with the time left on each: from your own drive, and from Netflix, Prime Video, JioHotstar and other apps. Each cover shows how far you've got, and on the dock an app with something half-watched shows its latest above it. When there are more than fit, **See all** opens one low row of cards that slides sideways. YouTube, music and short clips are left out, and anything you finish drops off.
+Press Down and the dock gives way to a shelf of tall covers over the picture: up to 15 films and series you're in the middle of, from your own drive and from Netflix, Prime Video, JioHotstar and other apps, each with a line showing how far you've got. The title, its story and the time left sit above, and the picture behind becomes the title you're on. Down again shows My Watchlist. OK resumes or opens the title's page (where ✓ My List takes it off your list); **hold OK** on a Continue title to mark it watched or remove it. YouTube, music and short clips are left out, and anything you finish drops off.
 
 ![Continue watching](media/screenshots/01-home/continue-watching.jpg)
 
 
 ### Glass and smooth movement
 
-Pop-ups and pages are shiny black, and whatever you are on is a pane of clear glass that lands at once, with no trail. Lists lift the chosen row a little. Main buttons (Play, Speed it all up, Surprise me) are a deep violet jewel, and every tick and switch is green. On the dock the highlight glides from app to app in each app's own colour: red on Netflix, blue on Prime Video.
+Pop-ups and pages are shiny black, and whatever you are on is a pane of clear glass that lands at once, with no trail. A chosen cover grows a little with a crisp white edge, and the others dim. Lists lift the chosen row a little. Main buttons (Play, Speed it all up, Surprise me) are a deep violet jewel, and every tick and switch is green. On the dock the highlight glides from app to app in each app's own colour: red on Netflix, blue on Prime Video.
 
 ![Glass and smooth movement](media/screenshots/01-home/glass.jpg)
 
@@ -56,7 +56,7 @@ For when you can't decide what to watch or hear.
 
 ### Movie moods
 
-A colourful tile for each mood, in the languages you choose.
+Full screen like Home: a big picture for each mood, the chosen mood's picture softly behind everything, Movie, Series, Music and Extras in one glass bar, and your languages as chips along the foot.
 
 ![Movie moods](media/screenshots/03-surprise-me/moods-movies.jpg)
 
@@ -74,13 +74,19 @@ Happy, romantic, party, chill, old favourites and new releases.
 
 ### Extras
 
-Trailers, stand-up, classic TV shows, cartoons, highlights and free full movies.
+Twelve: Trailers, Short Films, Stand-up Comedy, Recipes, Podcasts & Talks, Documentaries, Spirituality, Classic TV Shows, Cartoons, Free Full Movies, Live News and Ambient & Relax.
+
+### Tick what you like
+
+Recipes, Podcasts & Talks, Spirituality and Documentaries ask first. Recipes has diet (Veg, Egg, Non-veg, Vegan, Jain…), cuisine, meal and quick under 20 minutes; the others a topic each (Business, Health, Cricket… or Meditation, Bhagavad Gita, Gurbani…). India and the rest of the world get their own choices, **+ Add your own** takes anything ("Kerala fish curry", "Huberman Lab"), and your ticks are remembered.
+
+![Tick what you like](media/screenshots/03-surprise-me/recipes.jpg)
 
 ![Extras](media/screenshots/03-surprise-me/moods-extras.jpg)
 
 ### Your picks
 
-One big pick and a row of more, only on the apps you have. Play it, see more, watch the trailer or get new picks.
+Full screen, as tall covers with the name, app, year and rating, only on the apps you have. Just play, Shuffle for new picks, or open one for its page.
 
 ![Your picks](media/screenshots/03-surprise-me/results.jpg)
 
@@ -164,7 +170,7 @@ Eleven effects that move with the music. They can change by themselves as the so
 
 Find something worth watching.
 
-One list down the left: New, Trending, Top rated and Hidden gems, then the genres, Anime and K-Drama among them, and mixes like Action comedy. On the right, a row for each of your apps: four covers in view, each with its name, year and rating, sliding sideways for more. Right always goes to the covers and Left back to the list. Movies, series or both, and a language, drop down from the top.
+One glass rail down the left: New, Trending, Top rated and Hidden gems, then the genres, Anime and K-Drama among them, and mixes like Action comedy. New opens with **Because you watched…**: titles like the last one you marked Watched. Then a row for each of your apps: four covers in view, each with its name, year and rating, sliding sideways for more. Right always goes to the covers and Left back to the list. Movies, series or both, and a language, drop down from the top.
 
 ![Discover](media/screenshots/07-discover/discover.jpg)
 
@@ -262,11 +268,11 @@ Top picture (full screen or in a card), apps on Home, weather and live scores.
 
 ### Features
 
-Switch off the parts that keep running while you're in other apps: the phone remote, Continue watching from apps, and saving from YouTube with OK twice. Everything else only loads when you open it.
+Hide what you don't use: Surprise Me, My Movies and My Music leave the dock and Search, and live scores the top bar. Below them, the parts that keep running while you're in other apps: the phone remote, Continue watching from apps, and saving from YouTube with OK twice.
 
 ### Films and music
 
-Content style, streaming country, languages and where picks come from.
+TV Town's language (English or Español, with film titles and stories following where TMDB has them), content style, streaming country, languages and where picks come from. **Play films in** opens Watch now, Surprise Me and Discover picks straight on the title's page in [Stremio](https://www.stremio.com) or [Nuvio](https://github.com/NuvioMedia/NuvioTV) when you have one; titles not on your streaming apps open there too.
 
 ### Phone and downloads
 
@@ -274,7 +280,7 @@ Connect your phone, choose where songs and videos are saved, and see how much st
 
 ### Updates and backup
 
-Updates, backup and restore, and your free keys.
+Updates, backup and restore, and your free keys. When a new version is out, a dot appears on Customize and on Updates; OK shows what's new in it, then Install or Later.
 
 
 ## Screensaver

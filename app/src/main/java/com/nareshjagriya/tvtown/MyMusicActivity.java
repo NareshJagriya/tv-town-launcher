@@ -35,6 +35,11 @@ import java.util.function.Consumer;
  */
 public class MyMusicActivity extends Activity implements MyMusicView.Listener {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Lang.wrap(base));   // the language chosen in Customize
+    }
+
     static final String EXTRA_PLAYER = "player", EXTRA_SONG = "song_key", EXTRA_FIND = "find";
 
     /** The keyboard elsewhere chose a song (it plays) or a singer, album or folder (its songs are listed). */
@@ -280,7 +285,7 @@ public class MyMusicActivity extends Activity implements MyMusicView.Listener {
     @Override
     public void onSearch(String initial, Consumer<String> typed, java.util.function.Function<String, java.util.List<String>> suggest,
                          Runnable closed) {
-        TvKeyboard.open(this, "Song, singer, film, folder or app", initial, true, new TvKeyboard.Listener() {
+        TvKeyboard.open(this, L10n.t("Song, singer, film, folder or app"), initial, true, new TvKeyboard.Listener() {
             @Override
             public void onSearch(String text) {
                 typed.accept(text);

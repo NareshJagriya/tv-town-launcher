@@ -59,25 +59,25 @@ final class Cleanup {
             safe("com.android.federatedcompute.services", "Ad learning", "Learns from your use for the ad services."),
             safe("com.google.android.play.games", "Play Games", "Google's games hub."),
             safe("com.android.settings.intelligence", "Settings suggestions", "Suggestions in the TV's settings search."),
-            safe("org.droidtv.usagelogger", "Usage logger", "Philips: logs how the TV and its remote are used."),
+            safe("org.droidtv.usagelogger", L10n.t("Usage logger"), L10n.t("Philips: logs how the TV and its remote are used.")),
             safe("android.autoinstalls.config.*", "App auto-installer", "Puts the maker's promoted apps back after updates.")));
 
     /** Real features: switched off only if you don't use them. */
     static final List<App> MAYBE = Collections.unmodifiableList(Arrays.asList(
             maybe("com.google.android.katniss", "Google Assistant", "Voice search from the remote's mic.",
-                    "The remote's mic button stops working, in TV Town too."),
+                    L10n.t("The remote's mic button stops working, in TV Town too.")),
             maybe("com.google.android.apps.mediashell", "Chromecast built-in", "Casting from your phone to the TV.",
-                    "You can't cast to the TV."),
+                    L10n.t("You can't cast to the TV.")),
             maybe("com.google.android.videos", "Google TV app", "Google's film shop and watchlist.",
-                    "Films bought on Google Play won't play here."),
+                    L10n.t("Films bought on Google Play won't play here.")),
             maybe("com.google.android.youtube.tvmusic", "YouTube Music", "YouTube's music app.",
-                    "YouTube Music won't open."),
+                    L10n.t("YouTube Music won't open.")),
             maybe("com.google.android.backdrop", "Ambient mode", "Google's photo screensaver.",
-                    "Choose another screensaver first."),
+                    L10n.t("Choose another screensaver first.")),
             maybe("com.google.android.apps.tv.dreamx", "Ambient mode", "Google TV's photo screensaver, with promotions.",
-                    "Choose another screensaver first."),
+                    L10n.t("Choose another screensaver first.")),
             maybe("com.google.android.marvin.talkback", "TalkBack", "Reads the screen aloud.",
-                    "The screen reader is gone.")));
+                    L10n.t("The screen reader is gone."))));
 
     private static App safe(String pkg, String name, String what) {
         return new App(pkg, name, what, "", true);

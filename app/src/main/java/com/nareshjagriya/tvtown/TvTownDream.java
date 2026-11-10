@@ -283,18 +283,18 @@ public class TvTownDream extends DreamService {
         private int artAt = -1;
         private long artSince;
         private static final long ART_MS = 30_000;
-        String kind = "";    // the kind of video showing ("Swiss Alps")
+        String kind = "";    // the kind of video showing (L10n.t("Swiss Alps"))
         private Paint smallTime, smallKind;
         private final GlassBackdrop bg;
         private GlassKit kit;
         private Paint time, date;
         private final RectF panel = new RectF();
         private final SimpleDateFormat timeFmt = new SimpleDateFormat("h:mm", Locale.getDefault());
-        private SimpleDateFormat dateFmt = new SimpleDateFormat(Style.datePattern(), Locale.ENGLISH);
+        private SimpleDateFormat dateFmt = new SimpleDateFormat(Lang.datePattern(), Lang.dates());
 
         /** The date format, following the streaming country (it can change in Customize). */
         private SimpleDateFormat dateFormat() {
-            if (!dateFmt.toPattern().equals(Style.datePattern())) dateFmt = new SimpleDateFormat(Style.datePattern(), Locale.ENGLISH);
+            if (!dateFmt.toPattern().equals(Lang.datePattern())) dateFmt = new SimpleDateFormat(Lang.datePattern(), Lang.dates());
             return dateFmt;
         }
         private final long start = SystemClock.uptimeMillis();

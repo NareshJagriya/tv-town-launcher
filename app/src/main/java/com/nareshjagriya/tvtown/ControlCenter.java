@@ -44,7 +44,7 @@ final class ControlCenter extends View {
         int m = SLEEP_MINUTES[choice];
         sleepAt = m == 0 ? 0 : System.currentTimeMillis() + m * 60_000L;
         if (m == 0) return;
-        timer.postDelayed(() -> Toast.makeText(c, "The TV goes to sleep in 1 minute", Toast.LENGTH_LONG).show(), (m - 1) * 60_000L);
+        timer.postDelayed(() -> Toast.makeText(c, L10n.t("The TV goes to sleep in 1 minute"), Toast.LENGTH_LONG).show(), (m - 1) * 60_000L);
         timer.postDelayed(() -> {
             sleepAt = 0;
             sleepChoice = 0;
@@ -56,7 +56,7 @@ final class ControlCenter extends View {
     static void turnOff(Context c) {
         if (HomeKeyService.sleepNow()) return;
         if (RemoteKeys.send(c, "d 26") && RemoteKeys.send(c, "u 26")) return;
-        Toast.makeText(c, "Turn on TV Town's home helper to use this", Toast.LENGTH_LONG).show();
+        Toast.makeText(c, L10n.t("Turn on TV Town's home helper to use this"), Toast.LENGTH_LONG).show();
     }
 
     // ---- the tiles: most needed first; the same on the pop-up card and on the Customize page ----------
@@ -77,7 +77,7 @@ final class ControlCenter extends View {
     }
 
     private static final int T_HOME = 0, T_SOUND = 1, T_INPUTS = 2, T_MEMORY = 3, T_SPEED = 4, T_SLEEP = 5, T_WAKE = 6, T_SPORTS = 7, TILES = 8, COLS = 4;
-    private static final String[] TILE_NAME = {"Home screen", "Sound", "Inputs", "Speed up TV", "Speed test", "Sleep timer", "At power-on", "Sports"};
+    private static final String[] TILE_NAME = {L10n.t("Home screen"), L10n.t("Sound"), L10n.t("Inputs"), L10n.t("Speed up TV"), L10n.t("Speed test"), L10n.t("Sleep timer"), L10n.t("At power-on"), L10n.t("Sports")};
     private static final String[] TILE_ICON = {"home", "bt", "tv", "chip", "pulse", "moon", "power", "trophy"};
 
     /** What a tile's second line says now, and what OK on it does: kept here for both the card and the page. */
@@ -86,7 +86,7 @@ final class ControlCenter extends View {
         final Actions act;
         final Runnable redraw;
         final Handler main = new Handler(Looper.getMainLooper());
-        String speed = "Press OK", soundName = "TV speakers";
+        String speed = L10n.t("Press OK"), soundName = L10n.t("TV speakers");
         boolean testing;
         long homeAsk;   // when OK was pressed once on Home screen (switching away asks for a second OK)
 
@@ -104,25 +104,25 @@ final class ControlCenter extends View {
         String value(int t) {
             switch (t) {
                 case T_HOME:
-                    if (!HomeKeyService.enabled(ctx)) return "Set up TV Town";
-                    return System.currentTimeMillis() - homeAsk < 4000 ? "OK again: TV's own" : "TV Town";
+                    if (!HomeKeyService.enabled(ctx)) return L10n.t("Set up TV Town");
+                    return System.currentTimeMillis() - homeAsk < 4000 ? L10n.t("OK again: TV's own") : L10n.t("TV Town");
                 case T_SOUND:
                     return soundName;
                 case T_INPUTS:
-                    return "HDMI, Live TV";
+                    return L10n.t("HDMI, Live TV");
                 case T_MEMORY:
-                    return TvTools.freeMemoryMb(ctx) + " MB free";
+                    return TvTools.freeMemoryMb(ctx) + L10n.t(" MB free");
                 case T_SPEED:
                     return speed;
                 case T_SLEEP:
-                    return sleepAt == 0 ? "Off" : Math.max(1, Math.round((sleepAt - System.currentTimeMillis()) / 60_000f)) + " min left";
+                    return sleepAt == 0 ? L10n.t("Off") : Math.max(1, Math.round((sleepAt - System.currentTimeMillis()) / 60_000f)) + L10n.t(" min left");
                 case T_WAKE:
-                    return HomeKeyService.wakeHome(ctx) ? "Open TV Town" : "Last app";
+                    return HomeKeyService.wakeHome(ctx) ? L10n.t("Open TV Town") : L10n.t("Last app");
                 default: {
                     int live = 0;
                     List<Cricket.Match> l = Cricket.today();
                     for (Cricket.Match m : l) if (m.live) live++;
-                    return live > 0 ? live + " live now" : l.size() + " today";
+                    return live > 0 ? live + L10n.t(" live now") : l.size() + L10n.t(" today");
                 }
             }
         }
@@ -155,7 +155,7 @@ final class ControlCenter extends View {
                 case T_SPEED:
                     if (testing) return false;
                     testing = true;
-                    speed = "Testing…";
+                    speed = L10n.t("Testing…");
                     new Thread(() -> {
                         String out = speedTestNow(ctx);
                         main.post(() -> {
@@ -375,8 +375,8 @@ final class ControlCenter extends View {
             }
         }
         long got = counted.get();
-        if (got <= 0) return "Couldn't test";
-        String out = Math.round(got * 8 / 1000.0 / (total - warm)) + " Mbps";
+        if (got <= 0) return L10n.t("Couldn't test");
+        String out = Math.round(got * 8 / 1000.0 / (total - warm)) + L10n.t(" Mbps");
         String how = c != null ? link(c) : "";
         return how.isEmpty() ? out : out + "  \u00B7  " + how;
     }
@@ -392,7 +392,7 @@ final class ControlCenter extends View {
             int f = 0;
             if (android.os.Build.VERSION.SDK_INT >= 29 && nc.getTransportInfo() instanceof android.net.wifi.WifiInfo)
                 f = ((android.net.wifi.WifiInfo) nc.getTransportInfo()).getFrequency();
-            return f >= 5900 ? "6 GHz Wi-Fi" : f >= 4900 ? "5 GHz Wi-Fi" : f > 2000 ? "2.4 GHz Wi-Fi" : "Wi-Fi";
+            return f >= 5900 ? "6 GHz Wi-Fi" : f >= 4900 ? "5 GHz Wi-Fi" : f > 2000 ? "2.4 GHz Wi-Fi" : L10n.t("Wi-Fi");
         } catch (RuntimeException e) {
             return "";
         }
@@ -406,7 +406,7 @@ final class ControlCenter extends View {
         r.set(L * k, T * k, R * k, B * k);
         Frost.panel(c, r, 44 * k, 1, k);
         float x0 = L + PAD, w = R - L - 2 * PAD;
-        c.drawText("Control Center", x0 * k, (T + 70) * k, title);
+        c.drawText(L10n.t("Control Center"), x0 * k, (T + 70) * k, title);
         float tw = (w - (COLS - 1) * GAP) / COLS, ty = T + 96;
         for (int t = 0; t < TILES; t++) {
             float x = x0 + (t % COLS) * (tw + GAP), y = ty + (t / COLS) * (TILE_H + GAP);

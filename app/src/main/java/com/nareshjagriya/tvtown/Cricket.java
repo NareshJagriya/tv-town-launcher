@@ -35,7 +35,7 @@ final class Cricket {
 
     /** The words the feed uses for a match that's on, with nobody playing at the moment. */
     private static final Pattern NOT_PLAYING = Pattern.compile(
-            "\\b(?:delayed|delay|suspended|stumps|lunch|tea|dinner|rain|no play|play stopped|wet outfield|bad light)\\b",
+            L10n.t("\\b(?:delayed|delay|suspended|stumps|lunch|tea|dinner|rain|no play|play stopped|wet outfield|bad light)\\b"),
             Pattern.CASE_INSENSITIVE);
     /** Overs in a score, as sent: "(21.2/50 ov, target 130)". Shown as "(21.2)". */
     private static final Pattern OVERS_PART = Pattern.compile("\\(([\\d.]+)(?:/\\d+)? ov[^)]*\\)");
@@ -55,7 +55,7 @@ final class Cricket {
 
     static {
         FANS.put("IN", new Fans("india", "indian premier league", "ipl", "women's premier league", "ranji trophy", "syed mushtaq ali",
-                "vijay hazare", "duleep trophy", "irani cup", "irani trophy", "deodhar trophy"));
+                L10n.t("vijay hazare"), L10n.t("duleep trophy"), L10n.t("irani cup"), L10n.t("irani trophy"), L10n.t("deodhar trophy")));
         FANS.put("AU", new Fans("australia", "big bash", "sheffield shield", "marsh cup"));
         FANS.put("GB", new Fans("england", "county championship", "the hundred", "t20 blast"));
         FANS.put("NZ", new Fans("new zealand", "super smash", "plunket shield", "ford trophy"));
@@ -92,9 +92,9 @@ final class Cricket {
 
         /** The short word in front of the score. */
         String state() {
-            if (live) return "LIVE";
-            if (paused) return "Paused";
-            if (ended) return "Result";
+            if (live) return L10n.t("LIVE");
+            if (paused) return L10n.t("Paused");
+            if (ended) return L10n.t("Result");
             return start == null ? "" : start;
         }
 
@@ -331,10 +331,10 @@ final class Cricket {
         String card = gradeCard.toLowerCase(Locale.ROOT);
         boolean longForm = level == 1 || level == 8 || card.equals("first-class");
         if (intl) {
-            if (longForm) return "Test";
+            if (longForm) return L10n.t("Test");
             return level == 2 || level == 9 ? "ODI" : "T20I";
         }
-        if (longForm) return "First-class";
+        if (longForm) return L10n.t("First-class");
         if (card.contains("t20") || card.contains("twenty20")) return "T20";
         return card.contains("list a") || card.contains("od") ? "One-day" : "";
     }

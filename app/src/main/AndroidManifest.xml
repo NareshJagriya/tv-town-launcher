@@ -44,6 +44,9 @@
 
     <!-- Android 11 shows an app only the apps it says it looks for: every TV app with a launcher entry. -->
     <queries>
+        <!-- Play films in: Stremio and Nuvio, opened on a title's own page (OpenIn). -->
+        <package android:name="com.stremio.one" />
+        <package android:name="com.nuvio.tv" />
         <!-- Search in an app: the apps that take Android's own search (Nuvio, Stremio, Plex and others). -->
         <intent>
             <action android:name="android.intent.action.SEARCH" />

@@ -70,6 +70,7 @@ final class ArtStage {
         bake();
         c.drawColor(0xFF050506);
         RectF s = screen();
+        if (art == null && old == null) Frost.page(c, s);   // no picture (yet, or at all): the shiny black page, not a void
         if (old != null && now - fadeAt < FADE_MS) c.drawBitmap(old, null, s, bits);
         else old = null;
         if (art != null) {
@@ -154,7 +155,7 @@ final class ArtStage {
 
     /** The picture cropped to the screen's shape at 1280 x 720: a poster fills it without stretching. */
     private static Bitmap cover(Bitmap b) {
-        Bitmap out = Bitmap.createBitmap(1280, 720, Bitmap.Config.RGB_565);
+        Bitmap out = Bitmap.createBitmap(1280, 720, ImageCache.config(1280));
         float want = 16 / 9f, have = b.getWidth() / (float) b.getHeight();
         Rect from;
         if (have > want) {

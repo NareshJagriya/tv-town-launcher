@@ -111,7 +111,9 @@ public class PicksTest {
         List<String> extras = new java.util.ArrayList<>();
         for (Picks.Entry c : Picks.cards(Picks.EXTRAS)) extras.add(c.label);
         assertTrue(extras.containsAll(java.util.Arrays.asList("Classic TV Shows", "Cartoons", "Live News",
-                "Sports Highlights", "Free Full Movies", "Ambient & Relax")));
+                "Short Films", "Recipes", "Podcasts & Talks", "Spirituality", "Documentaries", "Free Full Movies", "Ambient & Relax")));
+        assertTrue(!extras.contains("Sports Highlights"));   // nobody picks sport at random: the Sports page has it
+        assertEquals(12, extras.size());   // four by three
         for (String gone : new String[]{"South Indian Trailers", "Sketch Comedy", "Crowd Work", "Osho Talks"}) assertTrue(!extras.contains(gone));
         List<String> music = new java.util.ArrayList<>();
         for (Picks.Entry c : Picks.cards(Picks.SONG)) music.add(c.label);
@@ -270,8 +272,8 @@ public class PicksTest {
             Style.use(Style.GLOBAL, "US");
             List<String> extras = new java.util.ArrayList<>();
             for (Picks.Entry c : Picks.cards(Picks.EXTRAS)) extras.add(c.label);
-            assertTrue(extras.containsAll(java.util.Arrays.asList("Trailers", "Stand-up Comedy", "TV Comedy", "Sports Highlights")));
-            assertEquals(9, extras.size());   // three by three
+            assertTrue(extras.containsAll(java.util.Arrays.asList("Trailers", "Stand-up Comedy", "TV Comedy", "Recipes")));
+            assertEquals(12, extras.size());   // four by three
             assertTrue(!extras.contains("Classic TV Shows"));
             assertEquals(java.util.Arrays.asList("English", "Hindi", "Korean"), Picks.allLanguages(Picks.MOVIE).subList(0, 3));
             Picks.Entry classics = card(Picks.cards(Picks.MOVIE), "Classics");

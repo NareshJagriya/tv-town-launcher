@@ -53,6 +53,7 @@ final class Updater {
     static void check(Context ctx, boolean force, @Nullable Consumer<Release> done) {
         long last = prefs(ctx).getLong("update_checked", 0);
         if (!force && System.currentTimeMillis() - last < DAY) {
+            if (available == null) available = saved(ctx);   // found earlier today: still waiting
             if (done != null) done.accept(available);
             return;
         }
@@ -69,8 +70,67 @@ final class Updater {
                 // offline, or no release yet: try again next time
             }
             available = r;
+            save(app, r);
             if (done != null) done.accept(r);
         }, "update-check").start();
+    }
+
+    /** The newer release found last, kept so the dot and What's new stay after a restart. */
+    private static void save(Context ctx, @Nullable Release r) {
+        String v = "";
+        if (r != null) {
+            try {
+                v = new JSONObject().put("v", r.version).put("apk", r.apkUrl).put("notes", r.notes).toString();
+            } catch (org.json.JSONException ignored) {
+                // strings only
+            }
+        }
+        prefs(ctx).edit().putString("update_found", v).apply();
+    }
+
+    @Nullable
+    private static Release saved(Context ctx) {
+        try {
+            JSONObject o = new JSONObject(prefs(ctx).getString("update_found", ""));
+            if (!newer(o.optString("v"), BuildConfig.VERSION_NAME)) return null;   // installed since
+            Release r = new Release();
+            r.version = o.optString("v");
+            r.apkUrl = o.optString("apk");
+            r.notes = o.optString("notes");
+            return r.apkUrl.startsWith("https://") ? r : null;
+        } catch (org.json.JSONException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The release notes as plain lines for the TV, about `width` letters each: headings as they are, "- **Name:** words"
+     * as "•  Name: words", wrapped at a word; links and markdown marks taken out.
+     */
+    static java.util.List<String> noteLines(String notes, int width) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String raw : notes.split("\n")) {
+            String l = raw.trim();
+            if (l.isEmpty()) continue;
+            boolean head = l.startsWith("#");
+            l = l.replaceAll("^#+\\s*", "").replaceAll("\\*\\*", "").replaceAll("\\[([^]]+)]\\([^)]*\\)", "$1");
+            if (l.startsWith("- ")) l = "\u2022  " + l.substring(2);
+            if (head) {
+                out.add("");
+                out.add(l.toUpperCase(java.util.Locale.getDefault()));
+                continue;
+            }
+            String indent = l.startsWith("\u2022") ? "    " : "";
+            while (l.length() > width) {
+                int cut = l.lastIndexOf(' ', width);
+                if (cut <= indent.length()) cut = width;
+                out.add(l.substring(0, cut));
+                l = indent + l.substring(cut).trim();
+            }
+            out.add(l);
+        }
+        while (!out.isEmpty() && out.get(0).isEmpty()) out.remove(0);
+        return out;
     }
 
     /** The release when it is newer than `current` and has an APK (not a debug build), else null. */
@@ -156,7 +216,7 @@ final class Updater {
         c.setInstanceFollowRedirects(true);
         c.setConnectTimeout(15_000);
         c.setReadTimeout(30_000);
-        if (c.getResponseCode() != 200) throw new IOException("HTTP " + c.getResponseCode());
+        if (c.getResponseCode() != 200) throw new IOException(L10n.t("HTTP ") + c.getResponseCode());
         if (!c.getURL().getProtocol().equals("https")) throw new IOException("Only HTTPS is allowed");
         long size = c.getContentLengthLong();
         try (InputStream in = c.getInputStream(); OutputStream out = s.openWrite("tvtown.apk", 0, size > 0 ? size : -1)) {
@@ -164,7 +224,7 @@ final class Updater {
             long total = 0;
             for (int n; (n = in.read(buf)) > 0; ) {
                 total += n;
-                if (total > 200L * 1024 * 1024) throw new IOException("Too large");
+                if (total > 200L * 1024 * 1024) throw new IOException(L10n.t("Too large"));
                 out.write(buf, 0, n);
             }
             s.fsync(out);

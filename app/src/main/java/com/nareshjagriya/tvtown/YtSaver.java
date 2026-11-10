@@ -91,7 +91,7 @@ final class YtSaver {
 
     static final int[] BUTTONS = {android.view.KeyEvent.KEYCODE_PROG_RED, android.view.KeyEvent.KEYCODE_PROG_GREEN,
             android.view.KeyEvent.KEYCODE_PROG_YELLOW, android.view.KeyEvent.KEYCODE_PROG_BLUE};
-    static final String[] BUTTON_NAMES = {"Red", "Green", "Yellow", "Blue"};
+    static final String[] BUTTON_NAMES = {L10n.t("Red"), L10n.t("Green"), L10n.t("Yellow"), L10n.t("Blue")};
 
     /** Which of the coloured buttons saves: 0 red (the usual), 1 green, 2 yellow, 3 blue. */
     static int button(Context c) {
@@ -161,7 +161,7 @@ final class YtSaver {
             for (StreamInfoItem i : more.getItems()) f.urls.add(i.getUrl());
             next = more.getNextPage();
         }
-        f.by = f.urls.size() + " videos";
+        f.by = f.urls.size() + L10n.t(" videos");
         return f;
     }
 
@@ -320,7 +320,7 @@ final class YtSaver {
                 try {
                     StreamInfo i = StreamInfo.getInfo(yt(), j.url);
                     shown = i.getName();
-                    if (attempt == 0) HomeKeyService.note("Saving: " + shown + count(), 3500);
+                    if (attempt == 0) HomeKeyService.note(L10n.t("Saving: ") + shown + count(), 3500);
                     long at = android.os.SystemClock.elapsedRealtime();
                     File done = j.video ? saveVideo(j, i) : saveAudio(j, i);
                     android.util.Log.i("YtSaver", "saved " + done + " " + done.length() + " bytes in " + (android.os.SystemClock.elapsedRealtime() - at) + "ms");
@@ -335,22 +335,22 @@ final class YtSaver {
             synchronized (YtSaver.class) {
                 finished++;
                 boolean last = queue.isEmpty();
-                String label = shown == null ? "this video" : shown;
-                HomeKeyService.note((ok ? "Saved: " : "Couldn't save: ") + label + (last ? "" : count()), ok ? 3500 : 6000);
+                String label = shown == null ? L10n.t("this video") : shown;
+                HomeKeyService.note((ok ? L10n.t("Saved: ") : L10n.t("Couldn't save: ")) + label + (last ? "" : count()), ok ? 3500 : 6000);
                 if (last) batch = finished = 0;
             }
         }
     }
 
     private static synchronized String count() {
-        return batch > 1 ? "  ·  " + Math.min(finished + 1, batch) + " of " + batch : "";
+        return batch > 1 ? "  ·  " + Math.min(finished + 1, batch) + L10n.t(" of ") + batch : "";
     }
 
     private static String fileName(String title) {
         String s = title.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", " ").replaceAll("\\s+", " ").trim();
         if (s.length() > 100) s = s.substring(0, 100).trim();
         s = s.replaceAll("^\\.+|\\.+$", "");
-        return s.isEmpty() ? "YouTube" : s;
+        return s.isEmpty() ? L10n.t("YouTube") : s;
     }
 
     private static String person(@Nullable String channel) {
@@ -362,7 +362,7 @@ final class YtSaver {
         for (AudioStream s : i.getAudioStreams()) {
             if (s.getFormat() == org.schabi.newpipe.extractor.MediaFormat.M4A && s.isUrl() && (best == null || s.getAverageBitrate() > best.getAverageBitrate())) best = s;
         }
-        if (best == null) throw new IOException("no audio");
+        if (best == null) throw new IOException(L10n.t("no audio"));
         return best;
     }
 
@@ -405,7 +405,7 @@ final class YtSaver {
                 bestH = h;
             }
         }
-        if (best == null) throw new IOException("no mp4 video");
+        if (best == null) throw new IOException(L10n.t("no mp4 video"));
         File v = new File(j.folder, "." + name + ".part.v"), a = new File(j.folder, "." + name + ".part.a"), part = new File(j.folder, "." + name + ".part.mp4");
         try {
             fetch(best.getContent(), v);
@@ -556,7 +556,7 @@ final class YtSaver {
                     if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) break;
                 }
             }
-            if (lame == 0) throw new IOException("no sound");
+            if (lame == 0) throw new IOException(L10n.t("no sound"));
             int w = Mp3Lame.flush(lame, mp3);
             if (w > 0) out.write(mp3, 0, w);
         } finally {
@@ -648,7 +648,7 @@ final class YtSaver {
                 byte[] t = new byte[16384];
                 for (int n; (n = in.read(t)) > 0; ) b.write(t, 0, n);
             }
-            return new Response(code, c.getResponseMessage(), c.getHeaderFields(), b.toString("UTF-8"), c.getURL().toString());
+            return new Response(code, c.getResponseMessage(), c.getHeaderFields(), b.toString(L10n.t("UTF-8")), c.getURL().toString());
         }
     }
 }

@@ -79,6 +79,10 @@
     <string name="not_available">Not available on this TV</string>
     <string name="not_for_me">Not for me</string>
     <string name="not_installed">not installed</string>
+    <!-- Set to "1" in each translation: "Same as the TV" then uses it. Empty here (English). -->
+    <string name="lang_ready" translatable="false"></string>
+    <string name="app_language">Language</string>
+    <string name="not_in_app">Couldn\'t find %1$s in %2$s.</string>
     <string name="not_streaming">%1$s isn\'t streaming on your apps in India.</string>
     <string name="nothing_for_choice">Nothing found for that choice. Try Any, or another language.</string>
     <string name="nothing_found">Nothing found on your apps</string>
@@ -312,7 +316,7 @@
     <string name="update_available">Version %1$s available: OK to install</string>
     <string name="update_current">Up to date (%1$s)</string>
     <string name="updates_checking_now">Checking for a new version…</string>
-    <string name="update_announce">TV Town %1$s is available: Settings → Updates</string>
+    <string name="update_announce">TV Town %1$s is available: see what\'s new in Customize → Updates</string>
     <string name="update_allow">Allow TV Town to install apps (switch it on, then press Back and choose Updates again)</string>
     <string name="update_downloading">Downloading version %1$s…</string>
     <string name="update_failed">The update didn\'t install: %1$s</string>

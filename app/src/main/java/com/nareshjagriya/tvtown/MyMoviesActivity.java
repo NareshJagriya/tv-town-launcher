@@ -18,6 +18,11 @@ import android.widget.Toast;
  */
 public class MyMoviesActivity extends Activity implements MyMoviesView.Listener {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Lang.wrap(base));   // the language chosen in Customize
+    }
+
     static final String VLC = "org.videolan.vlc";
     private static final int ASK_STORAGE = 1, PLAY = 2;
 
@@ -177,7 +182,7 @@ public class MyMoviesActivity extends Activity implements MyMoviesView.Listener 
     @Override
     public void onSearch(String initial, java.util.function.Consumer<String> typed,
                          java.util.function.Function<String, java.util.List<String>> suggest, Runnable closed) {
-        TvKeyboard.open(this, "Film, series, song, singer or app", initial, true, new TvKeyboard.Listener() {
+        TvKeyboard.open(this, L10n.t("Film, series, song, singer or app"), initial, true, new TvKeyboard.Listener() {
             @Override
             public void onSearch(String text) {
                 typed.accept(text);

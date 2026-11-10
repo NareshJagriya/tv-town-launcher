@@ -28,6 +28,11 @@ import java.util.Locale;
 /** Today's cricket: the matches on the left, the chosen one large on the right; OK opens the app that shows it. */
 public class SportsActivity extends Activity {
 
+    @Override
+    protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(Lang.wrap(base));   // the language chosen in Customize
+    }
+
     private Page page;
 
     @Override
@@ -112,7 +117,7 @@ public class SportsActivity extends Activity {
         private static String appName(String pkg) {
             if (Services.HOTSTAR.pkg.equals(pkg)) return Services.HOTSTAR.name;
             if (Services.SONYLIV.pkg.equals(pkg)) return Services.SONYLIV.name;
-            return "FanCode";
+            return L10n.t("FanCode");
         }
 
         private static int teamColour(String t) {
@@ -250,7 +255,7 @@ public class SportsActivity extends Activity {
         private int hRow, hScroll;
         private final int[] hCol = new int[6];
         private static final int R_CHIPS = 0, R_LIVE = 1, R_TODAY = 2, R_DONE = 3;
-        private static final String[] R_TITLE = {"", "Live now", "Coming up today", "Results"};
+        private static final String[] R_TITLE = {"", L10n.t("Live now"), L10n.t("Coming up today"), L10n.t("Results")};
         private boolean inPanel;   // the focus is on the match card's buttons, on the right
         private int panelBtn;      // 0: Watch on…, 1: Full scorecard
 
@@ -286,8 +291,8 @@ public class SportsActivity extends Activity {
             fill.setShader(new RadialGradient(W * 0.8f, 0, W * 0.6f, 0x3315803D, 0x0015803D, Shader.TileMode.CLAMP));
             c.drawRect(0, 0, W, H, fill);
             fill.setShader(null);
-            c.drawText("Sports", LIST_X * k, 92 * k, head);
-            String day = new SimpleDateFormat(Style.datePattern(), Locale.ENGLISH).format(new Date());
+            c.drawText(L10n.t("Sports"), LIST_X * k, 92 * k, head);
+            String day = new SimpleDateFormat(Lang.datePattern(), Lang.dates()).format(new Date());
             c.drawText(day, 1840 * k - small.measureText(day), 88 * k, small);
             java.util.Set<String> on = Scores.chosen(getContext());
             float cx = (LIST_X + 200) * k;
@@ -338,7 +343,7 @@ public class SportsActivity extends Activity {
                 y += 64 + rowHeight(row) + 30;
             }
             c.restore();
-            if (!any) c.drawText(on.isEmpty() ? "Press Up and choose the sports you follow" : "Loading the scores\u2026", LIST_X * k, 200 * k, name);
+            if (!any) c.drawText(on.isEmpty() ? L10n.t("Press Up and choose the sports you follow") : L10n.t("Loading the scores\u2026"), LIST_X * k, 200 * k, name);
             // beside the rows: the card of the game chosen (or the first live one), the story, or the table
             BOX_X = HUB_R + 30;
             Cricket.Match pick = null;
@@ -556,8 +561,8 @@ public class SportsActivity extends Activity {
                 badge(c, shown.logo1, shown.t1, 0, 1000 * k, 560 * k, 620 * k, 26);
                 badge(c, shown.logo2, shown.t2, 0, 1640 * k, 560 * k, 620 * k, 26);
             }
-            c.drawText("Sports", LIST_X * k, 92 * k, head);
-            String day = new SimpleDateFormat(Style.datePattern(), Locale.ENGLISH).format(new Date());
+            c.drawText(L10n.t("Sports"), LIST_X * k, 92 * k, head);
+            String day = new SimpleDateFormat(Lang.datePattern(), Lang.dates()).format(new Date());
             c.drawText(day, 1840 * k - small.measureText(day), 88 * k, small);
             java.util.Set<String> on = Scores.chosen(getContext());
             float cx = (LIST_X + 200) * k;
@@ -577,7 +582,7 @@ public class SportsActivity extends Activity {
                 cx += w + 12 * k;
             }
             if (shown == null) {
-                c.drawText(on.isEmpty() ? "Press Up and choose the sports you follow" : "No matches today", LIST_X * k, 180 * k, name);
+                c.drawText(on.isEmpty() ? L10n.t("Press Up and choose the sports you follow") : L10n.t("No matches today"), LIST_X * k, 180 * k, name);
                 return;
             }
             if (sel < from) from = sel;
@@ -688,10 +693,10 @@ public class SportsActivity extends Activity {
                     List<String[]> bat = card.bat.subList(0, Math.min(3, card.bat.size())), bowl = card.bowl.subList(0, Math.min(2, card.bowl.size()));
                     drawTable(c, card.batTitle, new String[]{"R", "B", "4s", "6s"}, bat, x, ty, room, limit);
                     if (!bat.isEmpty()) ty += (84 + 42 * bat.size() + 20) * k;
-                    drawTable(c, card.bowlTitle, new String[]{"O", "R", "W", "Econ"}, bowl, x, ty, room, limit);
+                    drawTable(c, card.bowlTitle, new String[]{"O", "R", "W", L10n.t("Econ")}, bowl, x, ty, room, limit);
                 } else {
                     drawTable(c, card.batTitle, new String[]{"R", "B", "4s", "6s"}, card.bat, x, ty, room / 2 - 20 * k, limit);
-                    drawTable(c, card.bowlTitle, new String[]{"O", "R", "W", "Econ"}, card.bowl, x + room / 2 + 20 * k, ty, room / 2 - 20 * k, limit);
+                    drawTable(c, card.bowlTitle, new String[]{"O", "R", "W", L10n.t("Econ")}, card.bowl, x + room / 2 + 20 * k, ty, room / 2 - 20 * k, limit);
                 }
                 ty = limit;
             } else if (card != null && !card.stats.isEmpty()) {
@@ -742,7 +747,7 @@ public class SportsActivity extends Activity {
             small.setTextAlign(Paint.Align.LEFT);
             name.setTextAlign(Paint.Align.LEFT);
             if (hub) {   // beside the rows: Watch on… and Full scorecard, reached with OK or Right
-                String w = m.pkg() == null ? null : "Watch on " + appName(m.pkg()), full = "Full scorecard";
+                String w = m.pkg() == null ? null : L10n.t("Watch on ") + appName(m.pkg()), full = L10n.t("Full scorecard");
                 float gap = 16 * k, ww = w == null ? 0 : btn.measureText(w) + 64 * k, fw = btn.measureText(full) + 64 * k;
                 float total = ww + fw + (w == null ? 0 : gap), x0 = mid - total / 2;
                 if (w != null) {
@@ -755,7 +760,7 @@ public class SportsActivity extends Activity {
                 return;
             }
             if (m.pkg() == null) return;
-            String w = "Watch on " + appName(m.pkg());
+            String w = L10n.t("Watch on ") + appName(m.pkg());
             float bw = btn.measureText(w) + 64 * k;
             r.set(mid - bw / 2, (BOX_B - 100) * k, mid + bw / 2, (BOX_B - 36) * k);
             Frost.plate(c, r, r.height() / 2, k, 0xFF15803D);

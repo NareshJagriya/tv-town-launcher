@@ -84,10 +84,10 @@ final class RandomSheet {
     // The language column: a two-by-two switch for the two main languages, then a tick for each other one.
     private static final String MAIN_A = "English", MAIN_B = "Hindi";
     private float moreLabelY = -1, langCaptionY = -1;
-    private String langNote;          // "Keep at least one language", for a moment
+    private String langNote;          // L10n.t("Keep at least one language"), for a moment
     private long langNoteUntil;
     private static final int C_CARD = 10, C_CHIP = 11, C_ADD = 12, C_HIDE = 13, C_DELETE = 14;   // Customize
-    private static final int CARDS = 0, RESULTS = 1, CUSTOM = 2;                         // what the panel shows
+    private static final int CARDS = 0, RESULTS = 1, CUSTOM = 2, TOPICS = 3;                         // what the panel shows
     private static final int TITLES_PER_ROUND = 8, LANGUAGES_PAGE = -1, NEW_CARD = -2;
 
     // Layout, in design pixels.
@@ -144,7 +144,7 @@ final class RandomSheet {
     private Item focus, tileFocus;
     private boolean playlists;               // the Song / Playlist switch (Song by default)
     private float formatLabelY, langY;
-    private static final int COLS = 3;   // three to a row, big pictures; more moods scroll
+    private static final int COLS = 4;   // four to a row, big pictures; more moods scroll
     private int ROWS_SHOWN = 4;   // mood rows in view: all twelve at once
     private int tileTop, tileRows;           // the first mood row in view, and how many rows there are
     private final RectF tilesClip = new RectF();
@@ -279,7 +279,7 @@ final class RandomSheet {
         allCards = Picks.allCards(ctx, kind);
         shown = hasLanguages() ? Picks.shownLanguages(ctx, kind) : new ArrayList<>();
         ticked = hasLanguages() ? Picks.ticked(ctx, kind) : new ArrayList<>();
-        if (hasLanguages() && ticked.isEmpty() && !Picks.languagesSet(ctx, kind)) {   // "Any" from before: both main ones, once
+        if (hasLanguages() && ticked.isEmpty() && !Picks.languagesSet(ctx, kind)) {   // L10n.t("Any") from before: both main ones, once
             for (String l : new String[]{MAIN_A, MAIN_B}) {
                 Picks.setShown(ctx, kind, l, true);
                 Picks.setTicked(ctx, kind, l, true);
@@ -299,105 +299,109 @@ final class RandomSheet {
      * The tabs top right; on the left the mood cards in rows of four with the languages (and Song / Playlist) under
      * them; on the right Surprise me and three picks ready to play; Customize at the bottom left.
      */
+    /**
+     * The moods screen, full screen like Home: the title, the tabs in one glass capsule and Customize along the top;
+     * the moods as big pictures, four to a row; along the foot, one row of chips (Skip watched, the languages, Songs /
+     * Playlists) and Surprise me. The arrows find the nearest item, so the places are all that is set here.
+     */
     private void layout() {
         sizePanel(PANEL_H);
         items.clear();
-        float L = panel.left, T = panel.top, Rt = panel.right;
-        // Tabs: four cards in a row in the middle, under the heading.
+        float W = screen.width(), x0 = 96 * k, right = W - 96 * k;
+        // Tabs: side by side in one capsule, beside the title
         int[] names = {R.string.tab_movie, R.string.tab_series, R.string.tab_music, R.string.tab_extras};
-        float tw = 170 * k, tg = 4 * k, tx = L + 500 * k;   // beside the title, leaving the height to the moods
+        float tx = 640 * k, tg = 6 * k;
         for (int i = 0; i < 4; i++) {
+            float tw = nTab.measureText(ctx.getString(names[i])) + 92 * k;
             Item it = new Item(TAB, i, null, ctx.getString(names[i]), TAB_COLOURS[i]);
-            it.rect.set(tx + i * (tw + tg), T + 32 * k, tx + i * (tw + tg) + tw, T + 104 * k);
+            it.rect.set(tx, 52 * k, tx + tw, 120 * k);
             items.add(it);
+            tx += tw + tg;
         }
-        // Big picture cards, four to a row, three rows in view (Up and Down past them scroll, key()); the
-        // languages (and Songs / Playlists) as a column on the right; Surprise me at the foot, in the middle.
-        float langW = 360 * k, leftW = hasLanguages() ? 1056 * k : 1448 * k, x0 = L + 56 * k;
+        tabsRight = tx - tg;
+        String cl = ctx.getString(R.string.customize);
+        Item cust = new Item(CUSTOMIZE, 0, null, cl, NoirKit.GOLD);
+        float cw = nPill.measureText(cl) + 104 * k;
+        cust.rect.set(right - cw, 52 * k, right, 120 * k);
+        items.add(cust);
+        // The moods: four to a row, three rows in view (more scroll)
+        ROWS_SHOWN = 3;
+        float top = 172 * k, gap = 22 * k, gridW = right - x0;
+        float tileW = (gridW - (COLS - 1) * gap) / COLS, tileH = (884 * k - top - (ROWS_SHOWN - 1) * gap) / ROWS_SHOWN;
         int rows = Math.max(1, (cards.size() + COLS - 1) / COLS);
         tileTop = Math.max(0, Math.min(Math.max(0, rows - ROWS_SHOWN), tileTop));
-        float top = T + 128 * k, bottomEdge = panel.bottom - 40 * k;
-        float tileW = (leftW - (COLS - 1) * 16 * k) / COLS;
-        float tileH = (bottomEdge - top - (hasLanguages() ? 0 : 116 * k) - (ROWS_SHOWN - 1) * 16 * k) / ROWS_SHOWN;
-        tilesClip.set(x0 - 20 * k, top - 14 * k, x0 + leftW + 20 * k, top + ROWS_SHOWN * tileH + (ROWS_SHOWN - 1) * 16 * k + 14 * k);
+        tilesClip.set(x0 - 40 * k, top - 30 * k, right + 40 * k, top + ROWS_SHOWN * tileH + (ROWS_SHOWN - 1) * gap + 40 * k);
         for (int i = 0; i < cards.size(); i++) {
             Picks.Entry c = cards.get(i);
             Item it = new Item(TILE, i, c.emoji, c.label, TAB_COLOURS[kind]);
             int r = i / COLS - tileTop;
-            float x = x0 + (i % COLS) * (tileW + 16 * k), y = top + r * (tileH + 16 * k);
+            float x = x0 + (i % COLS) * (tileW + gap), y = top + r * (tileH + gap);
             if (r < 0 || r >= ROWS_SHOWN) y = -5000 * k;   // out of view: not reached by the arrows' search
             it.rect.set(x, y, x + tileW, y + tileH);
             items.add(it);
         }
         tileRows = rows;
-        // The right column, top to bottom: the languages, Songs / Playlists (music), Surprise me. Nothing overlaps: the
-        // language rows share what room is left. Without languages (Extras), Surprise me sits along the foot.
-        float lx = Rt - 56 * k - langW, y = top;
-        float playH = 128 * k, formatH = kind == Picks.SONG ? 72 * k : 0;
-        float skipH = 0;
-        if (kind == Picks.MOVIE || kind == Picks.SERIES) {   // Skip watched: a tick box at the top of the column
-            skipH = 72 * k;
-            Item it = new Item(SKIP, 0, null, kind == Picks.MOVIE ? "Skip watched movies" : "Skip watched series", TAB_COLOURS[kind]);
+        // The foot: Surprise me on the right; the chips from the left, as many as fit
+        float playW = 430 * k, fy = 930 * k, fh = 96 * k, chipH = 64 * k, cy = fy + (fh - chipH) / 2;
+        Item play = new Item(PLAY, 0, "", ctx.getString(R.string.surprise_me), TAB_COLOURS[kind]);
+        play.rect.set(right - playW, fy, right, fy + fh);
+        List<Item> chips = new ArrayList<>();
+        if (kind == Picks.MOVIE || kind == Picks.SERIES) {
+            Item it = new Item(SKIP, 0, null, "Skip watched", TAB_COLOURS[kind]);   // short: the tab says movies or series
             it.on = Library.skipWatched(ctx);
-            it.rect.set(lx + 8 * k, top + 8 * k, lx + langW - 8 * k, top + 64 * k);
-            items.add(it);
+            chips.add(it);
         }
-        moreLabelY = -1;
-        langCaptionY = -1;
         if (hasLanguages()) {
-            // English and Hindi: a switch each, side by side; both on is English + Hindi, both off leaves only the
-            // languages ticked below. A line under them says what's chosen.
-            float segW = (langW - 16 * k - 10 * k) / 2, segH = 100 * k;
-            y = top + skipH + 8 * k;
             for (int i = 0; i < 2; i++) {
                 String name = i == 0 ? MAIN_A : MAIN_B;
                 Item it = new Item(SEG, i, null, name, TAB_COLOURS[kind]);
                 it.on = ticked.contains(name);
-                float sx = lx + 8 * k + i * (segW + 10 * k);
-                it.rect.set(sx, y, sx + segW, y + segH);
-                items.add(it);
+                chips.add(it);
             }
-            langCaptionY = y + segH + 34 * k;
-            y += segH + 56 * k;   // the switches, then the line saying what's chosen
-            // Then every other language on the list, each with its own tick.
-            List<String> more = new ArrayList<>();
-            for (String l : shown) if (!l.equals(MAIN_A) && !l.equals(MAIN_B)) more.add(l);
-            if (!more.isEmpty()) {
-                moreLabelY = y + 26 * k;
-                y += 40 * k;
-                float rowH = Math.min(58 * k, (bottomEdge - y - playH - 24 * k - formatH - 8 * k) / more.size());
-                for (int i = 0; i < more.size(); i++) {
-                    Item it = new Item(LANG, i + 1, null, more.get(i), TAB_COLOURS[kind]);
-                    it.on = ticked.contains(more.get(i));
-                    it.rect.set(lx + 8 * k, y, lx + langW - 8 * k, y + rowH - 4 * k);
-                    items.add(it);
-                    y += rowH;
-                }
+            int n = 1;
+            for (String l : shown) if (!l.equals(MAIN_A) && !l.equals(MAIN_B)) {
+                Item it = new Item(LANG, n++, null, l, TAB_COLOURS[kind]);
+                it.on = ticked.contains(l);
+                chips.add(it);
             }
-            langBottom = y + 8 * k;
-            if (kind == Picks.SONG) {   // Songs or Playlists
+            if (kind == Picks.SONG) {
                 String[] f = {ctx.getString(R.string.format_songs), ctx.getString(R.string.format_playlists)};
-                float w = (langW - 10 * k) / 2, fy = langBottom + 14 * k;
                 for (int i = 0; i < 2; i++) {
                     Item it = new Item(FORMAT, i, null, f[i], TAB_COLOURS[kind]);
                     it.on = (i == 1) == playlists;
-                    it.rect.set(lx + i * (w + 10 * k), fy, lx + i * (w + 10 * k) + w, fy + 56 * k);
-                    items.add(it);
+                    chips.add(it);
                 }
             }
         }
-        Item play = new Item(PLAY, 0, "", ctx.getString(R.string.surprise_me), TAB_COLOURS[kind]);
-        if (hasLanguages()) {   // its usual size, a set gap under the languages (so it moves up when they are few)
-            float under = Math.min(langBottom + (kind == Picks.SONG ? 14 * k + 56 * k : 0) + 24 * k, bottomEdge - playH);
-            play.rect.set(lx, under, lx + langW, under + playH);
+        float room = play.rect.left - 28 * k - x0, cg = 12 * k, total = 0;
+        chipText.set(nPill);
+        chipText.setTextSize(25 * k);
+        for (Item it : chips) total += chipW(it) + cg;
+        if (total - cg > room) {   // a long list: smaller words, then only as many as fit
+            chipText.setTextSize(22 * k);
+            total = 0;
+            for (Item it : chips) total += chipW(it) + cg;
         }
-        else play.rect.set(panel.centerX() - 230 * k, bottomEdge - playH, panel.centerX() + 230 * k, bottomEdge);
+        float x = x0;
+        for (Item it : chips) {
+            float w = chipW(it);
+            if (x + w > x0 + room) break;
+            it.rect.set(x, cy, x + w, cy + chipH);
+            items.add(it);
+            x += w + cg;
+        }
         items.add(play);
-        String cl = ctx.getString(R.string.customize);
-        Item cust = new Item(CUSTOMIZE, 0, null, cl, NoirKit.GOLD);
-        float cw = nPill.measureText(cl) + 104 * k;
-        cust.rect.set(Rt - 56 * k - cw, T + 36 * k, Rt - 56 * k, T + 100 * k);   // top right
-        items.add(cust);
+        moreLabelY = -1;
+        langCaptionY = -1;
+        langBottom = fy;
+    }
+
+    private final TextPaint chipText = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+    private float tabsRight;
+
+    /** A chip's width: a round tick, the words, room either side. */
+    private float chipW(Item it) {
+        return chipText.measureText(L10n.t(it.label)) + 92 * k;
     }
 
     private final android.graphics.Path cardClip = new android.graphics.Path();
@@ -440,6 +444,16 @@ final class RandomSheet {
     /** Back: from the results or Customize to the cards (true); from the cards, false (the pop-up closes). */
     boolean back() {
         if (mode == CARDS || kind == Picks.SEARCH) return false;
+        if (mode == TOPICS) {
+            mode = CARDS;
+            if (tileFocus != null) focus = tileFocus;
+            return true;
+        }
+        if (mode == RESULTS && topicTile != null) {   // picks from a tile that asks: back to its choices
+            generation++;
+            mode = TOPICS;
+            return true;
+        }
         if (mode == CUSTOM) {
             if (cRight) {
                 cRight = false;
@@ -478,6 +492,11 @@ final class RandomSheet {
     boolean key(int keyCode) {
         if (mode == RESULTS) return resultKey(keyCode);
         if (!isDpad(keyCode)) return false;
+        if (mode == TOPICS) {
+            Item best = nearest(tItems, tFocus, keyCode, k);
+            if (best != null) tFocus = best;
+            return true;
+        }
         if (mode == CUSTOM) return customKey(keyCode);
         boolean side = keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
         if (focus != null && focus.group == TAB && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && kind == Picks.EXTRAS) {
@@ -512,12 +531,12 @@ final class RandomSheet {
         later.removeCallbacksAndMessages(null);
         if (focus == null || focus.group != TILE || lastListener == null) return;
         final Picks.Entry card = cards.get(focus.index);
-        if (card.myMix) return;
+        if (card.myMix || card.asks) return;   // a tile that asks first: nothing to fetch until you choose
         later.postDelayed(() -> fetch(card, null), 500);
     }
 
     private String readyKey(Picks.Entry card) {
-        return card.label + "|" + playlists + "|" + String.join("+", ticked);
+        return card.key() + "|" + playlists + "|" + String.join("+", ticked);
     }
 
     /** Results for a card: kept ones at once (then a next round is fetched ahead), else fetched; done may be null. */
@@ -590,6 +609,10 @@ final class RandomSheet {
             resultSelect(listener);
             return;
         }
+        if (mode == TOPICS) {
+            topicSelect(listener);
+            return;
+        }
         if (mode == CUSTOM) {
             customSelect(listener);
             return;
@@ -598,7 +621,10 @@ final class RandomSheet {
             case TAB:
                 if (focus.index != kind) listener.switchKind(focus.index);
                 break;
-            case TILE: start(listener, cards.get(focus.index)); break;
+            case TILE:
+                if (cards.get(focus.index).asks) openTopics(cards.get(focus.index));
+                else start(listener, cards.get(focus.index));
+                break;
             case SEG:   // English or Hindi on or off; the last language can't go
             case LANG: {
                 boolean turnOff = ticked.contains(focus.label);
@@ -645,8 +671,9 @@ final class RandomSheet {
             listener.myMix();
             return;
         }
+        if (mode != TOPICS) topicTile = null;
         chosen = card;
-        tileFocus = focus;
+        if (mode != TOPICS) tileFocus = focus;
         mode = RESULTS;
         mbtn = 0;
         bigFrom = 0;
@@ -777,8 +804,9 @@ final class RandomSheet {
         long now = SystemClock.uptimeMillis();
         float to = mTo;
         if (c < to) to = c;
-        if (c > to + 2) to = c - 2;
-        to = Math.max(0, Math.min(to, Math.max(0, n - 3)));
+        int view = inView();
+        if (c > to + view - 1) to = c - view + 1;
+        to = Math.max(0, Math.min(to, Math.max(0, n - view)));
         if (to != mTo) {
             mFrom = shift(now);
             mTo = to;
@@ -908,7 +936,7 @@ final class RandomSheet {
             if (c.own) list.add(new Item(C_DELETE, 0, "", ctx.getString(R.string.delete_card), accent));
         }
         for (Item it : list) {
-            float w = Math.min(right - left, langText.measureText(it.label) + (it.emoji != null ? 96 : 84) * k);
+            float w = Math.min(right - left, langText.measureText(L10n.t(it.label)) + (it.emoji != null ? 96 : 84) * k);
             if (x + w > right) {
                 x = left;
                 y += C_CHIP_H * k + gap;
@@ -1068,6 +1096,21 @@ final class RandomSheet {
             return;
         }
         sizePanel(mode == RESULTS ? 900 : PANEL_H);
+        if (mode == CARDS && kind != Picks.SEARCH) {   // the moods: full screen, like Home
+            moodBackdrop(c, e);
+            drawCards(c, e);
+            return;
+        }
+        if (mode == TOPICS) {
+            moodBackdrop(c, e);
+            drawTopics(c, e);
+            return;
+        }
+        if (mode == RESULTS && kind != Picks.SEARCH) {   // the picks: full screen too, tall covers, no stories
+            resultsBackdrop(c, e);
+            drawResultsFull(c, e);
+            return;
+        }
         neonPanel(c, e);
         if (mode == RESULTS) drawResults(c, e);
         else if (mode == CUSTOM) drawCustomize(c, e);
@@ -1124,15 +1167,15 @@ final class RandomSheet {
     private String bigButton(int b, @androidx.annotation.Nullable Tmdb.Title f) {
         switch (b) {
             case 0:
-                return f != null && f.service != null ? "Play on " + f.service.name : "Where to watch";
+                return f != null && f.service != null ? L10n.t("Play on ") + f.service.name : L10n.t("Where to watch");
             case 1:
-                return "More info";
+                return L10n.t("More info");
             case 2:
-                return "Trailer";
+                return L10n.t("Trailer");
             case 3:
-                return "New picks";
+                return L10n.t("New picks");
             default:
-                return "Other moods";
+                return L10n.t("Other moods");
         }
     }
 
@@ -1229,9 +1272,9 @@ final class RandomSheet {
                 c.drawText(ellipsize(f.title, bName, room), x, nameB - 8 * k, bName);
             }
             if (waiting) stageHost.postInvalidateOnAnimation();
-            String line = (f.isSeries() ? "Series" : "Film") + (f.year > 0 ? " · " + f.year : "")
+            String line = (f.isSeries() ? L10n.t("Series") : L10n.t("Film")) + (f.year > 0 ? " · " + f.year : "")
                     + (f.genres != null && !f.genres.isEmpty() ? " · " + f.genres.replace(",", " ·") : "")
-                    + (f.runtime > 0 ? " · " + (f.runtime >= 60 ? f.runtime / 60 + " h " + f.runtime % 60 + " min" : f.runtime + " min") : "")
+                    + (f.runtime > 0 ? " · " + (f.runtime >= 60 ? f.runtime / 60 + " h " + f.runtime % 60 + L10n.t(" min") : f.runtime + L10n.t(" min")) : "")
                     + (f.rating > 0 ? " · ★ " + String.format(Locale.US, "%.1f", f.rating) : "");
             c.drawText(ellipsize(line, bMeta, room), x, 312 * k, bMeta);
             if (f.overview != null && !f.overview.isEmpty()) {
@@ -1280,7 +1323,7 @@ final class RandomSheet {
             bMeta.setColor(Color.WHITE);
         }
         if (!loading && results.size() > BIG_SHOWN) {
-            String count = (mcol + 1) + " of " + results.size();
+            String count = (mcol + 1) + L10n.t(" of ") + results.size();
             bMeta.setColor(Frost.MUTE);
             c.drawText(count, 1840 * k - bMeta.measureText(count), 548 * k, bMeta);
             bMeta.setColor(Color.WHITE);
@@ -1298,35 +1341,33 @@ final class RandomSheet {
         if (stage.moving(now) || loading) stageHost.postInvalidateOnAnimation();
     }
 
-    private void drawCards(Canvas c, float e) {
-        float L = panel.left, T = panel.top, x0 = L + 56 * k;
-        c.drawText("What's the mood?", x0, T + 76 * k, nTitle);
-        if (hasLanguages()) {
-            float lx = panel.right - 56 * k - 360 * k;
-            tmp.set(lx, T + 128 * k, lx + 360 * k, langBottom);
-            fill.setShader(null);
-            fill.setColor(0x12FFFFFF);
-            c.drawRoundRect(tmp, 32 * k, 32 * k, fill);
-            Frost.topEdge(c, tmp, 32 * k, k, 0x33FFFFFF);
-            if (langCaptionY > 0) {   // what's chosen, in words (or a moment's note)
-                boolean a = ticked.contains(MAIN_A), b = ticked.contains(MAIN_B);
-                boolean noting = langNote != null && SystemClock.uptimeMillis() < langNoteUntil;
-                String cap = noting ? langNote : a && b ? MAIN_A + " + " + MAIN_B : a ? MAIN_A + " only" : b ? MAIN_B + " only"
-                        : ticked.isEmpty() ? "Off \u00B7 every language" : "Off \u00B7 only the languages below";
-                TextPaint cp = new TextPaint(nPill);
-                cp.setTextSize(21 * k);
-                cp.setColor(noting ? 0xFFFFB4A8 : Frost.MUTE);
-                c.drawText(TextUtils.ellipsize(cap, cp, 330 * k, TextUtils.TruncateAt.END).toString(), lx + 26 * k, langCaptionY, cp);
-                if (noting && lastListener != null) lastListener.redraw();
-            }
-            if (moreLabelY > 0) {
-                TextPaint lp = new TextPaint(nPill);
-                lp.setTextSize(19 * k);
-                lp.setLetterSpacing(0.08f);
-                lp.setColor(Frost.MUTE);
-                c.drawText("MORE LANGUAGES", lx + 26 * k, moreLabelY, lp);
-            }
+    /** Behind the moods: Home blurred, then the chosen mood's own picture, soft and large, under a deep shade. */
+    private void moodBackdrop(Canvas c, float e) {
+        Frost.scrim(c, screen, e, bmp);
+        Item f = focus != null && focus.group == TILE ? focus : tileFocus;
+        Bitmap pic = f != null && f.index < cards.size() ? coverOf(cards.get(f.index), Math.round(f.rect.width())) : null;   // the tile's own copy
+        if (pic != null) {   // a small picture stretched over the screen is soft by itself: the blur for free
+            float sc = Math.max(screen.width() / pic.getWidth(), screen.height() / pic.getHeight());
+            float w = pic.getWidth() * sc, h = pic.getHeight() * sc;
+            tmp2.set(screen.centerX() - w / 2, screen.centerY() - h / 2, screen.centerX() + w / 2, screen.centerY() + h / 2);
+            bmp.setAlpha(Math.round((mode == TOPICS ? 45 : 110) * e));   // under the chips: just a hint of it
+            c.drawBitmap(pic, null, tmp2, bmp);
+            bmp.setAlpha(255);
         }
+        fill.setShader(new LinearGradient(0, 0, 0, screen.height(), new int[]{0xC7050507, 0x8C050507, 0xE6050507},
+                new float[]{0, 0.45f, 1}, Shader.TileMode.CLAMP));
+        fill.setAlpha(Math.round(255 * e));
+        c.drawRect(screen, fill);
+        fill.setShader(null);
+        fill.setAlpha(255);
+    }
+
+    private void drawCards(Canvas c, float e) {
+        c.drawText(L10n.t("What's the mood?"), 96 * k, 106 * k, nTitle);
+        // the tabs' capsule: Home's smoked glass, round all four
+        Item first = null;
+        for (Item it : items) if (it.group == TAB && first == null) first = it;
+        if (first != null) Frost.smoked(c, new RectF(first.rect.left - 6 * k, first.rect.top - 6 * k, tabsRight + 6 * k, first.rect.bottom + 6 * k), 40 * k, k);
         c.save();
         c.clipRect(tilesClip);
         for (Item it : items) if (it.group == TILE && it != focus) drawNoirItem(c, it, false);
@@ -1359,17 +1400,15 @@ final class RandomSheet {
                 c.drawCircle(r.left + 36 * k, r.centerY(), 7 * k, fill);
                 fill.clearShadowLayer();
                 nTab.setAlpha(here || focused ? 255 : 215);
-                c.drawText(it.label, r.left + 58 * k, r.centerY() + 12 * k, nTab);
+                c.drawText(L10n.t(it.label), r.left + 58 * k, r.centerY() + 12 * k, nTab);
                 return;
             }
-            case TILE: {   // the picture, clean and bright, with its name under it; selected, the violet glass round both
-                float rad = 20 * k, nameH = 42 * k;
-                if (focused) {
-                    tmp2.set(r.left - 8 * k, r.top - 8 * k, r.right + 8 * k, r.bottom + 4 * k);
-                    Frost.plate(c, tmp2, rad + 8 * k, k);
-                }
+            case TILE: {   // the picture fills the tile, its name inside on a dark fade; chosen: it grows, a white edge hugs it
+                float rad = 22 * k;
+                boolean inTiles = focus != null && focus.group == TILE;
+                RectF pic = focused ? Frost.posterGrown(r, 1.05f) : new RectF(r);
+                if (focused) Frost.posterShadow(c, pic, rad, k);
                 Picks.Entry card = cards.get(it.index);
-                RectF pic = new RectF(r.left, r.top, r.right, r.bottom - nameH);
                 Bitmap cover = coverOf(card, Math.round(r.width()));
                 c.save();
                 cardClip.reset();
@@ -1387,10 +1426,17 @@ final class RandomSheet {
                     c.drawRect(pic, fill);
                     fill.setShader(null);
                     Bitmap mark = LineIcon.icon(look.icon, 72 * k);
-                    c.drawBitmap(mark, pic.centerX() - mark.getWidth() / 2f, pic.centerY() - mark.getHeight() / 2f, bmp);
+                    c.drawBitmap(mark, pic.centerX() - mark.getWidth() / 2f, pic.centerY() - mark.getHeight() * 0.7f, bmp);
                 }
+                fill.setShader(new LinearGradient(0, pic.top + pic.height() * 0.45f, 0, pic.bottom, 0x00000000, 0xD9000000, Shader.TileMode.CLAMP));
+                c.drawRect(pic, fill);
+                fill.setShader(null);
                 c.restore();
-                c.drawText(ellipsize(it.label, nMoodPlain, r.width() - 16 * k), r.centerX(), r.bottom - 10 * k, nMoodPlain);
+                if (focused) Frost.posterRing(c, pic, rad, k);
+                else if (inTiles) Frost.posterDim(c, pic, rad);
+                nMoodPlain.setAlpha(focused || !inTiles ? 255 : 200);
+                c.drawText(ellipsize(L10n.t(it.label), nMoodPlain, pic.width() - 32 * k), pic.centerX(), pic.bottom - 22 * k, nMoodPlain);
+                nMoodPlain.setAlpha(255);
                 return;
             }
             case PLAY: {   // a glass bar with a big die; chosen, the die rolls (its face changing as it wobbles)
@@ -1400,94 +1446,66 @@ final class RandomSheet {
                     c.translate(0, -3 * k);
                     c.scale(1.03f, 1.03f, r.centerX(), r.centerY());
                 }
-                Frost.hero(c, r, rad, focused, k);
+                Frost.heroDeep(c, r, rad, focused, k);
                 long now = SystemClock.uptimeMillis();
                 boolean rolling = focused && !Lite.on;
-                float angle = rolling ? (float) (10 * Math.sin(now / 160.0)) : -8;
+                float angle = rolling ? (float) (8 * Math.sin(now / 180.0)) : 0;
                 int face = rolling ? (int) ((now / 260) % 6) + 1 : 5;
-                String sub = kind == Picks.SONG ? "A random song" : kind == Picks.EXTRAS ? "Something random" : "Picked at random";
+                String sub = kind == Picks.SONG ? L10n.t("A random song") : kind == Picks.EXTRAS ? L10n.t("Something random") : L10n.t("Picked at random");
                 TextPaint sp = new TextPaint(nPill);
-                sp.setTextSize(20 * k);
+                sp.setTextSize(23 * k);
                 sp.setColor(0xCCFFFFFF);
                 if (r.height() > 220 * k) {   // a tall tile: the die large in the middle, the words under it
-                    float d = Math.min(150 * k, r.height() * 0.42f), dx = r.centerX() - d / 2, dy = r.top + (r.height() - d - 96 * k) / 2;
+                    float d = Math.min(120 * k, r.height() * 0.36f), dx = r.centerX() - d / 2, dy = r.top + (r.height() - d - 96 * k) / 2;
                     drawDie(c, new RectF(dx, dy, dx + d, dy + d), angle, face, TAB_COLOURS[kind]);
                     float ly = dy + d + 52 * k;
-                    c.drawText(it.label, r.centerX() - nSurprise.measureText(it.label) / 2, ly, nSurprise);
+                    c.drawText(L10n.t(it.label), r.centerX() - nSurprise.measureText(L10n.t(it.label)) / 2, ly, nSurprise);
                     c.drawText(sub, r.centerX() - sp.measureText(sub) / 2, ly + 34 * k, sp);
                 } else {
-                    float d = r.height() - 30 * k, dx = r.left + 18 * k, dy = r.centerY() - d / 2;
+                    float d = r.height() - 48 * k, dx = r.left + 26 * k, dy = r.centerY() - d / 2;
                     drawDie(c, new RectF(dx, dy, dx + d, dy + d), angle, face, TAB_COLOURS[kind]);
                     float tx = dx + d + 22 * k;
-                    c.drawText(it.label, tx, r.centerY() - 2 * k, nSurprise);
+                    c.drawText(L10n.t(it.label), tx, r.centerY() - 2 * k, nSurprise);
                     c.drawText(TextUtils.ellipsize(sub, sp, r.right - tx - 16 * k, TextUtils.TruncateAt.END).toString(), tx, r.centerY() + 30 * k, sp);
                 }
                 c.restore();
                 if (rolling && lastListener != null) lastListener.redraw();   // keeps rolling while chosen
                 return;
             }
-            default: {   // a language, Songs / Playlists, or Customize
-                float rad = it.group == LANG ? 28 * k : it.group == SEG ? 26 * k : r.height() / 2;
-                boolean on = it.on && (it.group == LANG || it.group == FORMAT);
-                if (focused) Frost.plate(c, r, rad, k);
-                else if (it.group == CUSTOMIZE || it.group == FORMAT) Frost.ghost(c, r, rad, false, k);
-                Paint p = on ? nPillBold : nPill;
-                p.setAlpha(on || focused ? 255 : 220);
-                if (it.group == SEG) {   // a language switch: its name above, a sliding switch below, green when on
-                    if (!focused) {
+            default: {   // a chip along the foot (a language, Skip watched, Songs / Playlists), or Customize
+                float rad = r.height() / 2;
+                Paint p = it.on ? nPillBold : nPill;
+                p.setAlpha(255);
+                if (it.group == SEG || it.group == LANG || it.group == SKIP || it.group == FORMAT) {
+                    if (focused) Frost.plate(c, r, rad, k);
+                    else Frost.smoked(c, r, rad, k);
+                    float d = 26 * k, bx = r.left + 22 * k, by = r.centerY() - d / 2;
+                    if (it.on) {   // on: a green tick, as every tick in TV Town
                         fill.setShader(null);
-                        fill.setColor(it.on ? 0x24FFFFFF : 0x10FFFFFF);
-                        c.drawRoundRect(r, rad, rad, fill);
-                    }
-                    TextPaint q = new TextPaint(it.on || focused ? nPillBold : nPill);
-                    q.setTextSize(Math.min(q.getTextSize(), 24 * k));
-                    q.setAlpha(it.on || focused ? 255 : 190);
-                    c.drawText(it.label, r.left + 22 * k, r.top + 40 * k, q);
-                    float tw = 64 * k, th = 32 * k, tx = r.left + 22 * k, ty = r.bottom - 18 * k - th;
-                    RectF track = new RectF(tx, ty, tx + tw, ty + th);
-                    if (it.on) {
-                        fill.setShader(null);   // On is green, as every tick and switch in TV Town
                         fill.setColor(Frost.GREEN);
-                        c.drawRoundRect(track, th / 2, th / 2, fill);
+                        c.drawCircle(bx + d / 2, by + d / 2, d / 2, fill);
+                        Frost.tick(c, bx + d / 2, by + d / 2, 9 * k, k);
                     } else {
-                        fill.setColor(0x33FFFFFF);
-                        c.drawRoundRect(track, th / 2, th / 2, fill);
+                        edge.setStrokeWidth(Math.max(1.5f, 2 * k));
+                        edge.setColor(Color.WHITE);
+                        edge.setAlpha(140);
+                        c.drawCircle(bx + d / 2, by + d / 2, d / 2 - k, edge);
+                        edge.setAlpha(255);
                     }
-                    fill.setColor(Color.WHITE);
-                    float kr = th / 2 - 4 * k;
-                    c.drawCircle(it.on ? track.right - th / 2 : track.left + th / 2, track.centerY(), kr, fill);
-                } else if (it.group == LANG) {   // another language: a tick box, then its name
-                    float bs = 26 * k, bx = r.left + 18 * k, by = r.centerY() - bs / 2;
-                    RectF box = new RectF(bx, by, bx + bs, by + bs);
-                    fill.setShader(null);
-                    fill.setColor(it.on ? 0x40FFFFFF : 0x14FFFFFF);
-                    c.drawRoundRect(box, 6 * k, 6 * k, fill);
-                    edge.setStrokeWidth(Math.max(1.5f, 2 * k));
-                    edge.setColor(Color.WHITE);
-                    edge.setAlpha(it.on ? 255 : 150);
-                    c.drawRoundRect(box, 6 * k, 6 * k, edge);
-                    if (it.on) Frost.tick(c, box.centerX(), box.centerY(), 10 * k, k);
-                    c.drawText(it.label, box.right + 16 * k, r.centerY() + 10 * k, p);
-                } else if (it.group == SKIP) {   // a box, ticked when on, then the words
-                    float bx = r.left + 18 * k, bs = 28 * k, by = r.centerY() - bs / 2;
-                    RectF box = new RectF(bx, by, bx + bs, by + bs);
-                    fill.setShader(null);
-                    fill.setColor(it.on ? 0x40FFFFFF : 0x14FFFFFF);
-                    c.drawRoundRect(box, 7 * k, 7 * k, fill);
-                    edge.setStrokeWidth(Math.max(1.5f, 2 * k));
-                    edge.setColor(Color.WHITE);
-                    edge.setAlpha(it.on ? 255 : 160);
-                    c.drawRoundRect(box, 7 * k, 7 * k, edge);
-                    if (it.on) Frost.tick(c, box.centerX(), box.centerY(), 11 * k, k);
-                    TextPaint q = new TextPaint(nPill);
-                    q.setAlpha(255);
-                    q.setTextSize(Math.min(nPill.getTextSize(), 24 * k));
-                    c.drawText(TextUtils.ellipsize(it.label, q, r.right - box.right - 16 * k, TextUtils.TruncateAt.END).toString(),
-                            box.right + 14 * k, r.centerY() + 9 * k, q);
+                    TextPaint q = new TextPaint(chipText);
+                    q.setColor(Color.WHITE);
+                    q.setAlpha(it.on || focused ? 255 : 200);
+                    q.setFakeBoldText(it.on);
+                    c.drawText(L10n.t(it.label), bx + d + 14 * k, r.centerY() + q.getTextSize() * 0.36f, q);
+                    return;
+                }
+                if (focused) Frost.plate(c, r, rad, k);
+                else if (it.group == CUSTOMIZE) Frost.smoked(c, r, rad, k);
+                if (false) {
                 } else if (it.group == CUSTOMIZE) {
                     kit.drawGlyph(c, kit.glyph(WheelArt.Glyph.PENCIL, 30), r.left + 40 * k, r.centerY(), 255);
-                    c.drawText(it.label, r.left + 66 * k, r.centerY() + 10 * k, p);
-                } else c.drawText(it.label, r.centerX() - p.measureText(it.label) / 2, r.centerY() + 10 * k, p);
+                    c.drawText(L10n.t(it.label), r.left + 66 * k, r.centerY() + 10 * k, p);
+                } else c.drawText(L10n.t(it.label), r.centerX() - p.measureText(L10n.t(it.label)) / 2, r.centerY() + 10 * k, p);
             }
         }
     }
@@ -1523,7 +1541,7 @@ final class RandomSheet {
             tx += 44 * k;
         }
         float room = r.right - tx - (it.added || (selected && tickable) ? 52 : 16) * k;   // room for the tick or ✕
-        String text = TextUtils.ellipsize(it.label, new TextPaint(p), room, TextUtils.TruncateAt.END).toString();
+        String text = TextUtils.ellipsize(L10n.t(it.label), new TextPaint(p), room, TextUtils.TruncateAt.END).toString();
         c.drawText(text, tx, r.centerY() + 9 * k, p);
         if (it.added) {   // a name you added: OK removes it
             p.setAlpha(Math.round(200 * alpha));
@@ -1564,7 +1582,7 @@ final class RandomSheet {
             c.drawText(it.emoji, tmp.left + 20 * k, tmp.centerY() + 10 * k, chipEmoji);
             Paint p = current ? langBold : langText;
             p.setAlpha(Math.round(255 * e * (it.on ? 1f : 0.45f)));   // hidden cards look faded
-            c.drawText(it.on ? it.label : it.label + "  ·  " + ctx.getString(R.string.hidden), tmp.left + 66 * k, tmp.centerY() + 9 * k, p);
+            c.drawText(it.on ? L10n.t(it.label) : L10n.t(it.label) + "  ·  " + ctx.getString(R.string.hidden), tmp.left + 66 * k, tmp.centerY() + 9 * k, p);
         }
         c.restore();
         // Right: what it plays.
@@ -1600,6 +1618,280 @@ final class RandomSheet {
     }
 
     // ---- results drawing -------------------------------------------------------------------------
+
+    // ---- a tile that asks first (Recipes, Podcasts & Talks, Spirituality, Documentaries) ----------------------
+
+    private static final int T_OPT = 30, T_ADD = 31, T_SHOW = 32;
+    private Picks.Entry topicTile;
+    private Topics.Asks asks;
+    private final List<Item> tItems = new ArrayList<>();
+    private Item tFocus;
+    private final List<float[]> tHeads = new ArrayList<>();   // each row's name: x, y (with tHeadNames)
+    private final List<String> tHeadNames = new ArrayList<>();
+
+    private void openTopics(Picks.Entry tile) {
+        topicTile = tile;
+        tileFocus = focus;
+        asks = Topics.asks(tile.label);
+        mode = TOPICS;
+        layoutTopics(null);
+    }
+
+    /** The rows of chips, wrapping across the screen; then Show me. keep: the chip to stay on. */
+    private void layoutTopics(String keep) {
+        tItems.clear();
+        tHeads.clear();
+        tHeadNames.clear();
+        java.util.Set<String> on = Topics.ticked(ctx, topicTile.label);
+        float x0 = 96 * k, right = screen.width() - 96 * k, y = 230 * k, chipH = 64 * k, g = 14 * k;
+        chipText.set(nPill);
+        chipText.setTextSize(25 * k);
+        List<Topics.Group> rows = new ArrayList<>(asks.groups);
+        Topics.Group mine = new Topics.Group(Topics.OWN);
+        for (String s : Topics.own(ctx, topicTile.label)) mine.add(s, s);
+        rows.add(mine);
+        int idx = 0;
+        for (Topics.Group gr : rows) {
+            tHeads.add(new float[]{x0, y});
+            tHeadNames.add(L10n.t(gr.name));
+            y += 22 * k;
+            float x = x0;
+            List<Item> row = new ArrayList<>();
+            for (String[] o : gr.options) {
+                Item it = new Item(T_OPT, idx++, null, gr.name + "|" + o[0], topicTile.color);
+                it.on = on.contains(it.label);
+                row.add(it);
+            }
+            if (gr == mine) row.add(new Item(T_ADD, idx++, null, "|" + L10n.t("+ Add your own"), topicTile.color));
+            for (Item it : row) {
+                float w = chipText.measureText(L10n.t(shown(it))) + 92 * k;
+                if (x + w > right && x > x0) {
+                    x = x0;
+                    y += chipH + g;
+                }
+                it.rect.set(x, y, x + w, y + chipH);
+                tItems.add(it);
+                x += w + g;
+            }
+            y += chipH + 46 * k;
+        }
+        Item show = new Item(T_SHOW, idx, null, "|" + L10n.t("Show me"), topicTile.color);
+        show.rect.set(right - 360 * k, 930 * k, right, 1026 * k);
+        tItems.add(show);
+        tFocus = null;
+        for (Item it : tItems) if (keep != null && keep.equals(it.label)) tFocus = it;
+        if (tFocus == null) tFocus = show;
+    }
+
+    /** What was ticked, in short: "   ·   Veg · Italian" (nothing when nothing is). */
+    private String topicSummary() {
+        List<String> l = new ArrayList<>();
+        for (String on : Topics.ticked(ctx, topicTile.label)) l.add(L10n.t(on.substring(on.indexOf('|') + 1)));
+        return l.isEmpty() ? "" : "   ·   " + TextUtils.join(" · ", l);
+    }
+
+    private static String shown(Item it) {
+        int bar = it.label.indexOf('|');
+        return bar >= 0 ? it.label.substring(bar + 1) : it.label;
+    }
+
+    private void topicSelect(Listener listener) {
+        if (tFocus == null) return;
+        if (tFocus.group == T_OPT) {
+            java.util.Set<String> on = Topics.ticked(ctx, topicTile.label);
+            if (!on.remove(tFocus.label)) on.add(tFocus.label);
+            Topics.setTicked(ctx, topicTile.label, on);
+            layoutTopics(tFocus.label);
+            return;
+        }
+        if (tFocus.group == T_ADD) {
+            final String tile = topicTile.label;
+            listener.askText(L10n.t("+ Add your own"), L10n.t(asks.ownHint), typed -> {
+                if (typed == null || typed.trim().isEmpty() || mode != TOPICS || !tile.equals(topicTile.label)) return;
+                Topics.addOwn(ctx, tile, typed.trim());
+                java.util.Set<String> on = Topics.ticked(ctx, tile);
+                on.add(Topics.OWN + "|" + typed.trim());
+                Topics.setTicked(ctx, tile, on);
+                layoutTopics(Topics.OWN + "|" + typed.trim());
+            });
+            return;
+        }
+        start(listener, Topics.card(ctx, topicTile));   // Show me
+    }
+
+    private void drawTopics(Canvas c, float e) {
+        c.drawText(L10n.t(topicTile.label), 96 * k, 106 * k, nTitle);
+        sub.setAlpha(Math.round(210 * e));
+        c.drawText(L10n.t("Tick what you like, then Show me. Nothing ticked: a bit of everything."), 96 * k, 156 * k, sub);
+        TextPaint hp = new TextPaint(nPill);
+        hp.setTextSize(21 * k);
+        hp.setLetterSpacing(0.08f);
+        hp.setColor(Frost.MUTE);
+        for (int i = 0; i < tHeads.size(); i++) c.drawText(tHeadNames.get(i).toUpperCase(Locale.getDefault()), tHeads.get(i)[0], tHeads.get(i)[1], hp);
+        for (Item it : tItems) {
+            boolean f = it == tFocus;
+            RectF r = it.rect;
+            if (it.group == T_SHOW) {
+                Frost.heroDeep(c, r, r.height() / 2, f, k);
+                kit.drawGlyph(c, kit.glyph(WheelArt.Glyph.PLAY, 30), r.left + 48 * k, r.centerY(), 255);
+                c.drawText(shown(it), r.left + 84 * k, r.centerY() + 11 * k, nSurprise);
+                continue;
+            }
+            if (f) Frost.plate(c, r, r.height() / 2, k);
+            else Frost.smoked(c, r, r.height() / 2, k);
+            float d = 26 * k, bx = r.left + 22 * k, by = r.centerY() - d / 2;
+            if (it.group == T_ADD) {
+                TextPaint q = new TextPaint(chipText);
+                q.setColor(Color.WHITE);
+                c.drawText(shown(it), r.left + 30 * k, r.centerY() + q.getTextSize() * 0.36f, q);
+                continue;
+            }
+            if (it.on) {
+                fill.setShader(null);
+                fill.setColor(Frost.GREEN);
+                c.drawCircle(bx + d / 2, by + d / 2, d / 2, fill);
+                Frost.tick(c, bx + d / 2, by + d / 2, 9 * k, k);
+            } else {
+                edge.setStrokeWidth(Math.max(1.5f, 2 * k));
+                edge.setColor(Color.WHITE);
+                edge.setAlpha(140);
+                c.drawCircle(bx + d / 2, by + d / 2, d / 2 - k, edge);
+                edge.setAlpha(255);
+            }
+            TextPaint q = new TextPaint(chipText);
+            q.setColor(Color.WHITE);
+            q.setAlpha(it.on || f ? 255 : 210);
+            q.setFakeBoldText(it.on);
+            c.drawText(L10n.t(shown(it)), bx + d + 14 * k, r.centerY() + q.getTextSize() * 0.36f, q);
+        }
+    }
+
+    /** How many results are in view at once: films and series as tall covers (five), videos as wide pictures (three). */
+    private int inView() {
+        return kind != Picks.SEARCH && titlesKind() ? 5 : 3;
+    }
+
+    /** Behind the picks: Home blurred, the chosen one's picture soft and large, a deep shade. */
+    private void resultsBackdrop(Canvas c, float e) {
+        Frost.scrim(c, screen, e, bmp);
+        Bitmap pic = null;
+        if (!loading && mcol < resultCount()) {
+            Object o = results.get(mcol);
+            pic = o instanceof Tmdb.Title ? ImageCache.get(((Tmdb.Title) o).backdropCard(), null) : ImageCache.get(((Songs.Pick) o).thumb, null);
+        }
+        if (pic != null) {
+            float sc = Math.max(screen.width() / pic.getWidth(), screen.height() / pic.getHeight());
+            float w = pic.getWidth() * sc, h = pic.getHeight() * sc;
+            tmp2.set(screen.centerX() - w / 2, screen.centerY() - h / 2, screen.centerX() + w / 2, screen.centerY() + h / 2);
+            bmp.setAlpha(Math.round(80 * e));   // soft: it sets the mood, it doesn't compete with the picks
+            c.drawBitmap(pic, null, tmp2, bmp);
+            bmp.setAlpha(255);
+        }
+        fill.setShader(new LinearGradient(0, 0, 0, screen.height(), new int[]{0xD9050507, 0xA6050507, 0xEB050507},
+                new float[]{0, 0.45f, 1}, Shader.TileMode.CLAMP));
+        fill.setAlpha(Math.round(255 * e));
+        c.drawRect(screen, fill);
+        fill.setShader(null);
+        fill.setAlpha(255);
+    }
+
+    private void drawResultsFull(Canvas c, float e) {
+        int head = titlesKind() ? R.string.picks_for_tonight : kind == Picks.EXTRAS ? R.string.videos_for_you
+                : playlists ? R.string.playlists_for_you : R.string.songs_for_you;
+        float x0 = 96 * k, right = screen.width() - 96 * k;
+        c.drawText(ctx.getString(head), x0, 106 * k, nTitle);
+        String w0 = L10n.t(chosen.label) + (topicTile != null ? topicSummary()
+                : hasLanguages() && chosen.followsLanguage() ? "   ·   " + Picks.languageSummary(ticked) : "");
+        sub.setAlpha(Math.round(210 * e));
+        c.drawText(ellipsize(w0, sub, 1100 * k), x0, 152 * k, sub);
+        int n = resultCount();
+        if (n > 0) {
+            String count = (mcol + 1) + " / " + n;
+            c.drawText(count, right - sub.measureText(count), 106 * k, sub);
+        }
+        boolean tall = titlesKind();
+        int view = inView();
+        float gap = 34 * k, top = 210 * k, w = (right - x0 - (view - 1) * gap) / view, h = tall ? w * 1.5f : w * 9 / 16f;
+        long now = SystemClock.uptimeMillis();
+        float s = shift(now);
+        c.save();
+        c.clipRect(0, top - 40 * k, screen.width(), top + h + 150 * k);
+        if (loading || n == 0) {
+            for (int i = 0; i < view; i++) {
+                tmp.set(x0 + i * (w + gap), top, x0 + i * (w + gap) + w, top + h);
+                if (loading) placeholder(c, tmp, e, now, i);
+            }
+            if (!loading) {
+                String none = ctx.getString(R.string.nothing_for_choice);
+                c.drawText(none, x0, top + h / 2, sub);
+            }
+        } else {
+            boolean inRow = mrow == 0;
+            int first = Math.max(0, (int) Math.floor(s) - 1), last = Math.min(n - 1, first + view + 1);
+            for (int i = first; i <= last; i++) {
+                if (i == mcol && inRow) continue;
+                tmp.set(x0 + (i - s) * (w + gap), top, x0 + (i - s) * (w + gap) + w, top + h);
+                drawPick(c, i, tmp, false, inRow, e);
+            }
+            if (inRow) {
+                tmp.set(x0 + (mcol - s) * (w + gap), top, x0 + (mcol - s) * (w + gap) + w, top + h);
+                drawPick(c, mcol, tmp, true, true, e);
+            }
+        }
+        c.restore();
+        // Just play, Shuffle, Categories along the foot
+        float bh = 80 * k, y = 930 * k, g = 16 * k;
+        String[] labels = {ctx.getString(R.string.just_play), ctx.getString(R.string.shuffle), ctx.getString(R.string.back_to_moods)};
+        float x = x0;
+        for (int i = 0; i < labels.length; i++) {
+            float wd = nPill.measureText(labels[i]) + 96 * k;
+            tmp.set(x, y, x + wd, y + bh);
+            boolean f = mrow == 2 && mbtn == i;
+            if (i == 0) {
+                Frost.heroDeep(c, tmp, bh / 2, f, k);
+                c.drawText(labels[i], tmp.centerX() - nPillBold.measureText(labels[i]) / 2, tmp.centerY() + 10 * k, nPillBold);
+            } else {
+                if (f) Frost.plate(c, tmp, bh / 2, k);
+                else Frost.smoked(c, tmp, bh / 2, k);
+                c.drawText(labels[i], tmp.centerX() - nPill.measureText(labels[i]) / 2, tmp.centerY() + 10 * k, nPill);
+            }
+            x += wd + g;
+        }
+    }
+
+    /** One pick: its cover (tall for films and series), the name under it, then where and when. No story. */
+    private void drawPick(Canvas c, int i, RectF r, boolean focused, boolean rowOn, float e) {
+        float rad = 22 * k;
+        RectF pic = focused ? Frost.posterGrown(r, Frost.POSTER_GROW) : new RectF(r);
+        if (focused) Frost.posterShadow(c, pic, rad, k);
+        Object o = results.get(i);
+        String name, line;
+        Bitmap img;
+        if (o instanceof Tmdb.Title) {
+            Tmdb.Title t = (Tmdb.Title) o;
+            String url = titlesKind() && t.poster() != null ? t.poster() : t.backdropCard();
+            img = url != null ? ImageCache.get(url, () -> { if (lastListener != null) lastListener.redraw(); }, null, Math.round(r.width())) : null;
+            name = t.title;
+            line = (t.service != null ? t.service.name + " · " : "") + (t.year > 0 ? t.year : "") + (t.rating > 0 ? " · ★ " + String.format(Locale.US, "%.1f", t.rating) : "");
+        } else {
+            Songs.Pick p = (Songs.Pick) o;
+            img = ImageCache.get(p.thumb, null);
+            name = p.title;
+            line = p.by + "  ·  " + (p.playlist ? ctx.getString(R.string.n_songs, p.videos) : p.seconds == 0 ? ctx.getString(R.string.live) : MyMovies.clock(p.seconds * 1000L));
+        }
+        if (img != null) drawImage(c, img, pic, rad, Math.round(255 * e));
+        else Frost.surface(c, pic, rad, k);
+        if (focused) Frost.posterRing(c, pic, rad, k);
+        else if (rowOn) Frost.posterDim(c, pic, rad);
+        float ty = pic.bottom + 42 * k;
+        TextPaint np = new TextPaint(cardTitle);
+        np.setTextSize(28 * k);
+        np.setAlpha(Math.round((focused || !rowOn ? 255 : 175) * e));
+        c.drawText(ellipsize(name, np, r.width()), r.left, ty, np);
+        cardMeta.setColor(Frost.MUTE);
+        cardMeta.setAlpha(Math.round((focused || !rowOn ? 230 : 150) * e));
+        c.drawText(ellipsize(line, cardMeta, r.width()), r.left, ty + 36 * k, cardMeta);
+    }
 
     private void drawResults(Canvas c, float e) {
         int head = kind == Picks.SEARCH ? R.string.search : titlesKind() ? R.string.picks_for_tonight
@@ -1732,8 +2024,8 @@ final class RandomSheet {
             tl.draw(c);
             c.restore();
             y += tl.getHeight() + 34 * k;
-            String line1 = (t.isSeries() ? "Series" : "Movie") + (t.year > 0 ? " · " + t.year : "")
-                    + (t.runtime > 0 ? " · " + (t.runtime >= 60 ? t.runtime / 60 + " h " + t.runtime % 60 + " min" : t.runtime + " min") : "")
+            String line1 = (t.isSeries() ? L10n.t("Series") : L10n.t("Movie")) + (t.year > 0 ? " · " + t.year : "")
+                    + (t.runtime > 0 ? " · " + (t.runtime >= 60 ? t.runtime / 60 + " h " + t.runtime % 60 + L10n.t(" min") : t.runtime + L10n.t(" min")) : "")
                     + (t.rating > 0 ? " · ★ " + String.format(Locale.US, "%.1f", t.rating) : "");
             cardMeta.setColor(Frost.MUTE);
             cardMeta.setAlpha(Math.round(Color.alpha(Frost.MUTE) * e));
@@ -1753,7 +2045,7 @@ final class RandomSheet {
         Songs.Pick p = (Songs.Pick) results.get(i);
         Bitmap img = ImageCache.get(p.thumb, null);
         if (img != null) drawImage(c, img, tmp2, rad, Math.round((focused ? 255 : 220) * e));
-        if (kind == Picks.SEARCH) appBadge(c, Services.YOUTUBE_PKG, "YouTube", tmp2, e);   // where it plays
+        if (kind == Picks.SEARCH) appBadge(c, Services.YOUTUBE_PKG, L10n.t("YouTube"), tmp2, e);   // where it plays
         StaticLayout tl = layout("m" + p.id, p.title, cardTitle, w, 2);
         cardTitle.setAlpha(textA);
         c.save();
@@ -1855,20 +2147,23 @@ final class RandomSheet {
     }
 
     /** A die: a rounded square in the tab's colour, lit from the top, with white pips for the face (1 to 6). */
+    /** The die as one of TV Town's line icons: clear glass with a lilac edge and lilac pips, like the icon on Play and Trailer. */
     private void drawDie(Canvas c, RectF r, float angle, int face, int colour) {
         c.save();
         c.rotate(angle, r.centerX(), r.centerY());
-        float rad = r.width() * 0.22f;
-        fill.setColor(Color.WHITE);
-        fill.setShader(new LinearGradient(r.left, r.top, r.right, r.bottom, lighten(colour), colour, Shader.TileMode.CLAMP));
-        fill.setShadowLayer(14 * k, 0, 6 * k, 0x66000000);
-        c.drawRoundRect(r, rad, rad, fill);
-        fill.clearShadowLayer();
-        fill.setShader(new LinearGradient(0, r.top, 0, r.centerY(), 0x40FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
-        c.drawRoundRect(r, rad, rad, fill);   // the shine on its top half
+        float rad = r.width() * 0.24f;
         fill.setShader(null);
-        fill.setColor(Color.WHITE);
-        float p = r.width() * 0.09f, a = r.width() * 0.27f, cx = r.centerX(), cy = r.centerY();
+        fill.clearShadowLayer();
+        fill.setColor(0x24FFFFFF);
+        c.drawRoundRect(r, rad, rad, fill);
+        Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
+        edge.setStyle(Paint.Style.STROKE);
+        edge.setStrokeWidth(Math.max(2f, r.width() * 0.045f));
+        edge.setColor(Frost.HERO_ICON);
+        float in = edge.getStrokeWidth() / 2;
+        c.drawRoundRect(r.left + in, r.top + in, r.right - in, r.bottom - in, rad - in, rad - in, edge);
+        fill.setColor(Frost.HERO_ICON);
+        float p = r.width() * 0.075f, a = r.width() * 0.25f, cx = r.centerX(), cy = r.centerY();
         int[][] pips = {{}, {0, 0}, {-1, -1, 1, 1}, {-1, -1, 0, 0, 1, 1}, {-1, -1, 1, -1, -1, 1, 1, 1},
                 {-1, -1, 1, -1, 0, 0, -1, 1, 1, 1}, {-1, -1, 1, -1, -1, 0, 1, 0, -1, 1, 1, 1}};
         int[] f = pips[Math.max(1, Math.min(6, face))];

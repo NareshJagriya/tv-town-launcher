@@ -21,9 +21,9 @@ final class Treat implements GlassSheet.Pane {
     static final String UPI = "nareshjagriya@okhdfcbank", PAYPAL = "https://paypal.me/jagriya";
     static final String TITLE = "Support TV Town";
     private static final String[][] INDIA = {{"☕", "₹99", "99"}, {"🥟", "₹199", "199"}, {"🍿", "₹499", "499"},
-            {"🎬", "₹999", "999"}, {"✨", "Any", ""}};
+            {"🎬", "₹999", "999"}, {"✨", L10n.t("Any"), ""}};
     private static final String[][] WORLD = {{"☕", "$3", "3"}, {"🍕", "$5", "5"}, {"🍿", "$10", "10"},
-            {"🎬", "$25", "25"}, {"✨", "Any", ""}};
+            {"🎬", "$25", "25"}, {"✨", L10n.t("Any"), ""}};
 
     private final float k;
     private final Paint title, line, small, chip, fill = new Paint(Paint.ANTI_ALIAS_FLAG), edge = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -61,23 +61,23 @@ final class Treat implements GlassSheet.Pane {
 
         float x = area.left + 48 * k, y = area.top + 78 * k;
         title.setAlpha(a);
-        c.drawText(TITLE, x, y, title);
+        c.drawText(L10n.t(TITLE), x, y, title);
         line.setAlpha(a);
-        c.drawText("Happiness is creating something you love.", x, y + 58 * k, line);
-        c.drawText("Even better when someone loves it too!", x, y + 96 * k, line);
+        c.drawText(L10n.t("Happiness is creating something you love."), x, y + 58 * k, line);
+        c.drawText(L10n.t("Even better when someone loves it too!"), x, y + 96 * k, line);
         small.setTextSize(23 * k);
         small.setColor(0xE6FFFFFF);
         small.setAlpha(Math.round(0xE6 * e));
-        c.drawText("Want to make a creator smile? You know what to do. 😁", x, y + 138 * k, small);
+        c.drawText(L10n.t("Want to make a creator smile? You know what to do. 😁"), x, y + 138 * k, small);
         small.setColor(Frost.MUTE);
         small.setAlpha(Math.round(Color.alpha(Frost.MUTE) * e));
-        c.drawText("No pressure! ❤️", x, y + 172 * k, small);
+        c.drawText(L10n.t("No pressure! ❤️"), x, y + 172 * k, small);
 
         // left: India or anywhere else, then the treats; right: the QR code
         float qs = 230 * k, qx = area.right - 48 * k - qs, qy = y + 214 * k;
         float colR = qx - 40 * k;
         float ty = y + 214 * k;
-        String[] tabs = {"🇮🇳  India (UPI)", "🌍  Anywhere else"};
+        String[] tabs = {L10n.t("🇮🇳  India (UPI)"), L10n.t("🌍  Anywhere else")};
         float tw = (colR - x - 12 * k) / 2;
         for (int i = 0; i < 2; i++) {
             r.set(x + i * (tw + 12 * k), ty, x + i * (tw + 12 * k) + tw, ty + 58 * k);
@@ -106,7 +106,7 @@ final class Treat implements GlassSheet.Pane {
         small.setTextSize(19 * k);
         small.setColor(0x99FFFFFF);
         small.setAlpha(Math.round(0x99 * e));
-        c.drawText(focused ? "◄ ► choose    ▲ ▼ India or anywhere else" : "► to choose a treat", x, cy + 150 * k, small);
+        c.drawText(focused ? L10n.t("◄ ► choose    ▲ ▼ India or anywhere else") : L10n.t("► to choose a treat"), x, cy + 150 * k, small);
 
         String want = link(world, t[pick][2]);
         if (!want.equals(qrFor)) {
@@ -132,13 +132,13 @@ final class Treat implements GlassSheet.Pane {
         small.setTextSize(21 * k);
         small.setColor(Color.WHITE);
         small.setAlpha(a);
-        c.drawText(world ? "Scan to open PayPal" : "Scan with any UPI app", qx + qs / 2, qy + qs + 52 * k, small);
+        c.drawText(world ? L10n.t("Scan to open PayPal") : L10n.t("Scan with any UPI app"), qx + qs / 2, qy + qs + 52 * k, small);
         small.setTextSize(18 * k);
         small.setColor(Frost.MUTE);
         small.setAlpha(Math.round(Color.alpha(Frost.MUTE) * e));
         c.drawText(world ? "paypal.me/jagriya" : UPI, qx + qs / 2, qy + qs + 82 * k, small);
         small.setTextSize(21 * k);
-        c.drawText("Thank you! 🙏", qx + qs / 2, qy + qs + 120 * k, small);
+        c.drawText(L10n.t("Thank you! 🙏"), qx + qs / 2, qy + qs + 120 * k, small);
         small.setTextAlign(Paint.Align.LEFT);
     }
 
@@ -198,6 +198,6 @@ final class Treat implements GlassSheet.Pane {
         }
         if (now - first < 14 * 86_400_000L || now - p.getLong("treat_nudged", 0) < 30 * 86_400_000L) return;
         p.edit().putLong("treat_nudged", now).apply();
-        HomeKeyService.note("Enjoying TV Town? 😁 Want to make a creator smile? Settings → Support TV Town", 7000);
+        HomeKeyService.note(L10n.t("Enjoying TV Town? 😁 Want to make a creator smile? Settings → Support TV Town"), 7000);
     }
 }

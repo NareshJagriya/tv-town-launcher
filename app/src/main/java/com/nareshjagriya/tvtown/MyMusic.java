@@ -40,7 +40,7 @@ final class MyMusic {
     /** One song file on the drive, with what is shown for it (cleaned, or as you edited it). */
     static final class Song {
         long id, size, durationMs;
-        String name, rel, folder;   // folder: the top folder under Music/ ("Gazals")
+        String name, rel, folder;   // folder: the top folder under Music/ (L10n.t("Gazals"))
         String path;                // the file on the drive (for a lyrics file beside it), when the TV gives it
         String title = "", artist = "", album = "", genre = "";   // album: the film, for film songs
         String fileTitle = "";      // the name as cleaned from the file, before tidying (lyrics are searched by both)
@@ -176,13 +176,13 @@ final class MyMusic {
 
     /** "Music/Gazals/Best Gazals/" gives "Gazals"; a song at the top of the drive is in "Songs". */
     static String topFolder(@Nullable String rel) {
-        if (rel == null) return "Songs";
+        if (rel == null) return L10n.t("Songs");
         List<String> parts = new ArrayList<>();
         for (String p : rel.split("/")) if (!p.isEmpty()) parts.add(p);
         if (!parts.isEmpty() && parts.get(0).equalsIgnoreCase("music")) parts.remove(0);
         // An Apple Music library copied over: Music/Media.localized/Music/Unplugged/Unknown Album/
         while (!parts.isEmpty() && parts.get(0).matches("(?i)media(\\.localized)?|music|itunes( media)?|itunes music")) parts.remove(0);
-        return parts.isEmpty() ? "Songs" : parts.get(0);
+        return parts.isEmpty() ? L10n.t("Songs") : parts.get(0);
     }
 
     /** Folders, then artists with at least three songs (the rest under "Others"); each list in title order. */
@@ -238,9 +238,9 @@ final class MyMusic {
     // A web address in brackets, any ending: "(wapking.fm)", "[DJMaza.Info]".
     private static final Pattern SITE_IN_BRACKETS = Pattern.compile("(?i)\\s*[\\[(]\\s*(www\\.)?[a-z0-9-]+(\\.[a-z0-9-]+)*\\.[a-z]{2,4}\\s*[\\])]");
     private static final Pattern WORDS = Pattern.compile("(?i)\\b(full (video|audio|song)s?( song)?|official (video|audio|music video|lyric(al)? video)"
-            + "|lyric(al)? video|video song|audio song|hd|hq|320 ?kbps|128 ?kbps|kbps|mp3|t-series|tseries|zee music( company)?"
-            + "|sony music( india)?|saregama|wid lyrics|with lyrics|lyrics|songspk|mp3 ?paglu|pagalworld|mr-?jatt|djmaza|wapking"
-            + "|songs ?lover|mp3 ?glu|mp3mad|downloadming|320|128)\\b");
+            + L10n.t("|lyric(al)? video|video song|audio song|hd|hq|320 ?kbps|128 ?kbps|kbps|mp3|t-series|tseries|zee music( company)?")
+            + L10n.t("|sony music( india)?|saregama|wid lyrics|with lyrics|lyrics|songspk|mp3 ?paglu|pagalworld|mr-?jatt|djmaza|wapking")
+            + L10n.t("|songs ?lover|mp3 ?glu|mp3mad|downloadming|320|128)\\b"));
     // "{FILM : JAB WE MET}" or "(From \"Jab We Met\")": the film the song is from.
     private static final Pattern FILM = Pattern.compile("(?i)[{(\\[]\\s*(?:film|movie|from)\\s*[:\\-]?\\s*\"?([^}\\])\"]+)\"?\\s*[})\\]]");
     private static final Pattern TRACK = Pattern.compile("^\\s*(\\[[^\\]]{1,6}\\]\\s*)?(\\d{1,3})\\s*([-.)_]\\s*|\\s+)");
@@ -542,6 +542,6 @@ final class MyMusic {
     /** "3 h 10 min" or "42 min". */
     static String length(long ms) {
         long min = Math.round(ms / 60_000.0);
-        return min >= 60 ? min / 60 + " h " + min % 60 + " min" : min + " min";
+        return min >= 60 ? min / 60 + " h " + min % 60 + L10n.t(" min") : min + L10n.t(" min");
     }
 }

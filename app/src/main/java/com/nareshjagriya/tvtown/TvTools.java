@@ -66,11 +66,11 @@ final class TvTools {
 
     /** "3.2 GB free" for the TV, then "· drive 1.1 TB free" when a drive is in. */
     static String storage(Context c) {
-        String s = free(new StatFs(c.getFilesDir().getAbsolutePath())) + " free";
+        String s = free(new StatFs(c.getFilesDir().getAbsolutePath())) + L10n.t(" free");
         java.io.File drive = DriveStore.anyDrive(c);
         if (drive != null) {
             try {
-                s += "  ·  drive " + free(new StatFs(drive.getAbsolutePath())) + " free";
+                s += L10n.t("  ·  drive ") + free(new StatFs(drive.getAbsolutePath())) + L10n.t(" free");
             } catch (IllegalArgumentException ignored) {
                 // the drive went
             }
@@ -277,7 +277,7 @@ final class TvTools {
     private static List<Watching> watchNextOf(Context c, int max, boolean saved) {
         List<Watching> list = new ArrayList<>();
         PackageManager apps = c.getPackageManager();
-        String newestFirst = TvContract.WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS + " DESC";
+        String newestFirst = TvContract.WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS + L10n.t(" DESC");
         try (Cursor row = c.getContentResolver().query(TvContract.WatchNextPrograms.CONTENT_URI, null, null, null, newestFirst)) {
             while (row != null && list.size() < max && row.moveToNext()) {
                 Watching w = fromRow(c, row, apps, saved);
@@ -286,7 +286,92 @@ final class TvTools {
         } catch (RuntimeException noList) {
             // not allowed, or this TV has no Watch Next
         }
+        if (!saved && list.size() < max) {   // then the apps' own L10n.t("Continue watching") rows on the TV's home
+            java.util.Set<String> have = new java.util.HashSet<>();
+            for (Watching w : list) have.add(w.pkg + "|" + w.title.toLowerCase(Locale.ROOT));
+            for (Watching w : appRows(c, apps, max)) {
+                if (list.size() >= max) break;
+                if (have.add(w.pkg + "|" + w.title.toLowerCase(Locale.ROOT))) list.add(w);
+            }
+        }
         return list;
+    }
+
+    /** An item an app labels as one to carry on with: its words start "Continue watching", "Resume" or "Keep watching". */
+    static boolean markedToContinue(String words) {
+        String w = words.trim().toLowerCase(Locale.ROOT);
+        return w.startsWith("continue watching") || w.startsWith("resume") || w.startsWith("keep watching");
+    }
+
+    /** A row an app puts on the TV's home that is about carrying on: "Continue watching", "Resume", "Keep watching"... */
+    static boolean continueRow(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        return n.contains("continue") || n.contains("resume") || n.contains("keep watching") || n.contains("carry on")
+                || n.contains("pick up") || n.contains("jump back") || n.contains("recently watched") || n.contains("watch history")
+                || n.contains("देखना जारी") || n.contains("जारी रखें");
+    }
+
+    /**
+     * What apps that don't use Watch Next show on the TV's home instead: titles in a row named like "Continue watching",
+     * and anything in any of their rows that has a place you stopped at. As Flow and other launchers do.
+     */
+    private static List<Watching> appRows(Context c, PackageManager apps, int max) {
+        List<Watching> out = new ArrayList<>();
+        java.util.Map<Long, String[]> rows = new java.util.HashMap<>();   // channel id: package, its name
+        try (Cursor ch = c.getContentResolver().query(TvContract.Channels.CONTENT_URI, null, null, null, null)) {
+            while (ch != null && ch.moveToNext()) {
+                if (!TvContract.Channels.TYPE_PREVIEW.equals(field(ch, TvContract.Channels.COLUMN_TYPE))) continue;
+                if (number(ch, TvContract.Channels.COLUMN_BROWSABLE, 1) == 0) continue;
+                String pkg = field(ch, TvContract.Channels.COLUMN_PACKAGE_NAME);
+                if (pkg.isEmpty() || apps.getLeanbackLaunchIntentForPackage(pkg) == null) continue;
+                rows.put(number(ch, TvContract.Channels._ID, -1), new String[]{pkg, field(ch, TvContract.Channels.COLUMN_DISPLAY_NAME)});
+            }
+        } catch (RuntimeException notAllowed) {
+            return out;
+        }
+        if (rows.isEmpty()) return out;
+        try (Cursor row = c.getContentResolver().query(TvContract.PreviewPrograms.CONTENT_URI, null, null, null, null)) {
+            while (row != null && out.size() < max && row.moveToNext()) {
+                String[] in = rows.get(number(row, TvContract.PreviewPrograms.COLUMN_CHANNEL_ID, -1));
+                if (in == null || number(row, TvContract.PreviewPrograms.COLUMN_BROWSABLE, 1) == 0) continue;
+                long pos = number(row, TvContract.PreviewPrograms.COLUMN_LAST_PLAYBACK_POSITION_MILLIS, 0);
+                if (android.util.Log.isLoggable("TVTown", android.util.Log.DEBUG))
+                    android.util.Log.d("TVTown", "row item: " + in[0] + " | " + field(row, TvContract.PreviewPrograms.COLUMN_TITLE)
+                            + L10n.t(" | pos=") + pos + L10n.t(" dur=") + number(row, TvContract.PreviewPrograms.COLUMN_DURATION_MILLIS, 0)
+                            + L10n.t(" type=") + number(row, TvContract.PreviewPrograms.COLUMN_TYPE, -1)
+                            + " watchNextType=" + number(row, TvContract.PreviewPrograms.COLUMN_INTERACTION_TYPE, -1)
+                            + L10n.t(" weight=") + number(row, TvContract.PreviewPrograms.COLUMN_WEIGHT, -1)
+                            + L10n.t(" internal=") + field(row, TvContract.PreviewPrograms.COLUMN_INTERNAL_PROVIDER_ID)
+                            + L10n.t(" desc=") + field(row, TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION));
+                String says = field(row, TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION);
+                boolean marked = markedToContinue(says);   // Netflix: L10n.t("Continue Watching Episode 1")
+                if (!continueRow(in[1]) && pos <= 0 && !marked) continue;   // a row of picks, not of what you're watching
+                Watching w = new Watching();
+                w.pkg = in[0];
+                w.app = appName(apps, w.pkg);
+                w.title = field(row, TvContract.PreviewPrograms.COLUMN_TITLE);
+                if (w.title.isEmpty()) continue;
+                if (w.pkg.contains("videolan")) {   // VLC gives the file's name ("Anaconda 2025 AAC5 1"): tidied as My Movies does
+                    MyMovies.Parsed tidy = MyMovies.parse(w.title, "", "");
+                    if (!tidy.title.isEmpty()) w.title = tidy.title + (tidy.year > 0 ? " (" + tidy.year + ")" : "");
+                }
+                w.line = placeInShow(row, w.title) + w.app;
+                w.pos = pos;
+                w.dur = number(row, TvContract.PreviewPrograms.COLUMN_DURATION_MILLIS, 0);
+                if (w.pos > 0 && w.dur > 0) w.frac = Math.min(1f, w.pos / (float) w.dur);
+                String open = field(row, TvContract.PreviewPrograms.COLUMN_INTENT_URI);
+                w.intentUri = open.isEmpty() ? null : open;
+                String picture = field(row, TvContract.PreviewPrograms.COLUMN_POSTER_ART_URI);
+                if (picture.isEmpty()) picture = field(row, TvContract.PreviewPrograms.COLUMN_THUMBNAIL_URI);
+                if (!picture.isEmpty()) w.image = keepPicture(c, picture);
+                out.add(w);
+            }
+        } catch (RuntimeException notAllowed) {
+            // the TV keeps these to itself
+        }
+        if (android.util.Log.isLoggable("TVTown", android.util.Log.DEBUG)) for (String[] r : rows.values()) android.util.Log.d("TVTown", "app row: " + r[0] + " / " + r[1]);
+        android.util.Log.d("TVTown", "app rows: " + rows.size() + " rows, " + out.size() + " to continue");
+        return out;
     }
 
     private static Watching fromRow(Context c, Cursor row, PackageManager apps, boolean saved) {
@@ -305,6 +390,8 @@ final class TvTools {
         w.dur = number(row, TvContract.WatchNextPrograms.COLUMN_DURATION_MILLIS, 0);
         if (w.pos > 0 && w.dur > 0) w.frac = Math.min(1f, w.pos / (float) w.dur);
         w.at = number(row, TvContract.WatchNextPrograms.COLUMN_LAST_ENGAGEMENT_TIME_UTC_MILLIS, 0);
+        if (android.util.Log.isLoggable("TVTown", android.util.Log.DEBUG))
+            android.util.Log.d("TVTown", "watch next: " + w.pkg + " / " + w.title + " pos=" + w.pos + " dur=" + w.dur + " type=" + kind);
         String open = field(row, TvContract.WatchNextPrograms.COLUMN_INTENT_URI);
         w.intentUri = open.isEmpty() ? null : open;
         String picture = field(row, TvContract.WatchNextPrograms.COLUMN_THUMBNAIL_URI);
@@ -327,8 +414,8 @@ final class TvTools {
         String episode = field(row, TvContract.WatchNextPrograms.COLUMN_EPISODE_DISPLAY_NUMBER);
         String named = field(row, TvContract.WatchNextPrograms.COLUMN_EPISODE_TITLE);
         List<String> parts = new ArrayList<>();
-        if (!season.isEmpty()) parts.add("Season " + season);
-        if (!episode.isEmpty()) parts.add("Episode " + episode);
+        if (!season.isEmpty()) parts.add(L10n.t("Season ") + season);
+        if (!episode.isEmpty()) parts.add(L10n.t("Episode ") + episode);
         if (parts.isEmpty() && !named.isEmpty() && !named.equals(title)) parts.add(named);
         return parts.isEmpty() ? "" : String.join(" · ", parts) + " · ";
     }
