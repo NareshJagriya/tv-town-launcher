@@ -200,27 +200,27 @@ Nothing is uninstalled: switching off uses Android's own "disable", and **Turn a
 
 ### Sports home
 
-Pick your sports at the top: cricket, football (Premier League, Champions League, ISL, La Liga, World Cup), basketball (NBA), and tennis. Rows show what's live now, coming up today, and results, each card in the two teams' colours with their badges or flags. The card on the right follows you as you move; OK (or Right at the end of a row) steps onto it, to **Watch on** the app showing it or open the **Full scorecard**.
+Pick your sports at the top: cricket, football (Premier League, Champions League, ISL, La Liga, World Cup), basketball (NBA), and tennis. Rows show what's live now, coming up today, and results, each card in the two teams' colours with their badges or flags. OK on a match opens its full page.
 
 ![Sports home](media/screenshots/08-sports/sports-home.jpg)
 
-### Live scorecards and stats
+### Full scorecards and stats
 
-A match's card has the big score, the ground and the latest: cricket's batting and bowling cards, or football's possession, shots, corners and fouls, with goals and cards as they happen. It refreshes every 30 seconds while the match is live. Watch on opens the app showing it.
+A match's page has the big score, the ground and the result, then for cricket every innings in full: each batter with how they got out, runs, balls, fours, sixes and strike rate, the extras, who didn't bat, and every bowler. Football shows possession, shots, corners and fouls, with goals and cards as they happen. Up and Down scroll; it refreshes every 30 seconds while the match is live, and **Watch on** opens the app showing it.
 
 ![Live scorecard](media/screenshots/08-sports/match-scorecard.jpg)
 
 
 ## Phone remote
 
-Your phone becomes the remote and a game controller, with nothing to install. Frosted glass, and every tab fits on one screen.
+Your phone becomes the remote and a game controller, with nothing to install. Dark or light (the sun button switches), tabs on top, and every tab fits on one screen above the phone's browser bars.
 
 ### Remote, Browse and Files
 
 - **Always there:** a Search bar with a mic that searches inside the app on the TV (YouTube, Netflix, Prime Video, JioHotstar…) or in TV Town; what's playing with Song and Video download buttons; and at the bottom Back, a big Home, the arrows with OK, and volume with Mute.
-- **Remote:** your five main apps and All apps as big tiles, then Surprise Me, My Movies and My Music, playback and the coloured buttons.
-- **Browse:** TV Town Home, every TV Town place, and the music player's and TV's buttons.
-- **Files:** save from YouTube and share with the TV (see below), with a Folders button for where saves go.
+- **Remote:** your main apps as a row of tiles, playback and the coloured buttons. **All apps** shows every app, and **TV settings** opens Wi-Fi, Bluetooth, sound, picture and more in one tap.
+- **Browse:** Surprise Me, My Movies, My Music and every TV Town place, and the music player's buttons.
+- **Files:** Send to TV and Get from TV on the left, saving from YouTube (Find a song, MP3 or MP4, Download what's playing) on the right, with the drive's free space.
 
 Works on iPhone and Android, on your home Wi-Fi. Every keyboard on the TV has a **Type on your phone** key that shows a QR code to type on your phone.
 
@@ -240,7 +240,7 @@ Save any song or video to your own drive, from your phone or with the TV remote,
 - **Audio or video:** MP3 for songs, MP4 to keep the picture.
 - **What's playing, a name or a link:** tap Song or Video while YouTube plays on the TV, or Find a song to search by name or paste a YouTube link.
 - **Your choice of folder:** songs and videos each go where you choose, ready in My Music and My Movies.
-- **On the TV too:** press **OK twice** quickly while a YouTube video plays (it blinks and carries on). It saves in the background, even with your phone closed.
+- **On the TV too:** press **OK twice** quickly while a YouTube video plays. A small pop-up asks first: choose MP3 or Video, then Download or Cancel, so a stray press never saves anything. It saves in the background, even with your phone closed.
 - **Help** is one tap away on the page.
 
 ![YouTube downloads](media/screenshots/10-youtube-downloads/download.jpg)
@@ -251,6 +251,7 @@ Move files between your phone and the drive plugged into the TV, over Wi-Fi, wit
 
 - **Send to TV:** pick songs, films or subtitles on your phone. Songs go to Music and films to Movies by themselves, or choose a folder.
 - **Get from TV:** open a folder and tap a file to save it on your phone.
+- **LocalSend:** from any phone or computer with the free LocalSend app: open Customize → Phone and downloads → Receive files on the TV, then send.
 - **Safe:** nothing is ever replaced, and half-sent files are never left behind.
 - **Help** is one tap away on the page.
 

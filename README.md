@@ -135,7 +135,7 @@ Find something worth watching.
 
 ### [Sports](FEATURES.md#control-center-and-sports)
 
-Live scores and scorecards for the sports you follow.
+Live scores and full scorecards for the sports you follow.
 
 ![Sports](media/screenshots/08-sports/sports-home.jpg)
 
