@@ -57,6 +57,7 @@ final class Lyrics {
         java.io.File drive = DriveStore.volumeOf(s.path);
         JSONObject known = DriveStore.map(drive, "lyrics");
         JSONObject was = known.optJSONObject(s.key());
+        if (was != null && was.optBoolean("removed")) return new ArrayList<>();   // you removed them: none until you pick some
         String asked = s.title + "|" + s.artist;   // a L10n.t("not found") stands only while the song's name is the same
         if (was != null && asked.equals(was.optString("asked")) && (was.optInt("v") >= SEARCH_VERSION || was.has("picked"))) {
             if (was.has("stretched")) return stretch(was.optString("stretched"), was.optDouble("ratio", 1));

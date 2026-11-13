@@ -74,6 +74,8 @@ final class Tmdb {
         String jwBackdrop, jwPoster;   // JustWatch image paths
         String backdropUrl;         // a full picture URL (StreamRadar titles)
         volatile String logoUrl;    // the film's own title art, when found
+        long airAt;                 // Coming up: the day it airs
+        String airLine;             // Coming up: when its next episode airs ("Fri 14 Nov  ·  S3 E5"), shown instead of the year
         volatile boolean logoAsked, logoDone;
         volatile long logoAskedAt;
         java.util.Map<String, String> links;   // service key → the title's page in that app
@@ -376,6 +378,62 @@ final class Tmdb {
     }
 
     /** Titles TMDB suggests after this one ("because you watched"), best first. type: "movie" or "tv". */
+    /** One film or series by its TMDB id, picture paths included; null when unknown. */
+    @Nullable
+    static Title byId(Context ctx, String type, int id) throws IOException {
+        List<Title> l = parse(new JSONArray().put(call(ctx, "/" + type + "/" + id, new java.util.HashMap<>(), DAY)), type);
+        return l.isEmpty() ? null : l.get(0);
+    }
+
+    /** A series' own page (next and last episode included), kept a day. */
+    static JSONObject series(Context ctx, int id) throws IOException {
+        return call(ctx, "/tv/" + id, new java.util.HashMap<>(), DAY);
+    }
+
+    /** The TMDB ids of the given apps, joined for with_watch_providers ("" when none known). */
+    static String idsOf(Context ctx, List<Services.Service> apps) {
+        java.util.LinkedHashSet<String> all = new java.util.LinkedHashSet<>();
+        for (Services.Service s : apps) {
+            try {
+                String ids = providerIds(ctx, s);
+                if (ids != null) all.addAll(java.util.Arrays.asList(ids.split("\\|")));
+            } catch (IOException ignored) {
+                // that app: left out
+            }
+        }
+        return String.join("|", all);
+    }
+
+    /** Series on these apps with an episode airing between two dates (yyyy-MM-dd), most talked-about first. */
+    static List<Title> airingOn(Context ctx, String providers, String from, String to) throws IOException {
+        return parse(call(ctx, "/discover/tv", q("air_date.gte", from, "air_date.lte", to, "watch_region", Style.country(),
+                "with_watch_providers", providers, "with_watch_monetization_types", "flatrate|free|ads", "sort_by", "popularity.desc",
+                "include_adult", "false"), DAY).optJSONArray("results"), "tv");
+    }
+
+    /** Films whose streaming (digital) release in your country falls between two dates. */
+    static List<Title> streamingSoon(Context ctx, String from, String to) throws IOException {
+        return parse(call(ctx, "/discover/movie", q("region", Style.country(), "with_release_type", "4", "release_date.gte", from,
+                "release_date.lte", to, "sort_by", "popularity.desc", "include_adult", "false"), DAY).optJSONArray("results"), "movie");
+    }
+
+    /** The day a film starts streaming in your country (yyyy-MM-dd), or "". */
+    static String streamingDate(Context ctx, int id) {
+        try {
+            JSONArray r = call(ctx, "/movie/" + id + "/release_dates", q(), 7 * DAY).optJSONArray("results");
+            for (int i = 0; r != null && i < r.length(); i++) {
+                JSONObject c = r.optJSONObject(i);
+                if (c == null || !Style.country().equals(c.optString("iso_3166_1"))) continue;
+                JSONArray d = c.optJSONArray("release_dates");
+                for (int j = 0; d != null && j < d.length(); j++)
+                    if (d.optJSONObject(j).optInt("type") == 4) return d.optJSONObject(j).optString("release_date", "").replaceAll("T.*", "");
+            }
+        } catch (Exception ignored) {
+            // not known
+        }
+        return "";
+    }
+
     static List<Title> recommendations(Context ctx, String type, int id) throws IOException {
         if (!"movie".equals(type) && !"tv".equals(type) || id <= 0) return new ArrayList<>();
         return parse(call(ctx, "/" + type + "/" + id + "/recommendations", q("page", "1"), DAY).optJSONArray("results"), type);

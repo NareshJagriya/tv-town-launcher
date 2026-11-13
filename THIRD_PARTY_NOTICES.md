@@ -16,7 +16,8 @@ TV Town asks these services for information while you use it. Their content stay
 
 - **TMDB** (films, series, posters): this product uses the TMDB API but is not endorsed or certified by TMDB. https://www.themoviedb.org
 - **ESPN** (scores, scorecards, match stats, news, photos, team badges and league tables): from ESPN's public site feeds. ESPN content and team badges belong to ESPN and the teams. TV Town has no affiliation with ESPN. https://www.espn.com
-- **OpenSubtitles** (subtitles, with your own free key): https://www.opensubtitles.com
+- **NASA Image and Video Library** (space and Earth screensaver pictures; NASA images are generally not copyrighted): https://images.nasa.gov
+- **Wikimedia** (Picture of the day screensaver, each picture under its own licence on Wikimedia Commons): https://commons.wikimedia.org
 - **LRCLIB** (song lyrics): https://lrclib.net
 - **iTunes Search** (song names and covers): Apple. https://www.apple.com/itunes
 - **Wikipedia and Wikidata** (artist photos and facts): each under its own licence on Wikimedia Commons; Wikidata under CC0.

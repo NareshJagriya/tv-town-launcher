@@ -17,8 +17,8 @@ import java.util.List;
  */
 final class OpenIn {
 
-    static final String APPS = "apps", STREMIO = "stremio", NUVIO = "nuvio";
-    static final String STREMIO_PKG = "com.stremio.one", NUVIO_PKG = "com.nuvio.tv";
+    static final String APPS = "apps", STREMIO = "stremio", NUVIO = "nuvio", WUPLAY = "wuplay";
+    static final String STREMIO_PKG = "com.stremio.one", NUVIO_PKG = "com.nuvio.tv", WUPLAY_PKG = "app.wuplay.androidtv";
 
     private OpenIn() {
     }
@@ -30,7 +30,8 @@ final class OpenIn {
     /** What Play, Watch now and Surprise Me open: "apps" (the streaming apps), or Stremio or Nuvio when installed. */
     static String chosen(Context c) {
         String v = prefs(c).getString("open_in", APPS);
-        if (STREMIO.equals(v) && installed(c, STREMIO_PKG) || NUVIO.equals(v) && installed(c, NUVIO_PKG)) return v;
+        if (STREMIO.equals(v) && installed(c, STREMIO_PKG) || NUVIO.equals(v) && installed(c, NUVIO_PKG)
+                || WUPLAY.equals(v) && installed(c, WUPLAY_PKG)) return v;
         return APPS;
     }
 
@@ -44,11 +45,12 @@ final class OpenIn {
         out.add(APPS);
         if (installed(c, STREMIO_PKG)) out.add(STREMIO);
         if (installed(c, NUVIO_PKG)) out.add(NUVIO);
+        if (installed(c, WUPLAY_PKG)) out.add(WUPLAY);
         return out;
     }
 
     static String name(String v) {
-        return STREMIO.equals(v) ? "Stremio" : NUVIO.equals(v) ? "Nuvio" : "Streaming apps";
+        return STREMIO.equals(v) ? "Stremio" : NUVIO.equals(v) ? "Nuvio" : WUPLAY.equals(v) ? "WuPlay" : "Streaming apps";
     }
 
     /** Stremio or Nuvio when either is installed (the chosen one first): for titles no streaming app has. */
@@ -58,6 +60,7 @@ final class OpenIn {
         if (!APPS.equals(v)) return v;
         if (installed(c, NUVIO_PKG)) return NUVIO;
         if (installed(c, STREMIO_PKG)) return STREMIO;
+        if (installed(c, WUPLAY_PKG)) return WUPLAY;
         return null;
     }
 
@@ -90,6 +93,19 @@ final class OpenIn {
             if (imdb == null) return null;
             uri = Uri.parse("stremio:///detail/" + type + "/" + imdb);
             pkg = STREMIO_PKG;
+        } else if (WUPLAY.equals(which)) {
+            // WuPlay has no link to a title (only to its profiles): its own search with the name when it takes one,
+            // else WuPlay itself and a note of what to look for.
+            Intent search = new Intent(Intent.ACTION_SEARCH).setPackage(WUPLAY_PKG).putExtra(android.app.SearchManager.QUERY, t.title)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (search.resolveActivity(ctx.getPackageManager()) != null) return search;
+            Intent open = ctx.getPackageManager().getLeanbackLaunchIntentForPackage(WUPLAY_PKG);
+            if (open == null) open = ctx.getPackageManager().getLaunchIntentForPackage(WUPLAY_PKG);
+            if (open == null) return null;
+            String name = t.title;
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() ->
+                    android.widget.Toast.makeText(ctx, L10n.t("Search for “") + name + L10n.t("” in WuPlay"), android.widget.Toast.LENGTH_LONG).show());
+            return open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         } else return null;
         // A fresh start each time: Nuvio ignores a new link while it is already open on a title (tested), so its old
         // screens are cleared and it opens on this one.

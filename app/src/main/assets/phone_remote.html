@@ -1,8 +1,8 @@
-<!doctype html><html lang=en><head><meta charset=utf-8><title>TV Town</title>
+<!doctype html><html lang=en data-theme=dark><head><meta charset=utf-8><title>TV Town</title>
 <meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name=apple-mobile-web-app-capable content=yes><meta name=mobile-web-app-capable content=yes>
 <meta name=apple-mobile-web-app-status-bar-style content=black-translucent><meta name=apple-mobile-web-app-title content="TV Town">
-<meta name=theme-color content=#0b0a14><link rel=apple-touch-icon href="/%KEY%/icon.png"><link rel=manifest href="/%KEY%/manifest.json">
+<meta name=theme-color content=#0b0a14><link rel=apple-touch-icon href="/%KEY%/icon.png?v=2"><link rel=manifest href="/%KEY%/manifest.json">
 <style>
 /* Everything fits one screen: sizes follow the phone's height. Frosted glass over soft moving colour. */
 :root{--g:clamp(8px,1.4vh,12px);--h:clamp(40px,6vh,52px);--r:clamp(14px,2.2vh,20px);--pad:clamp(112px,17vh,148px);--ink:#fff;--mute:#ffffff99;--soft:#ffffffd9;--grad:linear-gradient(135deg,#7c5cff,#ff3c8a)}
@@ -110,9 +110,317 @@ nav button{height:calc(var(--h) - 8px);border-radius:999px;display:flex;align-it
 .abxy button{position:absolute;width:36%;height:36%;border-radius:50%;font-size:clamp(18px,5vh,24px);font-weight:800;color:#fff;box-shadow:inset 0 1px 0 #ffffff66,inset 0 -4px 10px #0004,0 6px 16px #0006;transition:transform .08s,filter .08s}
 .abxy .by{left:32%;top:0;background:#e0a800}.abxy .bx{left:0;top:32%;background:#2d7df6}.abxy .bb{right:0;top:32%;background:#e5484d}.abxy .ba{left:32%;bottom:0;background:#22a05a}
 #gm .d{transform:scale(.9);filter:brightness(1.3)}.gdp .d,.gsys.d,.gsel.d,.sb.d{background:var(--grad)!important;color:#fff}#apps .app{aspect-ratio:16/9}
+/* ---- Remote, light (frosted ice) and dark (smoked glass): raised keys that sink when pressed; everything fits above the browser's bars ---- */
+:root,html[data-theme=dark]{--bgc:#0d0d0f;--glow:radial-gradient(70% 38% at 50% 0%,rgba(255,170,90,.16),transparent 70%),radial-gradient(60% 35% at 50% 100%,rgba(120,140,255,.08),transparent 70%);
+ --ink:#F2F2F4;--mute:#8E8E95;--seg:rgba(255,255,255,.06);
+ --key:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,.06));--lip:inset 0 1px 0 rgba(255,255,255,.3),inset 0 -3px 0 rgba(0,0,0,.45);--drop:0 2px 0 rgba(0,0,0,.6),0 10px 22px rgba(0,0,0,.55);
+ --sunk:inset 0 2px 7px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.08);
+ --ok:radial-gradient(circle at 36% 26%,#fff,#e7e7ec 45%,#c4c4cd);--okink:#141416;--oklip:inset 0 2px 0 #fff,inset 0 -4px 0 rgba(0,0,0,.25);
+ --home:linear-gradient(180deg,#FFC27A,#F0893C);--homeink:#2a1706;--homelip:inset 0 1px 0 rgba(255,255,255,.6),inset 0 -3px 0 rgba(150,70,10,.5);--homeglow:0 2px 0 rgba(120,55,8,.7),0 10px 22px rgba(240,138,60,.3);
+ --ring:radial-gradient(circle at 50% 30%,rgba(255,255,255,.12),rgba(255,255,255,.03) 60%),#141417;--live:#FFB35C}
+html[data-theme=light]{--bgc:#EDF2F7;--glow:radial-gradient(60% 40% at 15% 15%,#cfe3ff,transparent 70%),radial-gradient(55% 40% at 95% 45%,#ffd9ec,transparent 70%),radial-gradient(60% 40% at 25% 100%,#d8fff0,transparent 70%);
+ --ink:#13202f;--mute:#5d6b7a;--seg:rgba(255,255,255,.5);
+ --key:linear-gradient(180deg,rgba(255,255,255,.97),rgba(255,255,255,.66));--lip:inset 0 1px 0 #fff,inset 0 -3px 0 rgba(110,130,160,.22);--drop:0 2px 0 rgba(110,130,160,.3),0 10px 22px rgba(40,60,90,.13);
+ --sunk:inset 0 2px 7px rgba(60,80,110,.25),inset 0 0 0 1px rgba(255,255,255,.7);
+ --ok:radial-gradient(circle at 36% 26%,#fff,#eef3fa 50%,#d6e1f0);--okink:#13202f;--oklip:inset 0 2px 0 #fff,inset 0 -4px 0 rgba(90,110,150,.25);
+ --home:linear-gradient(180deg,#8fb4ff,#9a7cff);--homeink:#fff;--homelip:inset 0 1px 0 rgba(255,255,255,.65),inset 0 -3px 0 rgba(70,60,170,.4);--homeglow:0 2px 0 rgba(70,60,170,.45),0 10px 22px rgba(120,130,255,.3);
+ --ring:radial-gradient(circle at 50% 28%,rgba(255,255,255,.95),rgba(255,255,255,.6) 65%);--live:#20b37a}
+html{background:var(--bgc)}
+body{background:var(--glow),var(--bgc);color:var(--ink);font:15px/1.3 -apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,system-ui,sans-serif;-webkit-font-smoothing:antialiased;gap:10px;padding:calc(env(safe-area-inset-top) + 10px) 14px calc(env(safe-area-inset-bottom) + 10px)}
+.sky{display:none}
+/* the order on screen: header, tabs, search, what's playing, the tab's own part, then the remote */
+header{order:0}nav{order:1}#sbar{order:2}#nowc{order:3}#say{order:4}main{order:5}#dock{order:6}
+/* one raised key, everywhere */
+.glass,.k,.vol,.app.all,#pw,#happy,#thm,.pill,.fold,.q,.big,.seg,.card{background:var(--key);border:0;box-shadow:var(--lip),var(--drop);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);color:var(--ink)}
+.card,.seg{box-shadow:var(--lip)}
+.press{transition:transform .08s,box-shadow .08s}
+.press:active,.press.d,.k.d,.k:active{transform:translateY(2px);box-shadow:var(--sunk)!important}
+header h1{font-size:18px;font-weight:700;letter-spacing:-.01em}
+header img{width:30px;height:30px;border-radius:8px}
+#dotx{background:var(--live);box-shadow:0 0 8px var(--live)}#dotx.off{background:#FF453A;box-shadow:0 0 8px #FF453A}
+#pw,#thm,#happy{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center}
+#pw{color:#FF5F57}#thm svg{width:18px;height:18px}
+/* tabs: a small switch at the top */
+nav{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;padding:3px;border-radius:12px;background:var(--seg);box-shadow:var(--lip)}
+nav button{height:32px;border-radius:9px;font-size:13px;font-weight:600;color:var(--mute);gap:5px}
+nav button svg{width:15px;height:15px}
+nav button.on{background:var(--key);color:var(--ink);box-shadow:var(--lip),0 2px 6px rgba(0,0,0,.18)}
+.search input{height:44px;border-radius:12px;background:var(--key);box-shadow:var(--lip),var(--drop);border:0;color:var(--ink);font-size:15px}
+.search input::placeholder{color:var(--mute)}.search svg{color:var(--mute)}
+#mic{top:6px;right:6px;width:32px;height:32px;border-radius:10px;background:var(--ok);box-shadow:var(--oklip)}.search #mic svg{color:var(--okink);width:17px;height:17px}
+#say,#nowc{background:var(--key);box-shadow:var(--lip);color:var(--mute)}
+/* Remote tab: apps in one sliding row, then the play keys */
+#s-remote{gap:10px}
+#fav{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;flex:none;padding:2px 2px 6px;background:none!important;box-shadow:none!important}#fav::-webkit-scrollbar{display:none}
+#fav .app{flex:none;width:92px;height:54px;border-radius:13px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -3px 0 rgba(0,0,0,.25),0 2px 0 rgba(0,0,0,.25),0 8px 16px rgba(0,0,0,.25)}
+#fav .app.all{font-size:12px;gap:2px}#fav .app.all svg{width:18px;height:18px}
+#mine{display:none}
+#s-remote .g5{gap:8px;margin-top:auto}
+#s-remote .g5 .k{height:44px;border-radius:14px}
+#s-remote .g5 .k svg{width:20px;height:20px}
+/* the remote: pad, then Back · Home · volume */
+#dock{display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-areas:"pad pad pad" "back home vol";grid-template-rows:auto 58px;height:auto;gap:12px 10px}
+#dock .col{display:contents}
+#dock [data-k=back]{grid-area:back;height:auto;border-radius:16px;font-size:0;gap:0}
+#dock .homek{grid-area:home;height:auto;border-radius:16px;background:var(--home)!important;color:var(--homeink);box-shadow:var(--homelip),var(--homeglow)!important;border:0!important}
+#dock .homek.d,#dock .homek:active{box-shadow:inset 0 2px 7px rgba(0,0,0,.35)!important}
+#dock svg{width:24px;height:24px}
+#dock .vol{grid-area:vol;display:flex;flex-direction:row;border-radius:16px;overflow:hidden}
+.vol button{flex:1;color:var(--ink)}.vol button+button{border:0}
+.vol [data-k=voldown]{order:0}.vol [data-k=mute]{order:1;flex:.8}.vol [data-k=volup]{order:2}
+.vol [data-k=mute] svg{width:18px;height:18px;opacity:.7}
+.vol button.d,.vol button:active{box-shadow:var(--sunk)}
+#pad{grid-area:pad;justify-self:center;--sz:clamp(160px,min(64vw,calc(100dvh - 430px)),250px);width:var(--sz);height:var(--sz);
+ background:var(--ring)!important;box-shadow:var(--lip),var(--drop),0 0 0 1px rgba(255,255,255,.06)!important;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+.pad button{color:var(--mute)}.pad button svg{width:24px;height:24px}
+.pad .pu.d,.pad .pd.d,.pad .pl.d,.pad .pr.d{background:none;color:var(--ink);transform:scale(.92)}
+.pad .ok{left:30%;top:30%;width:40%;height:40%;background:var(--ok);color:var(--okink);box-shadow:var(--oklip),0 8px 18px rgba(0,0,0,.3);font-size:17px;font-weight:700;letter-spacing:.05em}
+.pad .ok.d{transform:translateY(2px) scale(.97);box-shadow:inset 0 3px 8px rgba(0,0,0,.3)}
+/* Browse: Surprise Me, My Movies and My Music lead the tiles */
+#ts{grid-auto-rows:clamp(64px,9.5vh,84px)}
+.t{border-radius:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -3px 0 rgba(0,0,0,.25),0 2px 0 rgba(0,0,0,.25),0 8px 16px rgba(0,0,0,.2);color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.3)}
+.dot{border-radius:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),inset 0 -3px 0 rgba(0,0,0,.25),0 2px 0 rgba(0,0,0,.3)}
+.homeb{display:none}
+@media (prefers-reduced-motion:reduce){.press,.pad .ok{transition:none}}
+/* ---- second pass: a softer light theme, crisper key edges, and the remote under every tab ---- */
+html[data-theme=light]{--bgc:#E1E6ED;--glow:radial-gradient(60% 40% at 15% 15%,rgba(186,208,238,.7),transparent 70%),radial-gradient(55% 40% at 95% 45%,rgba(236,204,220,.5),transparent 70%),radial-gradient(60% 40% at 25% 100%,rgba(196,232,218,.5),transparent 70%);
+ --key:linear-gradient(180deg,rgba(255,255,255,.88),rgba(244,247,251,.62));--lip:inset 0 1px 0 rgba(255,255,255,.95),inset 0 -3px 0 rgba(98,116,142,.22);
+ --drop:0 0 0 1px rgba(90,110,140,.10),0 2px 0 rgba(98,116,142,.3),0 8px 18px rgba(40,55,80,.13);--seg:rgba(255,255,255,.32);
+ --ring:radial-gradient(circle at 50% 26%,rgba(255,255,255,.9),rgba(238,242,248,.6) 66%);--accent:#5B6CFF}
+html[data-theme=dark]{--drop:0 0 0 1px rgba(255,255,255,.05),0 2px 0 rgba(0,0,0,.65),0 10px 22px rgba(0,0,0,.55);--accent:#FFB35C}
+/* the OK sits in a shallow well, so the dome reads as a separate button */
+.pad .ok{box-shadow:var(--oklip),0 0 0 7px rgba(0,0,0,.14),0 10px 20px rgba(0,0,0,.28)}
+html[data-theme=light] .pad .ok{box-shadow:var(--oklip),0 0 0 7px rgba(98,116,142,.12),0 10px 20px rgba(40,55,80,.2)}
+/* every tab: its own part at a fixed height, the remote below at the bottom */
+body{--main:114px}
+body:has(#s-browse.on){--main:156px}
+body:has(#s-files.on){--main:158px}
+main{flex:none;height:var(--main)}
+/* the remote takes what is left: the pad shrinks to fit, so a message or a short phone never pushes keys away */
+#dock{display:grid!important;flex:1;min-height:0;grid-template-rows:minmax(0,1fr) 58px;align-content:end}
+#pad{width:auto!important;height:100%!important;max-height:250px;max-width:66vw;aspect-ratio:1;min-height:0;align-self:center}
+#s-remote .g5{margin-top:0}
+/* Browse: slim tiles, icon beside the name */
+#s-browse{gap:8px}
+#ts{grid-auto-rows:46px;gap:8px}
+#ts .t{flex-direction:row;justify-content:flex-start;gap:6px;padding:0 8px;font-size:12px;line-height:1.1;white-space:normal;overflow:hidden;text-align:left;border-radius:13px}
+#ts .t svg{width:18px;height:18px;flex:none}
+#pl{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;flex:none}#pl::-webkit-scrollbar{display:none}
+#pl .pill{flex:none;padding:0 14px;height:40px;border-radius:12px;color:var(--ink)}
+/* Files: the two share buttons as keys of the theme */
+.card{padding:12px;gap:10px;border-radius:18px;background:var(--key);box-shadow:var(--lip),var(--drop)}
+.card h2,.ct h2{color:var(--ink);font-size:15px}.note{color:var(--mute)}
+.q{background:var(--key);box-shadow:var(--lip);color:var(--ink)}
+.big{background:var(--key)!important;color:var(--ink)!important;box-shadow:var(--lip),var(--drop);height:62px;border-radius:14px;flex-direction:row;align-items:center;gap:10px;padding:0 14px}
+.big svg{color:var(--accent);flex:none}.big b{font-size:14px}.big small{display:none}
+.seg button.on,.tseg button.on{background:var(--home);color:var(--homeink);box-shadow:var(--homelip)}
+/* pop-up sheets follow the theme */
+.ov{background:color-mix(in srgb,var(--bgc) 92%,transparent);color:var(--ink)}
+.help{background:var(--key);box-shadow:var(--lip);color:var(--ink)}
+.field{background:var(--key);box-shadow:var(--lip);color:var(--ink)}
+body:has(#s-files.on) #dock{display:none!important}body:has(#s-files.on) main{flex:1;height:auto}
+body:has(#s-browse.on){--main:206px}
+body{--main:152px}body:has(#s-browse.on){--main:206px}   /* GitHub: the colour keys under the play keys */
+#s-remote .g4{flex:none}#s-remote .dot{height:28px}
+/* ---- third pass: raised keys only where a real remote has them; everything else lies flat ---- */
+html[data-theme=light]{--flat:rgba(255,255,255,.55);--flaton:rgba(255,255,255,.95);--hair:inset 0 0 0 1px rgba(90,110,140,.15)}
+html[data-theme=dark]{--flat:rgba(255,255,255,.065);--flaton:rgba(255,255,255,.15);--hair:inset 0 0 0 1px rgba(255,255,255,.07)}
+.glass,.k,.app.all,.pill,.fold,.q,.big,.card,.search input,#say,#nowc,#mic,.help,.field,.seg{background:var(--flat)!important;box-shadow:var(--hair)!important;-webkit-backdrop-filter:none;backdrop-filter:none}
+nav{background:var(--flat);box-shadow:var(--hair)}
+nav button.on{background:var(--flaton);box-shadow:none}
+.search #mic svg{color:var(--ink)}
+#fav .app,.t{box-shadow:var(--hair)!important}
+.press:active,.press.d,.k.d,.k:active{transform:scale(.97);box-shadow:var(--hair)!important;opacity:.8}
+/* raised: the pad, Back, Home, volume, the colour keys, power, light/dark and the heart */
+#dock .k,#dock .vol,#pw,#thm,#happy{background:var(--key)!important;box-shadow:var(--lip),var(--drop)!important;opacity:1}
+#dock .homek{background:var(--home)!important;box-shadow:var(--homelip),var(--homeglow)!important}
+#dock .k.d,#dock .k:active,#pw.d,#pw:active,#thm:active,#happy:active{transform:translateY(2px);box-shadow:var(--sunk)!important;opacity:1}
+.dot.d,.dot:active{transform:translateY(2px);box-shadow:inset 0 2px 6px rgba(0,0,0,.35);opacity:1}
+/* Browse: Surprise Me, My Movies, My Music and the rest in one sliding row */
+#ts{display:flex!important;gap:8px;overflow-x:auto;scrollbar-width:none;flex:none;padding:2px}
+#ts::-webkit-scrollbar{display:none}
+#ts .t{flex:none;width:108px;height:58px;flex-direction:column;justify-content:center;align-items:center;gap:4px;font-size:12px;white-space:nowrap;padding:0 6px;text-align:center;border-radius:14px}
+#ts .t svg{width:20px;height:20px}
+/* Files: one compact share card */
+section{overflow-y:auto;scrollbar-width:none}section::-webkit-scrollbar{display:none}
+#s-files{gap:8px}
+#s-files .card{padding:10px 10px 8px;gap:8px;border-radius:16px}
+#s-files .ct h2{font-size:13px;font-weight:600;color:var(--mute)}
+#s-files .q,#s-files .fold{height:26px;min-width:26px;font-size:12px}
+#s-files .big{height:50px;border-radius:13px}
+#room{font-size:11.5px;min-height:0}
+#s-files .seg button{height:34px}
+body,body:has(#s-browse.on),body:has(#s-files.on){--main:152px}
+body:has(#s-files.on) #dock{display:grid!important}body:has(#s-files.on) main{flex:none;height:var(--main)}
+#pl{flex:none}
+/* ---- fourth pass: soft glass between flat and raised; the remote's own keys stay raised ---- */
+html[data-theme=light]{--soft:linear-gradient(180deg,rgba(255,255,255,.86),rgba(250,252,255,.58));
+ --softsh:inset 0 1px 0 rgba(255,255,255,.95),0 0 0 1px rgba(90,110,140,.13),0 3px 10px rgba(40,55,80,.09),0 1px 2px rgba(40,55,80,.06)}
+html[data-theme=dark]{--soft:linear-gradient(180deg,rgba(255,255,255,.11),rgba(255,255,255,.045));
+ --softsh:inset 0 1px 0 rgba(255,255,255,.16),0 0 0 1px rgba(255,255,255,.06),0 4px 14px rgba(0,0,0,.4),0 1px 2px rgba(0,0,0,.4)}
+.glass,.k,.app.all,.pill,.fold,.q,.big,.card,.search input,#say,#nowc,#mic,.help,.field,.seg{background:var(--soft)!important;box-shadow:var(--softsh)!important}
+.card{background:transparent!important;box-shadow:none!important;padding:0!important}   /* a group, not a box: its keys carry the look */
+nav{background:var(--soft);box-shadow:var(--softsh)}
+nav button.on{background:var(--flaton);box-shadow:0 1px 4px rgba(0,0,0,.18)}
+#fav .app,.t{box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 0 1px rgba(255,255,255,.06),0 4px 12px rgba(0,0,0,.22)!important}
+.press:active,.press.d,.k.d,.k:active{transform:scale(.96);filter:brightness(1.08);opacity:1}
+#dock .k.d,#dock .k:active,#pw.d,#pw:active,#thm:active,#happy:active{transform:translateY(2px);filter:none}
+/* Files: sharing first; on the GitHub version, saving from YouTube follows below */
+#s-files .card:has(#sh0){order:-1}
+#s-files{-webkit-mask-image:linear-gradient(#000 80%,transparent);mask-image:linear-gradient(#000 80%,transparent);padding-bottom:24px}   /* more below: it fades, swipe up */
+/* ---- fifth pass: a slightly smaller pad, rows that never clip, Files in two short rows ---- */
+#pad{max-height:228px!important;max-width:60vw!important}
+/* Browse: even space above, between and below */
+#s-browse{gap:10px;justify-content:center}
+#ts .t{height:62px;gap:5px;padding:6px}
+#pl .pill{height:38px}
+/* Files: two captioned rows, both in view */
+#s-files{gap:10px;-webkit-mask-image:none!important;mask-image:none!important;padding-bottom:0!important;justify-content:center}
+#s-files .card{display:grid!important;gap:8px!important}
+#s-files .card::before{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;height:18px;line-height:18px;font-size:12px;font-weight:600;color:var(--mute);grid-column:1/-1;margin-bottom:-2px}
+#s-files .card:has(#sh0)::before{content:"Share with the TV"}
+#s-files .card:not(:has(#sh0))::before{content:"From YouTube"}
+#s-files .ct h2,#s-files .q,#room:empty{display:none}
+#s-files .card:has(#sh0) .ct{display:none}
+#s-files #sh0{grid-template-columns:1fr 1fr}
+#s-files .big{height:48px}
+#room{font-size:11px;color:var(--mute);margin-top:-2px}
+/* YouTube: MP3/MP4 · What's playing · Find a song · folders, one line */
+#s-files .card:not(:has(#sh0)){grid-template-columns:auto minmax(0,1fr) minmax(0,1fr) 42px;align-items:center}
+#now-save,#findb{min-width:0;overflow:hidden;font-size:12.5px!important}
+#s-files .card:not(:has(#sh0)) .ct,#s-files .card:not(:has(#sh0)) .ct>span,#s-files .card:not(:has(#sh0)) .grid{display:contents}
+#s-files .card:not(:has(#sh0)) .seg{grid-column:1;grid-row:2;padding:3px;border-radius:12px;display:flex}
+#s-files .card:not(:has(#sh0)) .seg button{height:36px;padding:0 10px;font-size:12px;border-radius:9px;white-space:nowrap}
+#now-save,#findb{height:42px!important;font-size:13px!important;padding:0 6px!important;gap:6px!important;white-space:nowrap}
+#now-save{grid-column:2;grid-row:2}#findb{grid-column:3;grid-row:2}
+#now-save svg,#findb svg{width:18px;height:18px}
+#folders{grid-column:4;grid-row:2;width:42px;height:42px!important;padding:0!important;justify-content:center;font-size:0!important;gap:0!important;border-radius:12px}
+#folders svg{width:18px;height:18px}
+body,body:has(#s-browse.on),body:has(#s-files.on){--main:166px}   /* GitHub: room for the colour keys and Files' two rows */
+#s-remote .dot{height:26px}
+/* ---- sixth pass: rows line up across tabs; Files without search, in two columns; smaller All apps; TV settings ---- */
+#s-browse{justify-content:flex-start;gap:10px;padding-top:0}
+#ts{padding:2px 2px 6px}
+#ts .t{height:54px}
+/* Files: no search (it frees a row), captions with the free space on the right */
+body:has(#s-files.on) #sbar{display:none}
+#s-files{justify-content:flex-start}
+#s-files .card:has(#sh0){grid-template-columns:1fr auto;align-items:end}
+#s-files .card:has(#sh0)::before{grid-column:1;grid-row:1}
+#s-files .card:has(#sh0) #room{grid-column:2;grid-row:1;margin:0;text-align:right}
+#s-files .card:has(#sh0) #sh0{grid-column:1/-1;grid-row:2}
+#s-files .big{height:58px}
+/* All apps: four across, so most apps show at once */
+#apps{grid-template-columns:repeat(4,1fr)!important;gap:8px}
+#apps .app{border-radius:10px;font-size:11px}
+/* TV settings */
+#tvsg{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tvset{height:84px;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--ink);background:var(--soft);box-shadow:var(--softsh)}
+.tvset svg{width:24px;height:24px;color:var(--accent)}
+body:has(#s-files.on){--main:220px}   /* search hidden here: its row goes to Files, the pad keeps its size */
+#s-files{display:grid!important;grid-template-columns:1fr 1fr;gap:10px;align-content:start}
+#s-files .card{align-content:start}
+#s-files .card:has(#sh0){grid-template-columns:1fr;align-items:start}
+#s-files .card:has(#sh0) #room{grid-column:1;grid-row:2;text-align:left;margin-top:-4px}
+#s-files .card:has(#sh0) #sh0{grid-column:1;grid-row:3;grid-template-columns:1fr;gap:8px}
+#s-files .card:has(#sh0) .big{height:52px}
+#s-files .card:not(:has(#sh0)){grid-template-columns:1fr 42px!important;row-gap:8px}
+#s-files .card:not(:has(#sh0))::before{grid-column:1;grid-row:1;align-self:center}
+#folders{grid-column:2!important;grid-row:1!important;width:34px;height:30px!important}
+#s-files .card:not(:has(#sh0)) .seg{grid-column:1/-1!important;grid-row:2!important}
+#s-files .card:not(:has(#sh0)) .seg button{flex:1}
+#now-save{grid-column:1/-1!important;grid-row:3!important;height:44px!important}
+#findb{grid-column:1/-1!important;grid-row:4!important;height:44px!important}
+/* ---- seventh pass: All apps three across; Files as two matching columns with a contrasting middle key ---- */
+#apps{grid-template-columns:repeat(3,1fr)!important;gap:10px}
+#apps .app{height:auto;aspect-ratio:16/10;border-radius:14px;font-size:12px}
+#pl{padding:2px 2px 8px}
+#ts{padding-bottom:8px}
+html[data-theme=dark]{--mid:#F4F4F6;--midink:#141416;--midmute:#5d5d66}
+html[data-theme=light]{--mid:#1C2430;--midink:#F4F7FB;--midmute:#AEB8C6}
+/* the share column: Send, Phone ⇄ TV (how it works, and the room left), Get */
+#s-files #sh0{grid-template-columns:1fr!important;gap:8px}
+#s-files #sh0 .big,#s-files .xmid,#findb,#now-save{height:50px!important}
+#s-files .xmid{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:13px;background:var(--mid);color:var(--midink);box-shadow:0 6px 16px rgba(0,0,0,.25);font-size:13px;font-weight:700;padding:0 10px}
+#s-files .xmid svg{width:20px;height:20px;flex:none}
+#s-files .xmid span{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15}
+#s-files .xmid small{font-size:10.5px;font-weight:600;color:var(--midmute)}
+#s-files .card:has(#sh0) #room{display:none!important}
+#s-files .card:has(#sh0){grid-template-columns:1fr!important}
+#s-files .card:has(#sh0) #sh0{grid-column:1!important;grid-row:2!important}
+/* the YouTube column: Find a song, MP3 / MP4 (the contrasting middle), Download what's playing */
+#s-files .card:not(:has(#sh0)){grid-template-columns:minmax(0,1fr) auto auto!important;column-gap:6px;grid-template-rows:18px}
+#s-files .card:has(#sh0){grid-template-rows:18px}
+#s-files .card:not(:has(#sh0))::before{grid-column:1!important;grid-row:1!important}
+#folders{grid-column:2!important;grid-row:1!important;width:30px!important;height:26px!important;background:none!important;box-shadow:none!important;padding:0!important}
+#folders svg{width:22px!important;height:22px!important;fill:#F5B83D;stroke:#C98A12}
+#s-files .card:not(:has(#sh0)) .q{display:flex!important;grid-column:3;grid-row:1;width:18px!important;height:18px!important;min-width:0!important;font-size:11px!important;border-radius:50%;align-items:center;justify-content:center;padding:0;align-self:center}
+#findb{grid-column:1/-1!important;grid-row:2!important}
+#s-files .card:not(:has(#sh0)) .seg{grid-column:1/-1!important;grid-row:3!important;height:50px;background:var(--mid)!important;box-shadow:0 6px 16px rgba(0,0,0,.25)!important;border-radius:13px;padding:4px}
+#s-files .card:not(:has(#sh0)) .seg button{height:42px!important;color:var(--midmute);font-weight:700;font-size:13px}
+#s-files .card:not(:has(#sh0)) .seg button.on{color:var(--homeink)}
+#now-save{grid-column:1/-1!important;grid-row:4!important;font-size:12px!important}
+body:has(#s-files.on){--main:252px}
+/* ---- eighth pass: one style everywhere: soft, floating keys (as TV settings), a little more lift; the search box sits in ---- */
+html[data-theme=light]{--pop:linear-gradient(180deg,#FFFFFF,rgba(247,249,252,.9));
+ --popsh:inset 0 1px 0 #fff,0 0 0 1px rgba(90,110,140,.10),0 8px 20px rgba(40,55,80,.15),0 2px 5px rgba(40,55,80,.08);
+ --popdown:inset 0 1px 0 #fff,0 0 0 1px rgba(90,110,140,.12),0 2px 6px rgba(40,55,80,.12);
+ --well:inset 0 2px 6px rgba(60,80,110,.18),inset 0 0 0 1px rgba(90,110,140,.14)}
+html[data-theme=dark]{--pop:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.055));
+ --popsh:inset 0 1px 0 rgba(255,255,255,.15),0 0 0 1px rgba(255,255,255,.06),0 10px 24px rgba(0,0,0,.6),0 2px 6px rgba(0,0,0,.45);
+ --popdown:inset 0 1px 0 rgba(255,255,255,.12),0 0 0 1px rgba(255,255,255,.06),0 2px 8px rgba(0,0,0,.5);
+ --well:inset 0 2px 8px rgba(0,0,0,.6),inset 0 0 0 1px rgba(255,255,255,.06)}
+.glass,.k,.app.all,.pill,.fold,.big,#mic,.help,.tvset,#pw,#thm,#happy,#dock .k,#dock .vol,#s-files .card:not(:has(#sh0)) .q{background:var(--pop)!important;box-shadow:var(--popsh)!important}
+#fav .app,.t,.dot{box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 0 0 1px rgba(255,255,255,.05),0 8px 20px rgba(0,0,0,.3),0 2px 5px rgba(0,0,0,.25)!important}
+#dock .homek{background:var(--home)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 8px 22px rgba(0,0,0,.35),0 6px 18px color-mix(in srgb,var(--accent) 35%,transparent)!important}
+#s-files .xmid,#s-files .card:not(:has(#sh0)) .seg{box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 8px 20px rgba(0,0,0,.3),0 2px 5px rgba(0,0,0,.2)!important}
+nav button.on{background:var(--pop);box-shadow:var(--popsh)}
+#s-files .card,.card.glass{background:transparent!important;box-shadow:none!important}   /* groups, not boxes */
+/* the pad and OK float too */
+#pad{background:var(--pop)!important;box-shadow:var(--popsh)!important}
+.pad .ok{box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 0 0 1px rgba(0,0,0,.06),0 10px 22px rgba(0,0,0,.3),0 3px 6px rgba(0,0,0,.2)!important}
+/* the search box sits into the page */
+.search input{background:var(--flat)!important;box-shadow:var(--well)!important}
+/* pressed: settles down */
+.press:active,.press.d,.k.d,.k:active,#dock .k.d,#dock .k:active,#pw:active,#pw.d,#thm:active,#happy:active,.dot.d,.dot:active,.tvset:active{transform:scale(.96)!important;box-shadow:var(--popdown)!important;filter:none;opacity:1}
+.pad .ok.d{transform:scale(.95)!important}
+/* volume: more room, a divider between −, mute and + */
+#dock{grid-template-columns:1fr 1fr 1.5fr!important}
+#dock .vol button+button{border-left:1px solid color-mix(in srgb,var(--ink) 12%,transparent)!important}
+#dock .vol button{min-width:0}
+#dock .vol [data-k=mute]{flex:1!important}
+/* Files: Find a song and Download as bold as Send to TV */
+#findb,#now-save{font-size:14px!important;font-weight:700!important}
+#findb svg,#now-save svg,.big svg,.xmid svg{stroke-width:2.2}
+#now-save span{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15}
+#now-save small{font-size:10.5px;font-weight:600;color:var(--mute)}
+/* ---- consistency pass: one accent, one family of corners, one rhythm of spacing, sheets in the theme ---- */
+html[data-theme]{--grad:var(--home)}
+.happym,.gdp button,.happyt{color:var(--ink)}
+.dest i,.row2 i{color:var(--accent)!important}
+.fold,.help,.q{color:var(--ink)!important}
+@keyframes pulse{50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--accent) 35%,transparent)}}
+.chip{background:var(--pop)!important;box-shadow:var(--popsh)!important;color:var(--ink)}
+.chip.g{background:var(--home)!important;color:var(--homeink)}
+#gm{background:var(--glow),var(--bgc)!important;color:var(--ink)}
+.bar{background:color-mix(in srgb,var(--ink) 12%,transparent)}
+/* corners */
+.k,.big,.xmid,#findb,#now-save,.pill,.tvset,#ts .t,#fav .app,#apps .app,.search input,.dot,#s-files .card .seg,.field{border-radius:14px!important}
+#dock .k,#dock .vol{border-radius:16px!important}
+nav,.seg{border-radius:12px}nav button,.seg button{border-radius:10px}
+#pw,#thm,#happy,#mic,.help,.chip{border-radius:12px!important}
+/* rhythm */
+#s-remote,#s-browse,#s-files{gap:10px}
+#say,#nowc{border-radius:14px}
+/* sheets: the same header everywhere, content in the same keys */
+.ov .ct h2{font-size:18px;font-weight:700;color:var(--ink)}
+.ov .body{gap:10px}
+.ov .note{color:var(--mute)}
+#hpb,#hpb li,#hpb p,#hpb h3,#hpb span{color:var(--ink)!important}#hpb b{color:var(--ink)!important;font-weight:700}#hpb li::marker{color:var(--mute)}
+.ov button.k,.ov .row,.ov .dest,.ov .item{background:var(--pop);box-shadow:var(--popsh);border-radius:14px;color:var(--ink)}
 </style></head><body>
 <div class=sky><i></i><i></i><i></i></div>
-<header><img src="/%KEY%/icon.png" alt=""><h1>TV Town</h1><span id=dotx></span><button id=happy class="glass press" aria-label="Support TV Town">❤️</button><button id=pw class="glass press" data-k=power aria-label=Power><svg viewBox="0 0 24 24"><path d="M12 3v9M6.3 6.3a8 8 0 1011.4 0"/></svg></button></header>
+<header><img src="/%KEY%/icon.png?v=2" alt=""><h1>TV Town</h1><span id=dotx></span><button id=happy class="glass press" aria-label="Support TV Town">❤️</button><button id=thm class="glass press" aria-label="Light or dark"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button><button id=pw class="glass press" data-k=power aria-label=Power><svg viewBox="0 0 24 24"><path d="M12 3v9M6.3 6.3a8 8 0 1011.4 0"/></svg></button></header>
 <form id=sbar class=search><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg><input id=sq class=glass autocomplete=off placeholder="Search films, songs, apps, YouTube" enterkeyhint=search><button type=button id=mic class=press aria-label="Speak"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></button></form>
 <div id=nowc class=glass><div class=nt><small>On the TV</small><span id=now></span></div><button class="chip press" data-k=play aria-label="Play or pause"><svg viewBox="0 0 24 24"><path d="M7 5v14M17 5v14"/></svg></button><button class="chip g press" id=nsA><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>Song</button><button class="chip press" id=nsV><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>Video</button></div>
 <div id=say class=glass></div>
@@ -131,21 +439,21 @@ nav button{height:calc(var(--h) - 8px);border-radius:999px;display:flex;align-it
 </div>
 </section>
 <section id=s-browse>
- <button class="homeb press" id=hb><img src="/%KEY%/icon.png" alt="">TV Town Home</button>
+ <button class="homeb press" id=hb><img src="/%KEY%/icon.png?v=2" alt="">TV Town Home</button>
  <div class="grid g3" id=ts></div>
  <div class="grid g3" id=pl></div>
 </section>
 <section id=s-files>
  <div class="card glass">
   <div class=ct><h2>Save from YouTube</h2><span style="display:flex;gap:8px"><button class="fold press" id=folders><svg viewBox="0 0 24 24"><path d="M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2z"/></svg>Folders</button><button class=q data-h=download aria-label=Help>?</button></span></div>
-  <div class="seg glass"><button id=a class=on>Song (MP3)</button><button id=v>Video (MP4)</button></div>
-  <div class="grid g2"><button class="k glass press" id=now-save><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>What's playing</button><button class="k glass press" id=findb><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>Find a song</button></div>
+  <div class="seg glass"><button id=a class=on>MP3</button><button id=v>MP4</button></div>
+  <div class="grid g2"><button class="k glass press" id=now-save><svg viewBox="0 0 24 24"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg><span>Download<small>what's playing</small></span></button><button class="k glass press" id=findb><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg>Find a song</button></div>
  </div>
  <div class="card glass">
   <div class=ct><h2>Share with the TV</h2><button class=q data-h=share aria-label=Help>?</button></div>
   <div class="grid g2" id=sh0>
    <button class="big press" id=toTv style="background:linear-gradient(135deg,#7c5cff,#ff3c8a)"><svg viewBox="0 0 24 24"><path d="M12 20V8M7 13l5-5 5 5M5 4h14"/></svg><b>Send to TV</b><small>Phone → TV drive</small></button>
-   <button class="big press" id=toPh style="background:linear-gradient(135deg,#06b6d4,#2563eb)"><svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg><b>Get from TV</b><small>TV drive → phone</small></button>
+   <button class="xmid press" data-h=share aria-label="How sharing works"><svg viewBox="0 0 24 24"><path d="M7 4v13M3 13l4 4 4-4M17 20V7M13 11l4-4 4 4"/></svg><span>Phone ⇄ TV<small id=room2>Songs, films, subtitles</small></span></button><button class="big press" id=toPh style="background:linear-gradient(135deg,#06b6d4,#2563eb)"><svg viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></svg><b>Get from TV</b><small>TV drive → phone</small></button>
   </div>
   <div id=room class=note></div>
  </div>
@@ -181,6 +489,7 @@ nav button{height:calc(var(--h) - 8px);border-radius:999px;display:flex;align-it
  <div class=note id=tnote style="text-align:center"></div>
  <div class=note style="text-align:center;margin-top:auto">Thank you! 🙏</div>
 </div>
+<div class=ov id=tvs><div class=ct><h2>TV settings</h2><button class=help data-close=tvs>Close</button></div><div class=body><div id=tvsg></div></div></div>
 <div class=ov id=ap><div class=ct><h2>All apps</h2><button class=help data-close=ap>Close</button></div><div class=body><div class=grid id=apps></div></div></div>
 <div class=ov id=rs><div class=ct><h2>Find a song</h2><button class=help data-close=rs>Close</button></div><input id=q class="field glass" autocomplete=off placeholder="Type a song, or paste a YouTube link" enterkeyhint=search><div id=m></div><div class=body id=l></div></div>
 <div class=ov id=shs><div class=ct><h2 id=shst>Share</h2><button class=help data-back>Close</button></div><div class=body>
@@ -242,8 +551,8 @@ var IC={dice:'<rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy
 function svg(n){return '<svg viewBox="0 0 24 24">'+IC[n]+'</svg>'}
 function goOpen(id){post('/open','id=tvtown:'+id).then(function(r){return r.text()}).then(state).catch(function(){state('lost')})}
 function doIt(c){post('/do','c='+c).then(function(r){return r.text()}).then(function(s){say(s==='noplayer'?'Open the music player on the TV first.':'')}).catch(function(){state('lost')})}
-[['discover','Discover','comp','#06b6d4,#2563eb'],['must','Must-Watch','star','#eab308,#a16207'],['player','Music player','disc','#ec4899,#7c3aed'],['control','Control Center','slide','#475569,#1e293b'],['cricket','Sports','cup','#16a34a,#14532d'],['settings','Settings','gear','#64748b,#334155']].forEach(function(x){var b=document.createElement('button');b.className='t press';b.style.background='linear-gradient(135deg,'+x[3]+')';b.innerHTML=svg(x[2])+x[1];b.onclick=function(){goOpen(x[0])};$('ts').appendChild(b)});
-[['surprise','Surprise Me','dice','#f59e0b,#ea580c'],['movies','My Movies','film','#ef4444,#be185d'],['music','My Music','note','#22c55e,#0f766e']].forEach(function(x){var b=document.createElement('button');b.className='t press';b.style.background='linear-gradient(135deg,'+x[3]+')';b.innerHTML=svg(x[2])+x[1];b.onclick=function(){goOpen(x[0])};$('mine').appendChild(b)});
+[['discover','Discover','comp','#06b6d4,#2563eb'],['must','Must-Watch','star','#eab308,#a16207'],['player','Music player','disc','#ec4899,#7c3aed'],['control','Control Center','slide','#475569,#1e293b'],['cricket','Sports','cup','#16a34a,#14532d'],['settings','Settings','gear','#64748b,#334155']].forEach(function(x){var b=document.createElement('button');b.className='t press';b.style.background='linear-gradient(135deg,'+x[3].split(',').map(function(c){return c+'8c'}).join(',')+')';b.innerHTML=svg(x[2])+x[1];b.onclick=function(){goOpen(x[0])};$('ts').appendChild(b)});
+[['surprise','Surprise Me','dice','#f59e0b,#ea580c'],['movies','My Movies','film','#ef4444,#be185d'],['music','My Music','note','#22c55e,#0f766e']].forEach(function(x){var b=document.createElement('button');b.className='t press';b.style.background='linear-gradient(135deg,'+x[3].split(',').map(function(c){return c+'8c'}).join(',')+')';b.innerHTML=svg(x[2])+x[1];b.onclick=function(){goOpen(x[0])};$('ts').insertBefore(b,$('ts').children[{surprise:0,movies:1,music:2}[x[0]]]||null)});
 
 [['lyrics','Lyrics','lines'],['script','Hindi / English','lang'],['find','Find lyrics','find'],['effect','Effect','wave']].forEach(function(x){var b=document.createElement('button');b.className='pill glass press';b.innerHTML=svg(x[2])+x[1];b.onclick=function(){doIt(x[0])};$('pl').appendChild(b)});
 
@@ -296,7 +605,7 @@ function setSave(video,d){post('/savefolder','dir='+encodeURIComponent(d)+'&vide
 $('wa').onclick=function(){folders('Where should audio go?',$('wa').dataset.d,function(d){setSave(false,d)})};
 $('wv').onclick=function(){folders('Where should video go?',$('wv').dataset.d,function(d){setSave(true,d)})};
 function shareView(n){$('sh1').style.display=n===1?'':'none';$('sh2').style.display=n===2?'':'none';$('shst').textContent=n===1?'Send to TV':'Get from TV';$('shs').classList.toggle('on',n>0)}
-function shareHome(){shareView(0);fetch(K+'/files').then(function(r){return r.json()}).then(function(j){$('room').textContent=j.none?'Plug a pen drive or hard disk into the TV to start.':size(j.free)+' free on the TV\'s drive'}).catch(function(){state('lost')})}
+function shareHome(){shareView(0);fetch(K+'/files').then(function(r){return r.json()}).then(function(j){$('room').textContent=j.none?'Plug a pen drive or hard disk into the TV to start.':size(j.free)+' free';$('room2').textContent=$('room').textContent}).catch(function(){state('lost')})}
 document.querySelectorAll('[data-back]').forEach(function(b){b.onclick=shareHome});
 $('toTv').onclick=function(){shareView(1)};
 $('toPh').onclick=function(){shareView(2);loadDir('')};
@@ -328,7 +637,9 @@ function loadFav(){fetch(K+'/apps').then(function(r){return r.json()}).then(func
  j.forEach(function(a){if(pick.length<5&&pick.indexOf(a)<0)pick.push(a)});
  pick.forEach(function(a){g.appendChild(appTile(a))});
  var all=document.createElement('button');all.className='app all glass press';all.innerHTML='<svg viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>All apps';
- all.onclick=function(){$('ap').classList.add('on');loadApps()};g.appendChild(all)}).catch(function(){})}
+ all.onclick=function(){$('ap').classList.add('on');loadApps()};g.appendChild(all);
+ var ts=document.createElement('button');ts.className='app all glass press';ts.innerHTML='<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>TV settings';
+ ts.onclick=function(){$('tvs').classList.add('on')};g.appendChild(ts)}).catch(function(){})}
 loadFav();
 
 function loadApps(){if(appsDone)return;fetch(K+'/apps').then(function(r){return r.json()}).then(function(j){appsDone=true;var g=$('apps');g.textContent='';j.forEach(function(a){var t=appTile(a);t.addEventListener('click',function(){$('ap').classList.remove('on')});g.appendChild(t)});return;
@@ -351,4 +662,10 @@ $('q').oninput=function(){clearTimeout(w);w=setTimeout(find,450)};$('q').onkeydo
 function poll(){if(document.hidden)return;fetch(K+'/state').then(function(r){return r.json()}).then(function(j){$('dotx').classList.remove('off');$('now').textContent=j.now||'';$('nowc').classList.toggle('on',!!j.now);
  if(j.app&&j.app!==appNow){appNow=j.app;$('sq').placeholder=appNow==='TV Town'?'Search films, songs, apps, YouTube':'Search in '+appNow}if(j.remote==='asking')state('asking');else if(lost||$('say').textContent.indexOf('reach the TV.')>0)say('')}).catch(function(){lost=1;state('lost')})}
 poll();setInterval(poll,5000);document.addEventListener('visibilitychange',poll);
-</script></body></html>
+</script><script>(function(){var h=document.documentElement,t;try{t=localStorage.getItem('tvt-theme')}catch(e){}
+if(!t)t='dark';   /* dark first; the sun button switches, and the phone remembers */h.dataset.theme=t;
+document.getElementById('thm').onclick=function(){h.dataset.theme=h.dataset.theme==='light'?'dark':'light';try{localStorage.setItem('tvt-theme',h.dataset.theme)}catch(e){}};})();</script><script>(function(){var I={wifi:'<path d="M2 9a15 15 0 0120 0M5 12.5a10 10 0 0114 0M8.5 16a5 5 0 017 0"/><circle cx="12" cy="19.5" r=".8"/>',bluetooth:'<path d="M7 7l10 10-5 5V2l5 5L7 17"/>',sound:'<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9a4 4 0 010 6M18.5 6.5a8 8 0 010 11"/>',picture:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',screensaver:'<path d="M20 14A8 8 0 0110 4a8 8 0 1010 10z"/>',apps:'<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',storage:'<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h.01M11 12h6"/>',date:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',language:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/>',accessibility:'<circle cx="12" cy="4.5" r="1.5"/><path d="M5 8l7 1.5L19 8M12 9.5V14l-3 6M12 14l3 6"/>',tvtown:'<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',all:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'};
+[['wifi','Wi-Fi'],['bluetooth','Bluetooth'],['sound','Sound'],['picture','Picture'],['screensaver','Screensaver'],['apps','Apps'],['storage','Storage'],['date','Date & time'],['language','Language'],['accessibility','Accessibility'],['tvtown','TV Town'],['all','All settings']].forEach(function(x){
+ var b=document.createElement('button');b.className='tvset press';b.innerHTML='<svg viewBox="0 0 24 24">'+I[x[0]]+'</svg>'+x[1];
+ b.onclick=function(){post('/open','id=tvset:'+x[0]).then(function(r){return r.text()}).then(function(t){if(t==='ok')document.getElementById('tvs').classList.remove('on');else state(t)}).catch(function(){state('lost')})};
+ document.getElementById('tvsg').appendChild(b)})})();</script></body></html>

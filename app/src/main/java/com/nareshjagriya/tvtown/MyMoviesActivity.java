@@ -175,6 +175,11 @@ public class MyMoviesActivity extends Activity implements MyMoviesView.Listener 
     }
 
     @Override
+    public void onAskName(String title, String current, java.util.function.Consumer<String> done) {
+        TextBox.askName(this, title, "", current, getString(R.string.done), done);
+    }
+
+    @Override
     public void onTypeTag(java.util.function.Consumer<String> done) {
         TextBox.askName(this, getString(R.string.new_tag_title), "", "", getString(R.string.add), done);
     }
@@ -202,14 +207,4 @@ public class MyMoviesActivity extends Activity implements MyMoviesView.Listener 
         });
     }
 
-    /** Settings' All files access page for TV Town (Android 11 and later). */
-    @Override
-    public void onAllFilesAccess() {
-        try {
-            startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                    android.net.Uri.parse("package:" + getPackageName())));
-        } catch (ActivityNotFoundException | SecurityException e) {
-            Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
-        }
-    }
 }

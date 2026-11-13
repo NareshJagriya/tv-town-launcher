@@ -446,7 +446,7 @@ final class MyMusic {
         coverPool.execute(() -> {
             Bitmap got = null;
             try {
-                got = app.getContentResolver().loadThumbnail(s.uri, new Size(256, 256), null);
+                if (android.os.Build.VERSION.SDK_INT >= 29) got = app.getContentResolver().loadThumbnail(s.uri, new Size(256, 256), null);
             } catch (Exception ignored) {
                 // no picture in the file
             }

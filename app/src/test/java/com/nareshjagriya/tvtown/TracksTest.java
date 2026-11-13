@@ -63,36 +63,4 @@ public class TracksTest {
         assertEquals("European", Tracks.origin("fr"));
         assertEquals("Other", Tracks.origin("fa"));
     }
-
-    @Test
-    public void openSubtitlesHash() throws Exception {
-        File f = File.createTempFile("hash", ".bin");
-        f.deleteOnExit();
-        try (RandomAccessFile r = new RandomAccessFile(f, "rw")) {
-            byte[] b = new byte[200_000];
-            for (int i = 0; i < b.length; i++) b[i] = (byte) (i * 7);
-            r.write(b);
-        }
-        // the same sum worked out directly: size + first 64 KB + last 64 KB, as little-endian 64-bit numbers
-        long expect = f.length();
-        try (RandomAccessFile r = new RandomAccessFile(f, "r")) {
-            for (long start : new long[]{0, f.length() - 65536}) {
-                byte[] b = new byte[65536];
-                r.seek(start);
-                r.readFully(b);
-                for (int i = 0; i < b.length; i += 8) {
-                    long v = 0;
-                    for (int j = 7; j >= 0; j--) v = (v << 8) | (b[i + j] & 0xFF);
-                    expect += v;
-                }
-            }
-            assertEquals(String.format("%016x", expect), OpenSubtitles.hash(r.getChannel(), f.length()));
-        }
-    }
-
-    @Test
-    public void subtitleFileNames() {
-        assertEquals("The Pianist (2002).en.srt", Subtitles.fileName("The Pianist (2002).mkv", "en"));
-        assertEquals("A_B.und.srt", Subtitles.fileName("A:B.mp4", ""));
-    }
 }

@@ -166,6 +166,10 @@ final class GlassSheet {
         return this;
     }
 
+    /** A pop-up that is one pane and nothing else (the phone remote's QR code). OK or Back closes it. */
+    Pane solo;
+    float soloH = 540;   // a solo pane's height (design pixels)
+
     /** The category just added shows this pane on the right instead of rows. */
     GlassSheet pane(Pane p) {
         sectionPanes.set(sectionPanes.size() - 1, p);
@@ -173,7 +177,7 @@ final class GlassSheet {
     }
 
     boolean hasPane() {
-        return pane() != null;
+        return solo != null || pane() != null;
     }
 
     @Nullable
@@ -222,6 +226,12 @@ final class GlassSheet {
 
     /** Fills the screen with up to ten rows showing; width and maxVisible are kept for the callers' sake. */
     void layout(float screenW, float screenH, float width, int maxVisible) {
+        if (solo != null) {
+            float w = popupW * k, h = soloH * k;
+            panel.set((screenW - w) / 2, (screenH - h) / 2, (screenW + w) / 2, (screenH + h) / 2);
+            screen.set(0, 0, screenW, screenH);
+            return;
+        }
         visible = Math.min(rows.size(), MAX_ROWS);
         if (gridCols > 0) {
             int all = (rows.size() + gridCols - 1) / gridCols;
@@ -258,6 +268,8 @@ final class GlassSheet {
 
     /** D-pad inside the page. True when handled. */
     boolean key(int keyCode, Host host) {
+        if (solo != null)   // the pane's own keys first; otherwise the arrows stay here, and OK and Back close it
+            return solo.key(keyCode) || keyCode >= KeyEvent.KEYCODE_DPAD_UP && keyCode <= KeyEvent.KEYCODE_DPAD_RIGHT;
         if (sectionRows != null) {
             if (inRail) {
                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
@@ -373,6 +385,10 @@ final class GlassSheet {
         int a = Math.round(255 * e);
         Frost.scrim(c, screen, e, bmp);
         Frost.panel(c, sectionRows != null ? outer : panel, 40 * k, e, k);
+        if (solo != null) {
+            solo.draw(c, panel, e, true);
+            return;
+        }
 
         title_.setAlpha(a);
         boolean page = sectionRows != null;

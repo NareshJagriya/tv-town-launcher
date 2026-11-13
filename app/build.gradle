@@ -17,8 +17,6 @@ def localProps = new Properties()
 // person adds their own free keys on the TV (Settings, typed on a phone). A personal build carries yours.
 def publicBuild = project.hasProperty('public')
 def key = { String name -> publicBuild ? '' : (localProps.getProperty(name) ?: '').trim().replaceAll(/[^A-Za-z0-9._\-]/, '') }
-// A value as a Java string literal, for the ones that may hold any character (an OpenSubtitles password).
-def text = { String name -> publicBuild ? '' : (localProps.getProperty(name) ?: '').trim().replace('\\', '\\\\').replace('"', '\\"') }
 
 android {
     namespace 'com.nareshjagriya.tvtown'
@@ -28,13 +26,9 @@ android {
         applicationId 'com.nareshjagriya.tvtown'
         minSdk 28
         targetSdk 34
-        versionCode 9
-        versionName '1.2'
+        versionCode 10
+        versionName '1.3'
         buildConfigField 'String', 'TMDB_API_KEY', "\"${key('tmdb.apiKey')}\""
-        // Subtitles from OpenSubtitles.com (optional): the API key, and an account to raise the daily limit.
-        buildConfigField 'String', 'OPENSUBTITLES_API_KEY', "\"${key('opensubtitles.apiKey')}\""
-        buildConfigField 'String', 'OPENSUBTITLES_USERNAME', "\"${text('opensubtitles.username')}\""
-        buildConfigField 'String', 'OPENSUBTITLES_PASSWORD', "\"${text('opensubtitles.password')}\""
     }
 
     buildFeatures {

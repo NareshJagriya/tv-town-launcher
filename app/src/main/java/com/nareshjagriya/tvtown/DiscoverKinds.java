@@ -29,7 +29,7 @@ final class DiscoverKinds {
         }
     }
 
-    static final String NEW = "new", TRENDING = "trending", TOP_RATED = "top-rated", HIDDEN_GEMS = "hidden-gems";
+    static final String NEW = "new", TRENDING = "trending", TOP_RATED = "top-rated", HIDDEN_GEMS = "hidden-gems", COMING_UP = "coming-up";
 
     /** The genres, in the order shown: the most asked-for first, then the classic genres, then the mixes. */
     static final String[] GENRES = {L10n.t("Anime"), L10n.t("K-Drama"), L10n.t("Action"), L10n.t("Comedy"), L10n.t("Thriller"), L10n.t("Romance"), L10n.t("Horror"), L10n.t("Sci-Fi"),
@@ -45,6 +45,7 @@ final class DiscoverKinds {
         l.add(new Kind(TRENDING, L10n.t("Trending"), false));
         l.add(new Kind(TOP_RATED, L10n.t("Top rated"), false));
         l.add(new Kind(HIDDEN_GEMS, L10n.t("Hidden gems"), false));
+        l.add(new Kind(COMING_UP, L10n.t("Coming up"), false));
         for (String g : GENRES) l.add(new Kind(idOf(g), g, true));
         ALL = Collections.unmodifiableList(l);
     }
@@ -72,7 +73,8 @@ final class DiscoverKinds {
     @Nullable
     static Tmdb.Category category(Kind k) {
         switch (k.id) {
-            case NEW: return null;
+            case NEW:
+            case COMING_UP: return null;   // its own lists (ComingUp)
             case TRENDING: return named(L10n.t("Popular"));
             case TOP_RATED: return named(L10n.t("Top rated"));
             case HIDDEN_GEMS: return named(L10n.t("Hidden gems"));
@@ -84,7 +86,7 @@ final class DiscoverKinds {
 
     @Nullable
     private static Tmdb.Category named(String n) {
-        for (Tmdb.Category c : Tmdb.categories()) if (c.name.equalsIgnoreCase(n)) return c;
+        for (Tmdb.Category c : Tmdb.categories()) if (c.name.equalsIgnoreCase(n) || L10n.t(c.name).equalsIgnoreCase(n)) return c;   // names are English; n may be shown in Spanish
         return null;
     }
 }

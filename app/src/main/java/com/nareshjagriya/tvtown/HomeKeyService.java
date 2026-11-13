@@ -94,14 +94,14 @@ public class HomeKeyService extends AccessibilityService {
                 main.removeCallbacks(offerSave);
                 if (p.getState() == android.media.session.PlaybackState.STATE_PLAYING) {
                     endSaveWindow(true);
-                    // OK pressed twice: paused and playing again within a moment. Save it, on any remote, with no
-                    // button watched (watching them would stop held volume repeating).
+                    // OK pressed twice: paused and playing again within a moment. Asks first (MP3 or Video, then
+                    // Download or Cancel): children press OK without meaning to, and every press used to save a song.
                     if (!Features.on(HomeKeyService.this, Features.YT_SAVE)) pausedAt = 0;   // switched off in Settings → Features
                     if (pausedAt > 0 && now - pausedAt < QUICK_MS && now - lastQuickSave > 8000 && youTube(front)) {
                         lastQuickSave = now;
                         if (TvTools.seesPlaying(HomeKeyService.this)) {
                             usedQuickSave();
-                            startSaveNow(HomeKeyService.this, false);
+                            askSave();
                         } else note(L10n.t("To save, TV Town needs Notification access in the TV's settings"), 6000);
                     } else if (pausedAt == 0 || now - pausedAt > 60_000) tipOnce();
                     pausedAt = 0;
@@ -239,6 +239,27 @@ public class HomeKeyService extends AccessibilityService {
     static void keysChanged() {
         HomeKeyService s = instance;
         if (s != null) s.filterKeys();
+    }
+
+    /** OK pressed twice in YouTube: the "Save this?" pop-up for what's playing; the last format chosen comes first. */
+    private void askSave() {
+        android.media.session.MediaController m = TvTools.nowPlaying(this);
+        String title = m == null ? "" : TvTools.title(m);
+        if (title.isEmpty()) return;
+        android.media.MediaMetadata md = m.getMetadata();
+        CharSequence by = md == null ? null : md.getText(android.media.MediaMetadata.METADATA_KEY_ARTIST);
+        String channel = by == null ? "" : by.toString();
+        long seconds = md == null ? 0 : md.getLong(android.media.MediaMetadata.METADATA_KEY_DURATION) / 1000;
+        android.content.SharedPreferences sp = getSharedPreferences("save", MODE_PRIVATE);
+        endSaveWindow(true);
+        card().ask(title, channel, sp.getBoolean("ask_video", false), video -> {
+            sp.edit().putBoolean("ask_video", video).apply();
+            note(L10n.t("Finding: ") + title, 3000);
+            YtSaver.find(title, channel, seconds, f -> {
+                if (f == null) note(L10n.t("Couldn't find this exact video"), 5000);
+                else save(f, video);
+            });
+        });
     }
 
     /** Red in YouTube: what's playing. With nothing there, the link from the phone instead. */
@@ -463,6 +484,7 @@ public class HomeKeyService extends AccessibilityService {
             if (ri.activityInfo == null) continue;
             String pkg = ri.activityInfo.packageName, name = ri.activityInfo.name;
             if (pkg.equals(ctx.getPackageName()) || isSafetyNet(pkg, name)) continue;
+            if (pkg.startsWith("com.nareshjagriya.tvtown")) continue;   // the other TV Town edition: never pushed aside
             out.add(pkg);
         }
         return out;

@@ -15,7 +15,7 @@ public class DiscoverKindsTest {
     @Test
     public void everyKindButNewHasACategory() {
         for (DiscoverKinds.Kind k : DiscoverKinds.ALL) {
-            if (k.id.equals(DiscoverKinds.NEW)) assertNull(DiscoverKinds.category(k));
+            if (k.id.equals(DiscoverKinds.NEW) || k.id.equals(DiscoverKinds.COMING_UP)) assertNull(DiscoverKinds.category(k));
             else assertNotNull(k.name, DiscoverKinds.category(k));
         }
     }

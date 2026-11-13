@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.3 (13 November 2026)
+
+### What's new
+
+- **Home top picture, your choice:** Home's big picture can show New this week, Popular, Top rated, Hidden gems, a genre, a random pick, or your own Watchlist.
+- **Continue watching:** Press OK on a title for its details and labelled buttons: Resume, Start over, More info, Mark watched, Remove from row and Fix picture. Titles without a cover get one from TMDB or JustWatch, or a card in the app's colours.
+- **Phone remote, redesigned:** Dark and light looks, tabs on top, one-tap TV settings, a full All apps grid, and Send to TV / Get from TV side by side.
+- **Your own top bar:** Choose the buttons at the top left and right: inputs, Bluetooth, Wi-Fi, screensaver, memory, Control Center, sports and more.
+- **Icon packs:** Use an installed icon pack for your apps.
+- **Receive with LocalSend:** Send songs and videos from any phone or computer with the free LocalSend app. They're saved on your USB drive.
+- **New screensavers:** NASA's image library and Wikimedia's Picture of the Day.
+- **Manage your files:** Rename, move, copy or delete films and songs. Their subtitles and lyrics go with them.
+- **Surprise Me:** Names on every cover, as many of your own cards as you like, and "+ Add" for your own topics in Extras.
+- **Saving from YouTube is safer:** Pressing OK twice now asks first. Choose MP3 or Video, then Download or Cancel, so accidental presses no longer save songs.
+- **Sports, full scorecard:** OK on a match opens its full page at once. For cricket that means every innings: every batter with how they got out, every bowler, extras, and who didn't bat.
+- **Music player, tidied:** Down opens the controls. Options are in three tabs: Lyrics, Look and Song. My Music shows ♫ or ❚❚ with what's playing.
+
+### Removed
+
+- Subtitle downloads.
+
+### Bug fixes
+
+- Titles open where they should: Netflix, Prime Video and JioHotstar now open straight on the film's or series' page. Netflix used to open on its home page.
+- In Spanish, the top picture and some Discover rows came up empty.
+- The screensaver list showed "Clock" twice.
+
 ## 1.2 (10 November 2026)
 
 ### What's new

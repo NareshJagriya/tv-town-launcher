@@ -9,7 +9,7 @@ import android.content.SharedPreferences;
  */
 final class Keys {
 
-    static final String TMDB = "tmdb", OPENSUBTITLES = "opensubtitles";
+    static final String TMDB = "tmdb";
 
     private Keys() {
     }
@@ -21,11 +21,6 @@ final class Keys {
     static String tmdb() {
         String k = prefs().getString(TMDB, "").trim();
         return k.isEmpty() ? BuildConfig.TMDB_API_KEY.trim() : k;
-    }
-
-    static String openSubtitles() {
-        String k = prefs().getString(OPENSUBTITLES, "").trim();
-        return k.isEmpty() ? BuildConfig.OPENSUBTITLES_API_KEY.trim() : k;
     }
 
     static void set(String which, String key) {

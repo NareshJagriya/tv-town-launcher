@@ -344,18 +344,24 @@ public class SportsActivity extends Activity {
             }
             c.restore();
             if (!any) c.drawText(on.isEmpty() ? L10n.t("Press Up and choose the sports you follow") : L10n.t("Loading the scores\u2026"), LIST_X * k, 200 * k, name);
-            // beside the rows: the card of the game chosen (or the first live one), the story, or the table
-            BOX_X = HUB_R + 30;
-            Cricket.Match pick = null;
-            if (hRow >= R_LIVE && hRow <= R_DONE && count(hRow) > 0) pick = games(hRow).get(Math.min(hCol[hRow], count(hRow) - 1));
-            if (pick == null) for (int row = R_LIVE; row <= R_DONE && pick == null; row++) if (count(row) > 0) pick = games(row).get(0);
+            // OK on a game: its card as a pop-up over the page (score, scorecard, Watch on… and Full scorecard)
+            Cricket.Match pick = inPanel ? shownMatch() : null;
             if (pick != null) {
                 sel = Math.max(0, list.indexOf(pick));
+                fill.setShader(null);
+                fill.setColor(0xB3000000);
+                c.drawRect(0, 0, W, H, fill);
+                BOX_X = 250;
+                BOX_R = 1670;
+                r.set(BOX_X * k, LIST_T * k, BOX_R * k, BOX_B * k);
+                Frost.panel(c, new RectF(r), 40 * k, 1, k);
                 drawDetail(c, pick);
+                BOX_X = 780;
+                BOX_R = 1840;
             }
         }
 
-        private static final float HUB_R = 1150;
+        private static final float HUB_R = 1840;   // the rows use the whole width; a game's card opens as a pop-up
 
         /** One card in a row; returns its width. */
         private float drawItem(Canvas c, int row, int i, float x, float top, boolean focused) {
@@ -455,15 +461,13 @@ public class SportsActivity extends Activity {
             switch (code) {
                 case KeyEvent.KEYCODE_DPAD_LEFT:
                     if (panelBtn == 1 && watch) panelBtn = 0;
-                    else inPanel = false;   // back to the rows
                     break;
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
                     panelBtn = 1;
                     break;
                 case KeyEvent.KEYCODE_DPAD_UP:
                 case KeyEvent.KEYCODE_DPAD_DOWN:
-                    inPanel = false;
-                    return hubKey(code, e);
+                    break;   // the pop-up stays; Back closes it
                 case KeyEvent.KEYCODE_DPAD_CENTER:
                 case KeyEvent.KEYCODE_ENTER:
                     if (e.getRepeatCount() != 0 || m == null) return true;
@@ -502,8 +506,7 @@ public class SportsActivity extends Activity {
                 }
                 case KeyEvent.KEYCODE_DPAD_LEFT:
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    if (code == KeyEvent.KEYCODE_DPAD_RIGHT && hRow != R_CHIPS && hCol[hRow] >= count(hRow) - 1) toPanel();   // past the last game: its card
-                    else hCol[hRow] = Math.max(0, Math.min(count(hRow) - 1, hCol[hRow] + (code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1)));
+                    hCol[hRow] = Math.max(0, Math.min(count(hRow) - 1, hCol[hRow] + (code == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1)));
                     invalidate();
                     return true;
                 case KeyEvent.KEYCODE_DPAD_CENTER:
@@ -513,7 +516,7 @@ public class SportsActivity extends Activity {
                         Scores.toggle(getContext(), Scores.SPORTS[hCol[0]]);
                         Cricket.useSports(Scores.chosen(getContext()));
                         Cricket.refreshNow(() -> post(this::reload));
-                    } else toPanel();   // OK on a game: its card on the right, Watch on… chosen
+                    } else openFull(shownMatch());   // OK on a game: its own page, the whole scorecard
                     invalidate();
                     return true;
                 case KeyEvent.KEYCODE_BACK:
@@ -525,6 +528,11 @@ public class SportsActivity extends Activity {
 
         @Override
         public boolean onKeyUp(int code, KeyEvent e) {
+            if (code == KeyEvent.KEYCODE_BACK && fullMatch != null) {   // from a match's page back to the sports home
+                fullMatch = null;
+                invalidate();
+                return true;
+            }
             if (code == KeyEvent.KEYCODE_BACK && hub && inPanel) {   // from the card back to the rows
                 inPanel = false;
                 invalidate();
@@ -538,9 +546,199 @@ public class SportsActivity extends Activity {
             return super.onKeyUp(code, e);
         }
 
+        // ---- a match's own page: the score at the top, Watch on…, then the whole scorecard (Up and Down scroll) ----
+
+        private Cricket.Match fullMatch;
+        private float fullScroll, fullMax;
+
+        private void openFull(@androidx.annotation.Nullable Cricket.Match m) {
+            if (m == null) return;
+            fullMatch = m;
+            fullScroll = 0;
+            invalidate();
+        }
+
+        private boolean fullKey(int code, KeyEvent e) {
+            switch (code) {
+                case KeyEvent.KEYCODE_DPAD_UP: fullScroll = Math.max(0, fullScroll - 220); break;
+                case KeyEvent.KEYCODE_DPAD_DOWN: fullScroll = Math.min(fullMax, fullScroll + 220); break;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    if (e.getRepeatCount() == 0 && fullMatch.pkg() != null) watch(fullMatch);
+                    break;
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    break;
+                default:
+                    return false;
+            }
+            invalidate();
+            return true;
+        }
+
+        private void drawFull(Canvas c, Cricket.Match m) {
+            float W = getWidth(), H = getHeight();
+            int ca = m.col1 != 0 ? dim(m.col1, 0.42f) : 0xFF0A1A12, cb = m.col2 != 0 ? dim(m.col2, 0.42f) : 0xFF050607;
+            fill.setShader(new LinearGradient(0, 0, W, H, ca, cb, Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, W, H, fill);
+            fill.setShader(new LinearGradient(0, 0, 0, H, 0x88000000, 0xF2000000, Shader.TileMode.CLAMP));
+            c.drawRect(0, 0, W, H, fill);
+            fill.setShader(null);
+            if (!Scores.CRICKET.equals(m.sport)) {   // football, basketball, tennis: the match card, the page's width
+                BOX_X = 250;
+                BOX_R = 1670;
+                drawDetailBody(c, m);
+                BOX_X = 780;
+                BOX_R = 1840;
+                fullMax = 0;
+                return;
+            }
+            float mid = W / 2;
+            name.setTextAlign(Paint.Align.CENTER);
+            name.setTextSize(30 * k);
+            put(c, m.series + (m.kind.isEmpty() ? "" : " \u00B7 " + m.kind) + (m.venue.isEmpty() ? "" : "  \u00B7  " + m.venue), name, 1500 * k, mid, 70 * k);
+            // the two sides: badge, name and score, facing each other
+            boolean two = !m.t2.isEmpty();
+            float cy = 170 * k;
+            badge(c, m.logo1, m.t1, m.col1, two ? 330 * k : mid, cy, 120 * k, 255);
+            if (two) badge(c, m.logo2, m.t2, m.col2, W - 330 * k, cy, 120 * k, 255);
+            team.setTextAlign(Paint.Align.CENTER);
+            team.setTextSize(34 * k);
+            put(c, m.t1, team, 320 * k, two ? 330 * k : mid, cy + 100 * k);
+            if (two) put(c, m.t2, team, 320 * k, W - 330 * k, cy + 100 * k);
+            score.setTextAlign(Paint.Align.CENTER);
+            score.setTextSize(40 * k);
+            if (!m.s1.isEmpty()) put(c, m.s1, score, 420 * k, two ? 640 * k : mid, cy + 14 * k);
+            if (two && !m.s2.isEmpty()) put(c, m.s2, score, 420 * k, W - 640 * k, cy + 14 * k);
+            score.setTextAlign(Paint.Align.LEFT);
+            score.setTextSize(88 * k);
+            team.setTextAlign(Paint.Align.LEFT);
+            team.setTextSize(40 * k);
+            String say = !m.status.isEmpty() ? m.status : m.state();
+            if (m.live) {
+                badge.setTextSize(24 * k);
+                float bw = badge.measureText("\u25CF LIVE") + 36 * k;
+                RectF pill = new RectF(mid - bw / 2, cy - 44 * k, mid + bw / 2, cy - 6 * k);
+                fill.setColor(0xFFE5484D);
+                c.drawRoundRect(pill, 19 * k, 19 * k, fill);
+                c.drawText("\u25CF LIVE", mid, pill.centerY() + 8 * k, badge);
+                badge.setTextSize(24 * k);
+            }
+            status.setTextAlign(Paint.Align.CENTER);
+            put(c, say, status, 900 * k, mid, cy + 40 * k);
+            status.setTextAlign(Paint.Align.LEFT);
+            // Watch on…: the one button, chosen
+            if (m.pkg() != null) {
+                String w = L10n.t("Watch on ") + appName(m.pkg());
+                float bw = btn.measureText(w) + 64 * k;
+                r.set(mid - bw / 2, 250 * k, mid + bw / 2, 312 * k);
+                Frost.plate(c, r, r.height() / 2, k, 0xFF15803D);
+                c.drawText(w, r.left + 32 * k, r.centerY() + 9 * k, btn);
+            }
+            name.setTextAlign(Paint.Align.LEFT);
+            // the scorecard, scrolled
+            Scores.Card card = card(m);
+            float top = 344 * k;
+            c.save();
+            c.clipRect(0, top, W, H);
+            float y = top + 40 * k - fullScroll * k, x0 = 120 * k, right = W - 120 * k;
+            if (card == null) {
+                small.setTextAlign(Paint.Align.CENTER);
+                c.drawText(L10n.t("Loading the scorecard\u2026"), mid, y + 40 * k, small);
+                small.setTextAlign(Paint.Align.LEFT);
+            } else if (!card.innings.isEmpty()) {
+                float[] bc = {right - 560 * k, right - 440 * k, right - 330 * k, right - 230 * k, right - 120 * k};   // R B 4s 6s SR
+                float[] wc = {right - 560 * k, right - 440 * k, right - 330 * k, right - 230 * k, right - 120 * k};   // O M R W Econ
+                for (Scores.Innings in : card.innings) {
+                    name.setTextSize(32 * k);
+                    c.drawText(in.title, x0, y, name);
+                    y += 50 * k;
+                    small.setColor(Frost.MUTE);
+                    small.setTextSize(22 * k);
+                    c.drawText(L10n.t("Batter"), x0, y, small);
+                    String[] bh = {"R", "B", "4s", "6s", "SR"};
+                    small.setTextAlign(Paint.Align.RIGHT);
+                    for (int i = 0; i < bh.length; i++) c.drawText(bh[i], bc[i], y, small);
+                    small.setTextAlign(Paint.Align.LEFT);
+                    y += 40 * k;
+                    for (String[] b : in.bat) {
+                        name.setTextSize(27 * k);
+                        put(c, b[0], name, 380 * k, x0, y);
+                        small.setColor(0x99FFFFFF);
+                        small.setTextSize(22 * k);
+                        put(c, b[1], small, bc[0] - x0 - 520 * k, x0 + 400 * k, y);
+                        small.setTextAlign(Paint.Align.RIGHT);
+                        small.setColor(Color.WHITE);
+                        small.setTextSize(25 * k);
+                        for (int i = 0; i < 5; i++) c.drawText(b[2 + i], bc[i], y, small);
+                        small.setTextAlign(Paint.Align.LEFT);
+                        y += 44 * k;
+                    }
+                    if (!in.extras.isEmpty()) {
+                        small.setColor(Frost.MUTE);
+                        small.setTextSize(22 * k);
+                        c.drawText(in.extras, x0, y, small);
+                        y += 40 * k;
+                    }
+                    if (!in.dnb.isEmpty()) {
+                        small.setColor(Frost.MUTE);
+                        small.setTextSize(22 * k);
+                        put(c, in.dnb, small, right - x0, x0, y);
+                        y += 40 * k;
+                    }
+                    if (!in.bowl.isEmpty()) {
+                        y += 14 * k;
+                        small.setColor(Frost.MUTE);
+                        small.setTextSize(22 * k);
+                        c.drawText(in.bowlTitle, x0, y, small);
+                        String[] wh = {"O", "M", "R", "W", L10n.t("Econ")};
+                        small.setTextAlign(Paint.Align.RIGHT);
+                        for (int i = 0; i < wh.length; i++) c.drawText(wh[i], wc[i], y, small);
+                        small.setTextAlign(Paint.Align.LEFT);
+                        y += 40 * k;
+                        for (String[] b : in.bowl) {
+                            name.setTextSize(27 * k);
+                            put(c, b[0], name, 500 * k, x0, y);
+                            small.setTextAlign(Paint.Align.RIGHT);
+                            small.setColor(Color.WHITE);
+                            small.setTextSize(25 * k);
+                            for (int i = 0; i < 5; i++) c.drawText(b[1 + i], wc[i], y, small);
+                            small.setTextAlign(Paint.Align.LEFT);
+                            y += 44 * k;
+                        }
+                    }
+                    fill.setColor(0x22FFFFFF);
+                    c.drawRect(x0, y, right, y + 1.5f * k, fill);
+                    y += 56 * k;
+                }
+            } else {   // this match's feed has no innings in full: what it has (the latest), or a note
+                if (!card.bat.isEmpty() || !card.bowl.isEmpty()) {
+                    float half = (right - x0) / 2 - 30 * k;
+                    drawTable(c, card.batTitle, new String[]{"R", "B", "4s", "6s"}, card.bat, x0, y, half, H);
+                    drawTable(c, card.bowlTitle, new String[]{"O", "R", "W", L10n.t("Econ")}, card.bowl, x0 + half + 60 * k, y, half, H);
+                    y += (84 + 42 * Math.max(card.bat.size(), card.bowl.size())) * k;
+                }
+                small.setTextAlign(Paint.Align.CENTER);
+                small.setColor(Frost.MUTE);
+                c.drawText(L10n.t("The full scorecard isn't available for this match yet"), mid, y + 40 * k, small);
+                small.setTextAlign(Paint.Align.LEFT);
+                y += 80 * k;
+            }
+            c.restore();
+            name.setTextSize(30 * k);
+            small.setTextSize(24 * k);
+            small.setColor(Frost.MUTE);
+            fullMax = Math.max(0, (y + fullScroll * k - H) / k + 60);
+            if (m.live) postDelayed(this::invalidate, 30_000);   // the card refreshes while it's live
+        }
+
         @Override
         protected void onDraw(Canvas c) {
             Frost.frame(this);   // selections glide (Frost.plate)
+            if (fullMatch != null) {
+                drawFull(c, fullMatch);
+                return;
+            }
             if (hub) {
                 if (hRow > 0 && count(hRow) == 0) hRow = 0;
                 drawHub(c);
@@ -627,6 +825,14 @@ public class SportsActivity extends Activity {
                 }
             }
             drawDetail(c, shown);
+        }
+
+        /** The pop-up's card for sports without a batting card (stats and plays), drawn on the match page. */
+        private void drawDetailBody(Canvas c, Cricket.Match m) {
+            boolean wasHub = hub;
+            hub = false;
+            drawDetail(c, m);
+            hub = wasHub;
         }
 
         private void drawDetail(Canvas c, Cricket.Match m) {
@@ -781,6 +987,10 @@ public class SportsActivity extends Activity {
 
         @Override
         public boolean onKeyDown(int code, KeyEvent e) {
+            if (fullMatch != null) {
+                if (code == KeyEvent.KEYCODE_BACK) return true;
+                return fullKey(code, e) || super.onKeyDown(code, e);
+            }
             if (hub) {
                 if (code == KeyEvent.KEYCODE_BACK && inPanel) return true;
                 if (code == KeyEvent.KEYCODE_BACK) return super.onKeyDown(code, e);

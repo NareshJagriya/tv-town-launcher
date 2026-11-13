@@ -315,7 +315,7 @@ final class Picks {
     /** The cards on the pop-up: every card not hidden, at most MAX_CARDS. */
     static List<Entry> cards(Context ctx, int kind) {
         List<Entry> out = new ArrayList<>();
-        for (Entry c : allCards(ctx, kind)) if (!c.hidden && out.size() < MAX_CARDS) out.add(c);
+        for (Entry c : allCards(ctx, kind)) if (!c.hidden) out.add(c);   // more than twelve: the grid scrolls
         return out;
     }
 
@@ -340,7 +340,7 @@ final class Picks {
     /** A new card of your own, named as typed; it starts by searching for its name. False when not possible. */
     static boolean addCard(Context ctx, int kind, String name) {
         String n = name.trim().replaceAll("\\s+", " ");
-        if (n.isEmpty() || n.length() > 40 || !takesOwnCards(kind) || cards(ctx, kind).size() >= MAX_CARDS) return false;
+        if (n.isEmpty() || n.length() > 40 || !takesOwnCards(kind)) return false;
         for (Entry c : allCards(ctx, kind)) if (c.label.equalsIgnoreCase(n)) return false;
         List<String> own = ownNames(ctx, kind);
         own.add(n);
@@ -359,7 +359,7 @@ final class Picks {
     /** Hides a card from the pop-up, or shows it again. False when that is not possible (the last card, or no room). */
     static boolean setHidden(Context ctx, int kind, Entry card, boolean hide) {
         int shown = cards(ctx, kind).size();
-        if (hide ? shown <= 1 : shown >= MAX_CARDS) return false;
+        if (hide && shown <= 1) return false;
         List<String> l = hiddenNames(ctx, kind);
         l.remove(card.label);
         if (hide) l.add(card.label);
@@ -375,7 +375,8 @@ final class Picks {
         List<Entry> cards = cards(kind);
         if (takesOwnCards(kind)) {
             List<String> own = ownNames(ctx, kind);
-            for (int i = 0; i < own.size(); i++) {
+            int at = !cards.isEmpty() && cards.get(0).myMix ? 1 : 0;   // your own cards lead, the newest first
+            for (int i = own.size() - 1; i >= 0; i--) {
                 Entry c = new Entry(kind == SONG ? "🎵" : "⭐", own.get(i), OWN_COLOURS[i % OWN_COLOURS.length]);
                 c.own = true;
                 c.adder = phrase -> ownTune(kind, phrase);
@@ -383,7 +384,7 @@ final class Picks {
                 Entry p = new Entry(c.emoji, own.get(i), c.color);
                 p.tune = ownTune(kind, own.get(i));
                 c.parts.add(p);
-                cards.add(c);
+                cards.add(at++, c);
             }
         }
         List<String> hidden = hiddenNames(ctx, kind);

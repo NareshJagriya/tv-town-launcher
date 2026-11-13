@@ -198,6 +198,7 @@ public class DiscoverActivity extends Activity {
                 case DiscoverKinds.NEW: return WheelArt.Glyph.SUN;
                 case DiscoverKinds.TRENDING: return WheelArt.Glyph.PULSE;
                 case DiscoverKinds.TOP_RATED: return WheelArt.Glyph.STAR;
+                case DiscoverKinds.COMING_UP: return WheelArt.Glyph.TV;
                 default: return WheelArt.Glyph.TELESCOPE;
             }
         }
@@ -235,6 +236,13 @@ public class DiscoverActivity extends Activity {
             }
             DiscoverKinds.Kind kind = DiscoverKinds.find(e.id);
             Tmdb.Category cat = kind != null ? DiscoverKinds.category(kind) : null;
+            if (e.id.equals(DiscoverKinds.COMING_UP)) {   // the TV calendar: your shows' next episodes, then new series
+                e.rows.add(new Shelf(L10n.t("Your shows · this week"), () -> ComingUp.yours(ctx, true)));
+                e.rows.add(new Shelf(L10n.t("Your shows · later"), () -> ComingUp.yours(ctx, false)));
+                e.rows.add(new Shelf(L10n.t("New episodes on your apps"), () -> ComingUp.onYourApps(ctx)));
+                e.rows.add(new Shelf(L10n.t("Films coming to streaming"), () -> ComingUp.filmsSoon(ctx)));
+                return;
+            }
             if (e.id.equals(DiscoverKinds.NEW)) becauseYouWatched(e);
             for (Services.Service s : Services.installedOrPopular(ctx)) {
                 Loader l;
@@ -251,8 +259,9 @@ public class DiscoverActivity extends Activity {
         }
 
         /**
-         * The first row where Discover opens: titles like the last film or series you marked Watched (the best rated
-         * of your last five), leaving out what you've already seen. No watched titles, or no TMDB: no row.
+         * The first rows where Discover opens, steered by your ratings: up to two rows of titles like the ones you rated
+         * highest (8 or more), else like the last one you marked Watched. Anything TMDB suggests for a title you rated 4
+         * or lower stays out, and so does what you've already seen. No watched titles, or no TMDB: no row.
          */
         private void becauseYouWatched(Entry e) {
             Context ctx = getContext();
@@ -261,17 +270,35 @@ public class DiscoverActivity extends Activity {
             for (Library.Entry x : Library.all(ctx)) if (x.status == Library.WATCHED && x.tmdbId > 0) seen.add(x);
             if (seen.isEmpty()) return;
             Collections.sort(seen, (a, b) -> Long.compare(b.time, a.time));
-            Library.Entry from = seen.get(0);
-            for (int i = 1; i < Math.min(5, seen.size()); i++) if (seen.get(i).rating > from.rating) from = seen.get(i);
-            final Library.Entry src = from;
+            List<Library.Entry> recent = seen.subList(0, Math.min(30, seen.size()));
+            List<Library.Entry> loved = new ArrayList<>(), disliked = new ArrayList<>();
+            for (Library.Entry x : recent) {
+                if (x.rating >= 8) loved.add(x);
+                else if (x.rating > 0 && x.rating <= 4 && disliked.size() < 3) disliked.add(x);
+            }
+            Collections.sort(loved, (a, b) -> b.rating != a.rating ? b.rating - a.rating : Long.compare(b.time, a.time));
+            List<Library.Entry> seeds = new ArrayList<>(loved.subList(0, Math.min(2, loved.size())));
+            if (seeds.isEmpty()) seeds.add(recent.get(0));
             final java.util.Set<String> watched = Library.watched(ctx);
-            e.rows.add(new Shelf(L10n.t("Because you watched ") + src.title, () -> {
-                List<Tmdb.Title> out = new ArrayList<>();
-                for (Tmdb.Title t : Tmdb.recommendations(ctx, "tv".equals(src.type) ? "tv" : "movie", src.tmdbId)) {
-                    if (out.size() < 20 && typeOk(t) && hasPicture(t) && !watched.contains(Library.keyOf(t))) out.add(t);
-                }
-                return out;
-            }));
+            for (Library.Entry src : seeds) {
+                String head = src.rating >= 8 ? L10n.t("Because you loved ") + src.title : L10n.t("Because you watched ") + src.title;
+                e.rows.add(new Shelf(head, () -> {
+                    java.util.Set<String> away = new java.util.HashSet<>();   // like what you rated low
+                    for (Library.Entry d : disliked) {
+                        try {
+                            for (Tmdb.Title t : Tmdb.recommendations(ctx, "tv".equals(d.type) ? "tv" : "movie", d.tmdbId)) away.add(Library.keyOf(t));
+                        } catch (Exception ignored) {
+                            // that one: nothing left out
+                        }
+                    }
+                    List<Tmdb.Title> out = new ArrayList<>();
+                    for (Tmdb.Title t : Tmdb.recommendations(ctx, "tv".equals(src.type) ? "tv" : "movie", src.tmdbId)) {
+                        String key = Library.keyOf(t);
+                        if (out.size() < 20 && typeOk(t) && hasPicture(t) && !watched.contains(key) && !away.contains(key)) out.add(t);
+                    }
+                    return out;
+                }));
+            }
         }
 
         private boolean typeOk(Tmdb.Title t) {
@@ -547,9 +574,10 @@ public class DiscoverActivity extends Activity {
                     float ty = chosen ? pr.bottom - rc.bottom : 0;   // the words move down with the grown poster
                     c.drawText(fit(t.title, coverName, rc.width()), rc.left, rc.bottom + 38 * k + ty, coverName);
                     List<String> line = new ArrayList<>();
-                    line.add(t.isSeries() ? L10n.t("Series") : L10n.t("Film"));
-                    if (t.year > 0) line.add(String.valueOf(t.year));
-                    if (t.rating > 0) line.add("★ " + String.format(java.util.Locale.US, "%.1f", t.rating));
+                    if (t.airLine != null) line.add(t.airLine);
+                    else line.add(t.isSeries() ? L10n.t("Series") : L10n.t("Film"));
+                    if (t.airLine == null && t.year > 0) line.add(String.valueOf(t.year));
+                    if (t.airLine == null && t.rating > 0) line.add("★ " + String.format(java.util.Locale.US, "%.1f", t.rating));
                     c.drawText(fit(TextUtils.join("  ·  ", line), meta, rc.width()), rc.left, rc.bottom + 70 * k + ty, meta);
                     coverName.setAlpha(255);
                     meta.setAlpha(255);

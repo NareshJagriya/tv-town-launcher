@@ -26,8 +26,11 @@ final class SaveNote extends View {
         void start(boolean video);
     }
 
-    private static final int NOTE = 0, CHOICE = 1, QR = 2;
-    private static final long CHOICE_MS = 6000;
+    private static final int NOTE = 0, CHOICE = 1, QR = 2, ASK = 3;
+    private static final long CHOICE_MS = 6000, ASK_MS = 12_000;
+    // ASK (OK pressed twice): the format row (focus starts here, so pressing OK again only switches MP3 / Video),
+    // then Download / Cancel. Nothing saves by itself: left alone it closes.
+    private int askRow, askBtn;
 
     private final WindowManager wm;
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -86,6 +89,22 @@ final class SaveNote extends View {
         main.postDelayed(starter, CHOICE_MS);
     }
 
+    /** "Save this?" in the middle of the screen: MP3 or Video, then Download or Cancel, all with the arrows and OK. */
+    void ask(String title, String by, boolean videoFirst, Chosen chosen) {
+        mode = ASK;
+        this.title = title;
+        this.by = by;
+        this.chosen = chosen;
+        this.cancelled = null;
+        video = videoFirst;
+        askRow = 0;
+        askBtn = 0;
+        show(Math.round(820 * k), Math.round(380 * k), Gravity.CENTER);
+        main.removeCallbacks(starter);
+        main.removeCallbacks(closer);
+        main.postDelayed(closer, ASK_MS);
+    }
+
     void qr(Bitmap code, Runnable cancelled) {
         mode = QR;
         this.code = code;
@@ -104,6 +123,25 @@ final class SaveNote extends View {
             Runnable r = cancelled;
             close();
             if (r != null) r.run();
+            return true;
+        }
+        if (mode == ASK) {
+            main.removeCallbacks(closer);
+            main.postDelayed(closer, ASK_MS);
+            boolean ok = kc == KeyEvent.KEYCODE_DPAD_CENTER || kc == KeyEvent.KEYCODE_ENTER;
+            if (kc == KeyEvent.KEYCODE_DPAD_UP) askRow = 0;
+            else if (kc == KeyEvent.KEYCODE_DPAD_DOWN) {
+                if (askRow == 0) askBtn = 0;
+                askRow = 1;
+            } else if (askRow == 0 && (kc == KeyEvent.KEYCODE_DPAD_LEFT || kc == KeyEvent.KEYCODE_DPAD_RIGHT)) video = kc == KeyEvent.KEYCODE_DPAD_RIGHT;
+            else if (askRow == 0 && ok) video = !video;
+            else if (askRow == 1 && (kc == KeyEvent.KEYCODE_DPAD_LEFT || kc == KeyEvent.KEYCODE_DPAD_RIGHT)) askBtn = kc == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : 0;
+            else if (askRow == 1 && ok) {
+                if (askBtn == 0) start();
+                else close();
+                return true;
+            }
+            invalidate();
             return true;
         }
         if (mode != CHOICE) return true;
@@ -144,14 +182,18 @@ final class SaveNote extends View {
     }
 
     private void show(int width, int height) {
+        show(width, height, Gravity.BOTTOM | Gravity.END);
+    }
+
+    private void show(int width, int height, int gravity) {
         w = width;
         h = height;
         WindowManager.LayoutParams p = new WindowManager.LayoutParams(width, height, WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
                 PixelFormat.TRANSLUCENT);
-        p.gravity = Gravity.BOTTOM | Gravity.END;
-        p.x = Math.round(48 * k);
-        p.y = Math.round(48 * k);
+        p.gravity = gravity;
+        p.x = gravity == Gravity.CENTER ? 0 : Math.round(48 * k);
+        p.y = gravity == Gravity.CENTER ? 0 : Math.round(48 * k);
         try {
             if (shown) wm.updateViewLayout(this, p);
             else wm.addView(this, p);
@@ -187,6 +229,28 @@ final class SaveNote extends View {
         c.drawText(label, r.centerX(), r.centerY() - (p.ascent() + p.descent()) / 2, p);
     }
 
+    /** A soft white ring just outside the focused choice. */
+    private void ring(Canvas c, RectF r) {
+        Paint g = new Paint(Paint.ANTI_ALIAS_FLAG);
+        g.setStyle(Paint.Style.STROKE);
+        g.setStrokeWidth(3 * k);
+        g.setColor(0xE6FFFFFF);
+        RectF o = new RectF(r.left - 6 * k, r.top - 6 * k, r.right + 6 * k, r.bottom + 6 * k);
+        c.drawRoundRect(o, o.height() / 2, o.height() / 2, g);
+    }
+
+    private void button(Canvas c, RectF r, String label, boolean focused) {
+        float rad = r.height() / 2;
+        Paint shape = new Paint(Paint.ANTI_ALIAS_FLAG);
+        shape.setColor(focused ? 0xFFFFFFFF : 0x1FFFFFFF);
+        c.drawRoundRect(r, rad, rad, shape);
+        Paint p = Theme.font(getContext(), 27 * k, 700);
+        p.clearShadowLayer();
+        p.setColor(focused ? 0xFF111114 : 0xD9FFFFFF);
+        p.setTextAlign(Paint.Align.CENTER);
+        c.drawText(label, r.centerX(), r.centerY() - (p.ascent() + p.descent()) / 2, p);
+    }
+
     @Override
     protected void onDraw(Canvas c) {
         Frost.frame(this);   // selections glide (Frost.plate)
@@ -206,6 +270,24 @@ final class SaveNote extends View {
             Paint hint = new Paint(small);
             hint.setTextAlign(Paint.Align.RIGHT);
             c.drawText(L10n.t("Back to cancel"), w - pad, top + ch / 2 - (hint.ascent() + hint.descent()) / 2, hint);
+        } else if (mode == ASK) {
+            Paint head = new Paint(small);
+            head.setTextSize(22 * k);
+            head.setColor(0x99FFFFFF);
+            c.drawText(L10n.t("Save from YouTube"), pad + 4 * k, 58 * k, head);
+            c.drawText(fit(title, big, w - 2 * pad), pad + 4 * k, 104 * k, big);
+            c.drawText(fit(by, small, w - 2 * pad), pad + 4 * k, 140 * k, small);
+            // the format: the chosen one solid; a ring round the row while it has the focus
+            float top = 172 * k, ch = 64 * k, cw = (w - 2 * pad - 14 * k) / 2;
+            RectF a = new RectF(pad, top, pad + cw, top + ch), v = new RectF(pad + cw + 14 * k, top, w - pad, top + ch);
+            if (askRow == 0) ring(c, video ? v : a);
+            chip(c, a, L10n.t("Audio \u00b7 MP3"), !video);
+            chip(c, v, L10n.t("Video \u00b7 MP4"), video);
+            // Download / Cancel: the focused one solid white
+            float bt = top + ch + 30 * k, bh = 68 * k;
+            RectF d = new RectF(pad, bt, pad + cw, bt + bh), x = new RectF(pad + cw + 14 * k, bt, w - pad, bt + bh);
+            button(c, d, L10n.t("Download"), askRow == 1 && askBtn == 0);
+            button(c, x, L10n.t("Cancel"), askRow == 1 && askBtn == 1);
         } else if (code != null) {
             float q = 300 * k, x = (w - q) / 2, y = 42 * k;
             c.drawBitmap(code, null, new RectF(x, y, x + q, y + q), null);

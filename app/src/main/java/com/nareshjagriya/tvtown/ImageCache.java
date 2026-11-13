@@ -32,7 +32,7 @@ final class ImageCache {
             "images.justwatch.com", "i.ytimg.com", "a.espncdn.com", "s.espncdn.com",   // team logos and news photos (Sports)
             "images.metahub.space", "btttr.cc", "m.media-amazon.com",   // StreamRadar's pictures
             // song covers from Find details (My Music)
-            "thumb.wikimedia.org", "upload.wikimedia.org",   // singers' photos (My Music)
+            "thumb.wikimedia.org", "upload.wikimedia.org", "images-assets.nasa.gov",   // singers' photos (My Music); screensaver pictures
             "is1-ssl.mzstatic.com", "is2-ssl.mzstatic.com", "is3-ssl.mzstatic.com", "is4-ssl.mzstatic.com", "is5-ssl.mzstatic.com"));
 
     /** Decoded images: 1/16 of the app's memory on a low-memory TV (12 MB on a 1 GB Philips), else 1/8. */

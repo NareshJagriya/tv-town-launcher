@@ -65,12 +65,11 @@ No computer or cables needed. **[The full guide is in INSTALL.md](INSTALL.md).**
 
 ## How to add the free API keys
 
-Both are optional and free, and you type them on your phone by scanning the QR code on the TV. TV Town works without them, using JustWatch for film details.
+It is optional and free, and you type them on your phone by scanning the QR code on the TV. TV Town works without them, using JustWatch for film details.
 
 | Key | What it adds | Where to get it | Where to add it |
 |---|---|---|---|
 | **TMDB** | Film and series details, pictures, new titles, Discover and Surprise Me picks | Make a free account at [themoviedb.org](https://www.themoviedb.org/signup), then open *Settings → API* and copy your **API key** | *Customize TV Town → Updates and backup → Films and series info (TMDB key)* |
-| **OpenSubtitles** | Subtitle downloads in My Movies | Make a free account at [opensubtitles.com](https://www.opensubtitles.com/consumers), then create a consumer and copy its **API key** | *Customize TV Town → Updates and backup → Subtitle downloads (OpenSubtitles key)* |
 
 Weather needs no key: add your town in *Customize TV Town → Home → Weather beside the clock*.
 
@@ -198,7 +197,7 @@ Beautiful when nobody is watching, and dimmed at night.
 - **Continue** row, favourites, watched marks, your own ratings, and automatic and custom tags.
 - **Film page:** Play or Resume, Start over, Episodes, Trailer, Favourite, Watched, Rate, Tags, Subtitles and Fix match.
 - **Filter** by Genre, Mood and Spoken in, plus **Sort** and **Search**. Audio and subtitle languages are read from each file.
-- **Plays in VLC** when installed (resume, and end credits count as watched), else the TV's own player. English subtitles from OpenSubtitles on request.
+- **Plays in VLC** when installed (resume, and end credits count as watched), else the TV's own player.
 - With no drive, it becomes **My List**.
 
 ### My Music
@@ -246,7 +245,7 @@ Customize TV Town (the sliders at the top of Home; the gear opens the TV's own s
 - **Screensaver:** one list: TV Town's film pictures or clock (nothing to set up), Aerial Views, or any other you have.
 - **Films and music:** content style (Indian, Global or Mixed), streaming country, languages, where picks come from and skipping what you've watched.
 - **Phone and downloads:** connect your phone, and the YouTube downloader.
-- **Updates and backup:** updates, back up or restore every setting in one file (to move your whole setup to another TV), and your free TMDB and OpenSubtitles keys, typed on your phone.
+- **Updates and backup:** updates, back up or restore every setting in one file (to move your whole setup to another TV), and your free TMDB key, typed on your phone.
 - Switch to the TV's own home, and back.
 
 ### Screensaver
@@ -298,7 +297,7 @@ Requirements: Android Studio (JDK 17+, Android SDK).
 ```
 - **Signing key:** `~/.tvtown/keystore.properties` and the `.jks` it names. Keep a backup: Android only accepts an
   update signed with the same key.
-- **Personal keys:** `~/.tvtown/api.properties` (`tmdb.apiKey=…`, `opensubtitles.apiKey=…`). Never committed.
+- **Personal keys:** `~/.tvtown/api.properties` (`tmdb.apiKey=…`). Never committed.
 
 ### Mac scripts (development)
 With adb and network debugging on the TV:
@@ -321,7 +320,7 @@ stored as repository secrets (see the workflow file) and publishes it; TVs find 
 |---|---|
 | `HomeView`, `MainActivity` | Home, Settings, Customize, Welcome |
 | `RandomSheet`, `Picks`, `Songs` | Surprise Me: cards, picks, music and video search |
-| `MyMoviesView`, `MyMovies`, `Tags`, `Tracks`, `OpenSubtitles` | My Movies |
+| `MyMoviesView`, `MyMovies`, `Tags`, `Tracks`, `FileOps` | My Movies |
 | `MyMusicView`, `MyMusic`, `MusicPlayer`, `Lyrics` | My Music and its player |
 | `DiscoverActivity`, `MustWatchView`, `Library`, `Awards` | Discover, your watched list and watchlist |
 | `TvKeyboard`, `ControlCenter`, `SportsActivity`, `Cricket`, `Scores`, `TvTownDream` | Search, Control Center, Sports, the screensaver |

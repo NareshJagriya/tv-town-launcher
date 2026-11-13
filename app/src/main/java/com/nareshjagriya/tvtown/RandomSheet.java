@@ -499,12 +499,17 @@ final class RandomSheet {
         }
         if (mode == CUSTOM) return customKey(keyCode);
         boolean side = keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
-        if (focus != null && focus.group == TAB && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && kind == Picks.EXTRAS) {
-            focus = itemOf(CUSTOMIZE);   // the last tab: on to Customize beside it
+        if (focus != null && focus.group == TAB && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && focus.index == 3) {
+            focus = itemOf(CUSTOMIZE);   // the last tab: on to Customize beside it (for the tab that is showing)
             return true;
         }
-        if (focus != null && focus.group == TAB && side && lastListener != null) {   // a tab is shown as soon as it's reached
-            lastListener.switchKind(Math.floorMod(kind + (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1), 4));
+        if (focus != null && focus.group == TAB && side) {   // along the tabs: the focus moves; OK or Down shows one
+            int to = Math.floorMod(focus.index + (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1), 4);
+            for (Item it : items) if (it.group == TAB && it.index == to) focus = it;
+            return true;
+        }
+        if (focus != null && focus.group == TAB && keyCode == KeyEvent.KEYCODE_DPAD_DOWN && focus.index != kind && lastListener != null) {
+            lastListener.switchKind(focus.index);
             return true;
         }
         if (focus != null && focus.group == TILE && (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN)) {
@@ -1044,10 +1049,6 @@ final class RandomSheet {
 
     /** Asks for a new card's name; the new card is then chosen, ready for more searches. */
     private void askNewCard(Listener listener) {
-        if (cards.size() >= Picks.MAX_CARDS) {
-            note(ctx.getString(R.string.cards_full));
-            return;
-        }
         listener.askText(ctx.getString(R.string.new_card), ctx.getString(R.string.new_card_hint), typed -> {
             if (typed == null || typed.trim().isEmpty() || mode != CUSTOM) return;
             if (!Picks.addCard(ctx, kind, typed)) {
@@ -1428,15 +1429,9 @@ final class RandomSheet {
                     Bitmap mark = LineIcon.icon(look.icon, 72 * k);
                     c.drawBitmap(mark, pic.centerX() - mark.getWidth() / 2f, pic.centerY() - mark.getHeight() * 0.7f, bmp);
                 }
-                fill.setShader(new LinearGradient(0, pic.top + pic.height() * 0.45f, 0, pic.bottom, 0x00000000, 0xD9000000, Shader.TileMode.CLAMP));
-                c.drawRect(pic, fill);
-                fill.setShader(null);
                 c.restore();
                 if (focused) Frost.posterRing(c, pic, rad, k);
-                else if (inTiles) Frost.posterDim(c, pic, rad);
-                nMoodPlain.setAlpha(focused || !inTiles ? 255 : 200);
-                c.drawText(ellipsize(L10n.t(it.label), nMoodPlain, pic.width() - 32 * k), pic.centerX(), pic.bottom - 22 * k, nMoodPlain);
-                nMoodPlain.setAlpha(255);
+                nameStrip(c, pic, L10n.t(it.label), focused);
                 return;
             }
             case PLAY: {   // a glass bar with a big die; chosen, the die rolls (its face changing as it wobbles)
@@ -1589,7 +1584,7 @@ final class RandomSheet {
         float left = panel.left + PAD * k + C_LIST_W * k + 48 * k, top = panel.top + TOP * k;
         String what;
         if (cNote != null && System.currentTimeMillis() < cNoteUntil) what = cNote;
-        else if (newCardPage()) what = ctx.getString(R.string.new_card_about, Picks.MAX_CARDS);
+        else if (newCardPage()) what = ctx.getString(R.string.new_card_about);
         else if (languagesPage()) what = ctx.getString(R.string.customize_languages);
         else {
             Picks.Entry card = customCard();
@@ -1632,7 +1627,7 @@ final class RandomSheet {
     private void openTopics(Picks.Entry tile) {
         topicTile = tile;
         tileFocus = focus;
-        asks = Topics.asks(tile.label);
+        asks = Topics.withOwn(ctx, tile.label);
         mode = TOPICS;
         layoutTopics(null);
     }
@@ -1646,10 +1641,11 @@ final class RandomSheet {
         float x0 = 96 * k, right = screen.width() - 96 * k, y = 230 * k, chipH = 64 * k, g = 14 * k;
         chipText.set(nPill);
         chipText.setTextSize(25 * k);
+        asks = Topics.withOwn(ctx, topicTile.label);   // each row with what you added to it
         List<Topics.Group> rows = new ArrayList<>(asks.groups);
-        Topics.Group mine = new Topics.Group(Topics.OWN);
+        Topics.Group mine = new Topics.Group(Topics.OWN);   // what was added before rows had their own (kept)
         for (String s : Topics.own(ctx, topicTile.label)) mine.add(s, s);
-        rows.add(mine);
+        if (!mine.options.isEmpty()) rows.add(mine);
         int idx = 0;
         for (Topics.Group gr : rows) {
             tHeads.add(new float[]{x0, y});
@@ -1662,7 +1658,7 @@ final class RandomSheet {
                 it.on = on.contains(it.label);
                 row.add(it);
             }
-            if (gr == mine) row.add(new Item(T_ADD, idx++, null, "|" + L10n.t("+ Add your own"), topicTile.color));
+            if (gr != mine) row.add(new Item(T_ADD, idx++, null, gr.name + "|" + L10n.t("+ Add"), topicTile.color));   // every row takes your own
             for (Item it : row) {
                 float w = chipText.measureText(L10n.t(shown(it))) + 92 * k;
                 if (x + w > right && x > x0) {
@@ -1704,15 +1700,15 @@ final class RandomSheet {
             layoutTopics(tFocus.label);
             return;
         }
-        if (tFocus.group == T_ADD) {
-            final String tile = topicTile.label;
-            listener.askText(L10n.t("+ Add your own"), L10n.t(asks.ownHint), typed -> {
+        if (tFocus.group == T_ADD) {   // into this row (Diet, Cuisine…), kept there and ticked
+            final String tile = topicTile.label, group = tFocus.label.substring(0, tFocus.label.indexOf('|'));
+            listener.askText(L10n.t("+ Add to ") + L10n.t(group), L10n.t(asks.ownHint), typed -> {
                 if (typed == null || typed.trim().isEmpty() || mode != TOPICS || !tile.equals(topicTile.label)) return;
-                Topics.addOwn(ctx, tile, typed.trim());
+                Topics.addOwnIn(ctx, tile, group, typed.trim());
                 java.util.Set<String> on = Topics.ticked(ctx, tile);
-                on.add(Topics.OWN + "|" + typed.trim());
+                on.add(group + "|" + typed.trim());
                 Topics.setTicked(ctx, tile, on);
-                layoutTopics(Topics.OWN + "|" + typed.trim());
+                layoutTopics(group + "|" + typed.trim());
             });
             return;
         }
@@ -1882,15 +1878,29 @@ final class RandomSheet {
         if (img != null) drawImage(c, img, pic, rad, Math.round(255 * e));
         else Frost.surface(c, pic, rad, k);
         if (focused) Frost.posterRing(c, pic, rad, k);
-        else if (rowOn) Frost.posterDim(c, pic, rad);
-        float ty = pic.bottom + 42 * k;
-        TextPaint np = new TextPaint(cardTitle);
-        np.setTextSize(28 * k);
-        np.setAlpha(Math.round((focused || !rowOn ? 255 : 175) * e));
-        c.drawText(ellipsize(name, np, r.width()), r.left, ty, np);
+        nameStrip(c, pic, name, focused);
         cardMeta.setColor(Frost.MUTE);
-        cardMeta.setAlpha(Math.round((focused || !rowOn ? 230 : 150) * e));
-        c.drawText(ellipsize(line, cardMeta, r.width()), r.left, ty + 36 * k, cardMeta);
+        cardMeta.setAlpha(Math.round((focused ? 255 : 200) * e));
+        String ln = ellipsize(line, cardMeta, r.width());
+        c.drawText(ln, r.centerX() - cardMeta.measureText(ln) / 2, pic.bottom + 36 * k, cardMeta);
+    }
+
+    /** A cover's name on the cover itself: centred near its foot on a small frosted strip, bold and clear. */
+    private void nameStrip(Canvas c, RectF pic, String name, boolean focused) {
+        TextPaint np = new TextPaint(cardTitle);
+        np.setTextSize((focused ? 27 : 25) * k);
+        np.setFakeBoldText(false);
+        np.setTypeface(android.graphics.Typeface.create(cardTitle.getTypeface(), android.graphics.Typeface.BOLD));
+        String t = ellipsize(name, np, pic.width() - 44 * k);
+        float tw = np.measureText(t), h = 52 * k, w = Math.min(pic.width() - 20 * k, tw + 40 * k);
+        RectF strip = new RectF(pic.centerX() - w / 2, pic.bottom - h - 14 * k, pic.centerX() + w / 2, pic.bottom - 14 * k);
+        fill.setShader(null);
+        fill.setColor(focused ? 0x99101114 : 0x80101114);
+        c.drawRoundRect(strip, h / 2, h / 2, fill);
+        fill.setColor(0x33FFFFFF);   // light along its top edge: glass
+        c.drawRoundRect(strip.left, strip.top, strip.right, strip.top + 1.6f * k, h / 2, h / 2, fill);
+        np.setColor(Color.WHITE);
+        c.drawText(t, strip.centerX() - tw / 2, strip.centerY() + 9 * k, np);
     }
 
     private void drawResults(Canvas c, float e) {

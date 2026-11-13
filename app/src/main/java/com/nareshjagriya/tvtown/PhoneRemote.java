@@ -281,6 +281,29 @@ final class PhoneRemote {
         return open(c, id, "");
     }
 
+    /** The phone remote's TV settings: Android's own pages (the TV's main settings when a page isn't there). */
+    @Nullable
+    private static Intent tvSetting(Context c, String which) {
+        String action;
+        switch (which) {
+            case "wifi": action = android.provider.Settings.ACTION_WIFI_SETTINGS; break;
+            case "bluetooth": action = android.provider.Settings.ACTION_BLUETOOTH_SETTINGS; break;
+            case "sound": action = android.provider.Settings.ACTION_SOUND_SETTINGS; break;
+            case "picture": action = android.provider.Settings.ACTION_DISPLAY_SETTINGS; break;
+            case "screensaver": action = android.provider.Settings.ACTION_DREAM_SETTINGS; break;
+            case "apps": action = android.provider.Settings.ACTION_APPLICATION_SETTINGS; break;
+            case "storage": action = android.provider.Settings.ACTION_INTERNAL_STORAGE_SETTINGS; break;
+            case "date": action = android.provider.Settings.ACTION_DATE_SETTINGS; break;
+            case "language": action = android.provider.Settings.ACTION_LOCALE_SETTINGS; break;
+            case "accessibility": action = android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS; break;
+            case "all": action = android.provider.Settings.ACTION_SETTINGS; break;
+            default: return null;
+        }
+        Intent i = new Intent(action);
+        if (i.resolveActivity(c.getPackageManager()) == null) i = new Intent(android.provider.Settings.ACTION_SETTINGS);
+        return i;
+    }
+
     /** q: words for Search. */
     @Nullable
     static String open(Context c, String id, String q) {
@@ -299,6 +322,8 @@ final class PhoneRemote {
         }
         else if (id.equals("tvtown:must")) i = new Intent(c, MustWatchActivity.class);
         else if (id.equals("tvtown:cricket")) i = new Intent(c, SportsActivity.class);
+        else if (id.equals("tvset:tvtown")) i = main(c).putExtra(MainActivity.EXTRA_PHONE, "settings");   // TV Town's Customize
+        else if (id.startsWith("tvset:")) i = tvSetting(c, id.substring(6));
         else {
             for (ResolveInfo r : tvApps(c)) {
                 if (!r.activityInfo.packageName.equals(id)) continue;

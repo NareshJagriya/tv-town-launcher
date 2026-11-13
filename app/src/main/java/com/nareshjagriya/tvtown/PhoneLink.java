@@ -176,7 +176,7 @@ final class PhoneLink {
         if (method.equals("GET") && action.isEmpty()) {
             reply(out, "200 OK", "text/html; charset=utf-8", page(c, key));
         } else if (method.equals("GET") && action.equals("manifest.json")) {
-            reply(out, "200 OK", "application/manifest+json", "{\"name\":\"TV Town\",\"short_name\":\"TV Town\",\"display\":\"standalone\",\"background_color\":\"#0c0c0e\",\"theme_color\":\"#0c0c0e\",\"start_url\":\"/" + key + "\",\"icons\":[{\"src\":\"/" + key + "/icon.png\",\"sizes\":\"192x192\",\"type\":\"image/png\"}]}");
+            reply(out, "200 OK", "application/manifest+json", "{\"name\":\"TV Town\",\"short_name\":\"TV Town\",\"display\":\"standalone\",\"background_color\":\"#0c0c0e\",\"theme_color\":\"#0c0c0e\",\"start_url\":\"/" + key + "\",\"icons\":[{\"src\":\"/" + key + "/icon.png?v=2\",\"sizes\":\"192x192\",\"type\":\"image/png\"}]}");
         } else if (method.equals("GET") && action.equals("icon.png")) {
             replyBytes(out, "image/png", icon(c.getApplicationInfo().loadIcon(c.getPackageManager()), 192));
         } else if (method.equals("GET") && action.equals("appicon") && path.length > 3) {

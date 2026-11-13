@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- The Wi-Fi symbol dims when the TV is offline. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Receive files: LocalSend phones find the TV by Wi-Fi multicast, only while that screen is open. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <!-- My Movies: reads videos on a plugged-in pen drive (asked for the first time My Movies opens). -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <!-- My Movies: see subtitle files next to a film and save downloaded ones there (All files access, given in
@@ -47,6 +49,7 @@
         <!-- Play films in: Stremio and Nuvio, opened on a title's own page (OpenIn). -->
         <package android:name="com.stremio.one" />
         <package android:name="com.nuvio.tv" />
+        <package android:name="app.wuplay.androidtv" />
         <!-- Search in an app: the apps that take Android's own search (Nuvio, Stremio, Plex and others). -->
         <intent>
             <action android:name="android.intent.action.SEARCH" />
@@ -57,6 +60,16 @@
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <!-- Icon packs (Customize → Home → Icon pack): the ADW / Nova kind. -->
+        <intent>
+            <action android:name="org.adw.launcher.THEMES" />
+        </intent>
+        <intent>
+            <action android:name="com.novalauncher.THEME" />
+        </intent>
+        <intent>
+            <action android:name="com.teslacoilsw.launcher.THEME" />
         </intent>
         <intent>
             <action android:name="android.intent.action.MAIN" />

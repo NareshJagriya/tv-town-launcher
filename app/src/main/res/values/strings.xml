@@ -2,7 +2,7 @@
 <resources>
     <string name="all_apps">All apps</string>
     <string name="all_languages">All languages</string>
-    <string name="app_name">TV Town Launcher</string>
+    <string name="app_name" translatable="false">TV Town Launcher</string>
     <string name="back_to_moods">Categories</string>
     <string name="browse_all_apps">Browse all apps</string>
     <string name="cant_open">Can\'t open %1$s</string>
@@ -22,7 +22,7 @@
     <string name="days_ago">%1$d days ago</string>
     <string name="discover">Discover</string>
     <string name="discover_offline">Can\'t load titles right now. Check the internet connection.</string>
-    <string name="dream_name">TV Town</string>
+    <string name="dream_name" translatable="false">TV Town</string>
     <string name="format_playlist">Playlist</string>
     <string name="format_song">Song</string>
     <string name="format_songs">Songs</string>
@@ -204,7 +204,7 @@
     <string name="new_card">New card</string>
     <string name="new_card_make">Make a card of your own</string>
     <string name="new_card_hint">A name, like \"Osho Talks\" or \"90s Cartoons\"</string>
-    <string name="new_card_about">Name it, then add what it plays. %1$d cards fit: hide one to make room.</string>
+    <string name="new_card_about">Name it, then add what it plays. It goes at the top.</string>
     <string name="new_card_failed">That name is taken, or there is no room for another card.</string>
     <string name="hide_card">Hide this card</string>
     <string name="show_card">Show this card</string>
@@ -245,20 +245,6 @@
     <string name="new_tag">New tag…</string>
     <string name="new_tag_title">New tag</string>
     <string name="subtitles">Subtitles</string>
-    <string name="subs_hint">English, from OpenSubtitles.com, only when you choose one</string>
-    <string name="subs_checking">Checking the file…</string>
-    <string name="subs_has">Has subtitles: %1$s</string>
-    <string name="subs_has_none">No subtitles in the file or next to it</string>
-    <string name="subs_exact">Matches this file</string>
-    <string name="subs_none">No English subtitles found for this film</string>
-    <string name="subs_error">Couldn\'t get subtitles: %1$s</string>
-    <string name="subs_not_set_up">To download subtitles, add a free OpenSubtitles key in Settings → Subtitle downloads</string>
-    <string name="subs_not_matched">Fix match first, so the film can be found</string>
-    <string name="subs_downloading">Downloading…</string>
-    <string name="subs_saved">Saved the %1$s subtitles. VLC will use them.</string>
-    <string name="subs_remove">Remove the downloaded subtitles</string>
-    <string name="subs_removed">Removed</string>
-    <string name="subs_access">Allow All files access (to save next to the film)</string>
     <string name="this_tv">This TV</string>
     <string name="now_playing">Now playing</string>
     <string name="nothing_playing">Nothing playing</string>
@@ -322,9 +308,6 @@
     <string name="update_failed">The update didn\'t install: %1$s</string>
     <string name="update_conflict">This copy was signed with a different key. Uninstall TV Town, then install the new version: %1$s</string>
     <string name="my_languages">Languages you watch in</string>
-    <string name="subs_key_row">Subtitle downloads (OpenSubtitles key)</string>
-    <string name="subs_key_title">Add your free OpenSubtitles key</string>
-    <string name="subs_key_ok">Key added. 💬 Subtitles in My Movies can now download.</string>
     <string name="key_optional">Optional</string>
     <string name="key_ok">Key added. New films and series are on their way.</string>
     <string name="key_bad">TMDB didn\'t accept that key. Check it and try again.</string>

@@ -167,12 +167,33 @@ final class Topics {
 
     static final String OWN = "Your own";
 
+    /** Your own choices in one row (Diet, Cuisine…) of a tile; they search as typed. */
+    static List<String> ownIn(Context c, String label, String group) {
+        return own(c, label + "\u0001" + group);
+    }
+
+    static void addOwnIn(Context c, String label, String group, String text) {
+        addOwn(c, label + "\u0001" + group, text);
+    }
+
+    /** The tile's rows with your own choices added at the end of each. */
+    static Asks withOwn(Context c, String label) {
+        Asks a = asks(label);
+        if (a == null) return null;
+        for (Group g : a.groups) for (String s : ownIn(c, label, g.name)) {
+            boolean have = false;
+            for (String[] o : g.options) if (o[0].equalsIgnoreCase(s)) have = true;
+            if (!have) g.add(s, s);
+        }
+        return a;
+    }
+
     /**
      * The tile as a card to search with: one part per mix of the ticked choices (a diet, a cuisine and a meal
      * together for Recipes; each topic for the others), plus your own. Nothing ticked: everything, mixed.
      */
     static Picks.Entry card(Context c, Picks.Entry tile) {
-        Asks a = asks(tile.label);
+        Asks a = withOwn(c, tile.label);
         Set<String> on = ticked(c, tile.label);
         Picks.Entry out = new Picks.Entry(tile.emoji, tile.label, tile.color);
         out.topicSig = String.join(",", new java.util.TreeSet<>(on));

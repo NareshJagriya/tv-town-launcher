@@ -12,7 +12,7 @@ Only what a screen needs, over HTTPS:
 - **TMDB, JustWatch, Wikidata:** films and series, artwork, where they stream, links to open them.
 - **YouTube's public pages:** songs, videos and trailers for Surprise Me and search.
 - **LRCLIB, Apple's iTunes Search, Wikipedia:** lyrics, song details and covers, singers' photos.
-- **OpenSubtitles:** subtitles, only when you ask, with your own key.
+- **NASA Image Library, Wikimedia:** screensaver pictures, when you choose those screensavers.
 - **Open-Meteo:** the weather for the town you set.
 - **GitHub:** once a day, whether a newer version is out.
 

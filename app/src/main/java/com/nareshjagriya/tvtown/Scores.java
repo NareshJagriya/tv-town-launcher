@@ -344,7 +344,137 @@ final class Scores {
         String batTitle = "", bowlTitle = "";
         final List<String[]> bat = new ArrayList<>(), bowl = new ArrayList<>();   // name, then figures
         final List<String[]> stats = new ArrayList<>();                            // label, side 1, side 2
+        final List<Innings> innings = new ArrayList<>();                           // cricket: every innings, newest first
         long at = System.currentTimeMillis();
+    }
+
+    /** One innings in full: every batter (name, how out, R, B, 4s, 6s, SR), the extras and total, every bowler (O, M, R, W, Econ). */
+    static final class Innings {
+        String title = "", extras = "", bowlTitle = "", dnb = "";
+        int number;
+        final List<String[]> bat = new ArrayList<>(), bowl = new ArrayList<>();
+    }
+
+    /** One player's figures in one innings, by name ("runs" → "42"). */
+    private static java.util.Map<String, String> figures(JSONObject ls) {
+        java.util.Map<String, String> out = new java.util.HashMap<>();
+        JSONObject st = ls == null ? null : ls.optJSONObject("statistics");
+        JSONArray cats = st == null ? null : st.optJSONArray("categories");
+        for (int i = 0; cats != null && i < cats.length(); i++) {
+            for (JSONObject x : list(cats.optJSONObject(i).optJSONArray("stats"))) out.put(x.optString("name"), x.optString("displayValue"));
+        }
+        return out;
+    }
+
+    private static String howOut(String card) {
+        switch (card) {
+            case "c": return L10n.t("caught");
+            case "b": return L10n.t("bowled");
+            case "lbw": return "lbw";
+            case "st": return L10n.t("stumped");
+            case "ro": case "run out": return L10n.t("run out");
+            case "hw": return L10n.t("hit wicket");
+            case "not out": return L10n.t("not out");
+            default: return card.isEmpty() ? L10n.t("out") : card;
+        }
+    }
+
+    /**
+     * Every innings of the match, newest first: the totals from the header, each batter and bowler from the team
+     * lists (they hold every innings), and the feed's latest card for how each batter got out in words.
+     */
+    static List<Innings> everyInnings(JSONObject j, JSONArray cards) throws org.json.JSONException {
+        List<Innings> out = new ArrayList<>();
+        JSONObject header = j.optJSONObject("header");
+        JSONArray comps = header == null ? null : header.optJSONArray("competitions");
+        JSONArray sides = comps == null || comps.length() == 0 ? null : comps.optJSONObject(0).optJSONArray("competitors");
+        JSONArray rosters = j.optJSONArray("rosters");
+        if (sides == null || rosters == null) return out;
+        // the words for how out, and the extras, from the latest card(s)
+        java.util.Map<String, String> words = new java.util.HashMap<>();
+        java.util.Map<Integer, String> extrasText = new java.util.HashMap<>();
+        for (JSONObject x : list(cards)) {
+            if (!"Batting".equals(x.optString("headline"))) continue;
+            int no = x.optInt("inningsNumber");
+            String t = x.optString("total");
+            if (t.matches("\\((b|lb|w|nb|pen) \\d.*")) extrasText.put(no, t);
+            for (JSONObject pl : list(x.optJSONArray("playerDetails"))) words.put(no + "\u0001" + pl.optString("playerName"), pl.optString("dismissal"));
+        }
+        for (JSONObject side : list(sides)) {
+            String team = side.optJSONObject("team") != null ? side.getJSONObject("team").optString("displayName") : "";
+            String teamId = side.optJSONObject("team") != null ? side.getJSONObject("team").optString("id") : "";
+            for (JSONObject ls : list(side.optJSONArray("linescores"))) {
+                if (!ls.optBoolean("isBatting")) continue;
+                int no = ls.optInt("period");
+                java.util.Map<String, String> tot = figures(ls);
+                Innings in = new Innings();
+                in.number = no;
+                String score = ls.optString("score", ls.optInt("runs") + "/" + ls.optInt("wickets"));
+                String ov = tot.containsKey("overs") ? tot.get("overs") : String.valueOf(ls.optDouble("overs"));
+                String rr = tot.get("runRate");
+                String rate = rr == null || rr.isEmpty() ? "" : L10n.t("RR") + " " + rr;
+                in.title = team + "  " + score + (score.contains("ov") ? (rate.isEmpty() ? "" : "  \u00b7 " + rate)
+                        : "  (" + ov + " " + L10n.t("ov") + (rate.isEmpty() ? "" : ", " + rate) + ")");
+                String ex = tot.get("extras");
+                if (ex != null && !ex.isEmpty() && !"0".equals(ex)) {
+                    String parts = extrasText.get(no);
+                    if (parts == null) {
+                        StringBuilder b = new StringBuilder();
+                        String[][] kinds = {{"byes", "b"}, {"legbyes", "lb"}, {"wides", "w"}, {"noballs", "nb"}, {"penalties", "pen"}};
+                        for (String[] kd : kinds) {
+                            String v = tot.get(kd[0]);
+                            if (v != null && !v.isEmpty() && !"0".equals(v)) b.append(b.length() == 0 ? "" : ", ").append(kd[1]).append(' ').append(v);
+                        }
+                        parts = b.length() == 0 ? "" : "(" + b + ")";
+                    }
+                    in.extras = L10n.t("Extras ") + ex + (parts.isEmpty() ? "" : "  " + parts);
+                }
+                List<Object[]> bats = new ArrayList<>(), bowls = new ArrayList<>();
+                List<String> dnb = new ArrayList<>();
+                for (JSONObject r : list(rosters)) {
+                    boolean mine = r.optJSONObject("team") != null && teamId.equals(r.getJSONObject("team").optString("id"));
+                    if (!mine) in.bowlTitle = (r.optJSONObject("team") != null ? r.getJSONObject("team").optString("displayName") : "") + L10n.t(" bowling");
+                    for (JSONObject p : list(r.optJSONArray("roster"))) {
+                        String who = p.optJSONObject("athlete") != null ? p.getJSONObject("athlete").optString("displayName") : "";
+                        for (JSONObject per : list(p.optJSONArray("linescores"))) {
+                            if (per.optInt("period") != no) continue;
+                            for (JSONObject one : list(per.optJSONArray("linescores"))) {
+                                java.util.Map<String, String> f = figures(one);
+                                if (mine) {
+                                    if (!"1".equals(f.get("batted"))) {
+                                        if (f.containsKey("batted") || f.containsKey("ballsFaced")) dnb.add(who);
+                                        continue;
+                                    }
+                                    String how = words.get(no + "\u0001" + who);
+                                    if ("1".equals(f.get("notouts"))) how = L10n.t("not out");   // the team list is fresher than the card
+                                    else if (how == null || how.isEmpty() || how.contains("not out")) how = howOut(String.valueOf(f.get("dismissalCard")));
+                                    String sr = f.get("strikeRate");
+                                    bats.add(new Object[]{num(f.get("battingPosition")), new String[]{who, how, f.get("runs"), f.get("ballsFaced"), f.get("fours"), f.get("sixes"), sr == null ? "" : sr}});
+                                } else if ("1".equals(f.get("bowled"))) {
+                                    bowls.add(new Object[]{num(f.get("bowlingPosition")), new String[]{who, f.get("overs"), f.get("maidens"), f.get("conceded"), f.get("wickets"), f.get("economyRate")}});
+                                }
+                            }
+                        }
+                    }
+                }
+                java.util.Collections.sort(bats, (a, b) -> (int) a[0] - (int) b[0]);
+                java.util.Collections.sort(bowls, (a, b) -> (int) a[0] - (int) b[0]);
+                for (Object[] b : bats) in.bat.add((String[]) b[1]);
+                for (Object[] b : bowls) in.bowl.add((String[]) b[1]);
+                if (!dnb.isEmpty() && !in.bat.isEmpty()) in.dnb = L10n.t("Did not bat: ") + String.join(", ", dnb);
+                if (!in.bat.isEmpty() || !in.bowl.isEmpty()) out.add(in);
+            }
+        }
+        java.util.Collections.sort(out, (a, b) -> b.number - a.number);
+        return out;
+    }
+
+    private static int num(String s) {
+        try {
+            return s == null ? 99 : Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return 99;
+        }
     }
 
     /** Fetches the card for one match, or null. Network: off the main thread. */
@@ -355,7 +485,7 @@ final class Scores {
             if (CRICKET.equals(m.sport)) {
                 JSONObject j = new JSONObject(Net.text(Net.get("https://site.web.api.espn.com/apis/site/v2/sports/cricket/" + m.feed + "/summary?event=" + m.event, null, 15_000, 1)));
                 JSONArray cards = j.optJSONArray("matchcards");
-                if (cards == null) return null;
+                if (cards == null) cards = new JSONArray();
                 Card c = new Card();
                 int bat = -1, bowl = -1;
                 for (int i = 0; i < cards.length(); i++) {   // the latest innings
@@ -363,6 +493,7 @@ final class Scores {
                     if ("Batting".equals(x.optString("headline")) && (bat < 0 || x.optInt("inningsNumber") >= cards.getJSONObject(bat).optInt("inningsNumber"))) bat = i;
                     if ("Bowling".equals(x.optString("headline")) && (bowl < 0 || x.optInt("inningsNumber") >= cards.getJSONObject(bowl).optInt("inningsNumber"))) bowl = i;
                 }
+                c.innings.addAll(everyInnings(j, cards));
                 if (bat >= 0) {
                     JSONObject b = cards.getJSONObject(bat);
                     c.batTitle = b.optString("teamName") + "  " + b.optString("runs") + " " + b.optString("total");
@@ -386,6 +517,20 @@ final class Scores {
                     for (int i = 0; i < Math.min(4, ps.size()); i++) {
                         JSONObject p = ps.get(i);
                         c.bowl.add(new String[]{p.optString("playerName"), p.optString("overs"), p.optString("conceded"), p.optString("wickets"), p.optString("economyRate")});
+                    }
+                }
+                if (c.bat.isEmpty() && c.bowl.isEmpty() && c.innings.isEmpty()) return null;
+                if (c.bat.isEmpty() && !c.innings.isEmpty()) {   // no latest card in the feed: the latest innings in short
+                    Innings last = c.innings.get(0);
+                    c.batTitle = last.title;
+                    for (int i = 0; i < Math.min(4, last.bat.size()); i++) {
+                        String[] b = last.bat.get(i);
+                        c.bat.add(new String[]{b[0] + ("not out".equals(b[1]) ? " *" : ""), b[2], b[3], b[4], b[5]});
+                    }
+                    c.bowlTitle = last.bowlTitle;
+                    for (int i = 0; i < Math.min(4, last.bowl.size()); i++) {
+                        String[] b = last.bowl.get(i);
+                        c.bowl.add(new String[]{b[0], b[1], b[3], b[4], b[5]});
                     }
                 }
                 return c;

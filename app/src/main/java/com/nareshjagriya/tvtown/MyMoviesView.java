@@ -37,7 +37,7 @@ import java.util.concurrent.ExecutorService;
  * My Movies, like a streaming app: a grid of wide cards, four to a row, that scrolls up and down. Each card is the
  * film's picture with its name, year, rating, genre and length under it (✓ when watched, ❤️ a favourite, a bar for
  * how far you got). OK on a card opens its details over the screen: a big picture, the summary, its language and
- * tags, and every button (Play or Resume, Start over, Episodes, Trailer, Favourite, Watched, Rate, Tags, Subtitles,
+ * tags, and every button (Play or Resume, Start over, Episodes, Trailer, Favourite, Watched, Rate, Tags,
  * Fix match). The ▶ key on the remote plays a card straight away. The focused film's artwork fills the dimmed
  * background. Filter tabs at the top (All, Favourites, Unwatched, In progress, Movies, Series, Filter, Sort), and a
  * line at the bottom saying what the keys do. Files that are not matched yet (or with no internet) show their
@@ -57,8 +57,8 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         /** A new tag: ask for its name with the keyboard; `done` gets it (null when cancelled). */
         void onTypeTag(java.util.function.Consumer<String> done);
 
-        /** Opens the TV's page for All files access (to see and save subtitle files next to the films). */
-        void onAllFilesAccess();
+        /** A name to change (File → Rename): the keyboard, starting from `current`. */
+        void onAskName(String title, String current, java.util.function.Consumer<String> done);
 
         /** The search line: `typed` gets every change, `closed` runs when it goes away. */
         void onSearch(String initial, java.util.function.Consumer<String> typed,
@@ -136,13 +136,15 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
     private static final ExecutorService probe = Work.pool(1);
 
     // Panels: the filter, a film's tags, its subtitles. Each a set of chips moved through with the arrows.
-    private static final int P_FILTER = 1, P_TAGS = 2, P_SUBS = 3;
+    private static final int P_FILTER = 1, P_TAGS = 2, P_FILE = 3;
+    private static final String S_FOLDER = L10n.t("Choose a folder");
+    private String fileStep = "main";       // the File panel: its first page, or choosing where to move / copy
+    private boolean deleteArmed;            // Delete pressed once: the second press deletes
+    private List<java.io.File> fileFolders = new ArrayList<>();
     private int panel;
     private final List<Chip> chips = new ArrayList<>();
     private Chip focusChip;
     private float panelScroll;
-    private String subsState;                                   // a message, or null when showing results
-    private final List<OpenSubtitles.Result> subsFound = new ArrayList<>();
 
     /** A chip in a panel: a choice to tick, or a button. */
     private static final class Chip {
@@ -651,7 +653,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         if (it.saved) return out;   // not a film: no rating, subtitles or match to fix
         if (it.match != null) out.add("rate");
         out.add("tags");
-        if (!it.show()) out.add("subs");
+        if (!it.show()) out.add("file");
         out.add("fix");
         return out;
     }
@@ -674,7 +676,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             case "trailer": return c.getString(R.string.trailer);
             case "fav": return c.getString(R.string.favourite);
             case "tags": return c.getString(R.string.tags);
-            case "subs": return c.getString(R.string.subtitles);
+            case "file": return L10n.t("File");
             case "watched": return c.getString(watched(it) ? R.string.watched : R.string.mark_watched);
             case "rate": {
                 Library.Entry e = Library.get(c, it.match.type + ":" + it.match.id);
@@ -718,17 +720,12 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             if (t - lastRepeat < 160) return true;
             lastRepeat = t;
         }
-        // The remote's own buttons: SUBTITLE opens the film's subtitles, TEXT opens Search.
-        if (MyMusicView.subtitleKey(event) || MyMusicView.textKey(event)) {
+        // The remote's TEXT button opens Search.
+        if (MyMusicView.textKey(event)) {
             if (event.getRepeatCount() > 0) return true;
-            if (MyMusicView.textKey(event)) {
-                inBar = true;
-                barSel = T_SEARCH;
-                openSearch();
-            } else {
-                Item it = detailOpen ? detailItem : !inBar && sel < shown.size() ? shown.get(sel) : null;
-                if (it != null && !it.show()) openSubs(it);
-            }
+            inBar = true;
+            barSel = T_SEARCH;
+            openSearch();
             invalidate();
             return true;
         }
@@ -1004,7 +1001,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
                 if (view == V_FAV) filter();
                 break;
             case "tags": openTags(it); break;
-            case "subs": openSubs(it); break;
+            case "file": openFile(it); break;
             case "watched": {
                 boolean now = !watched(it);
                 for (MyMovies.Video x : it.videos) MyMovies.setSeen(getContext(), x, now);
@@ -1707,6 +1704,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             case "rate": return WheelArt.Glyph.STAR;
             case "fav": return WheelArt.Glyph.HEART;
             case "tags": return WheelArt.Glyph.TAG;
+            case "file": return WheelArt.Glyph.DRIVE;
             case "subs": return WheelArt.Glyph.SUBS;
             default: return WheelArt.Glyph.WRENCH;
         }
@@ -2102,84 +2100,6 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
         return it.match != null ? it.match.tags : new ArrayList<>();
     }
 
-    private void openSubs(Item it) {
-        panel = P_SUBS;
-        panelItem = it;
-        focusChip = null;
-        panelScroll = 0;
-        subsFound.clear();
-        Context ctx = getContext();
-        if (!OpenSubtitles.available()) subsState = ctx.getString(R.string.subs_not_set_up);
-        else if (it.match == null || it.match.id <= 0) subsState = ctx.getString(R.string.subs_not_matched);
-        else searchSubs(it);
-        buildSubs();
-    }
-
-    /** OpenSubtitles, in English: by this file's fingerprint and the film's TMDB id. */
-    private void searchSubs(Item it) {
-        Context ctx = getContext();
-        subsState = ctx.getString(R.string.searching);
-        MyMovies.Video v = it.videos.get(0);
-        int id = it.match.id;
-        net.execute(() -> {
-            List<OpenSubtitles.Result> found = null;
-            String error = null;
-            try {
-                String hash = null;
-                try {
-                    hash = OpenSubtitles.hash(ctx, v.uri, v.size);
-                } catch (Exception ignored) {
-                    // unreadable: by the TMDB id alone
-                }
-                found = OpenSubtitles.search(hash, id, false, 0, 0);
-            } catch (Exception e) {
-                error = e.getMessage();
-            }
-            List<OpenSubtitles.Result> f = found;
-            String err = error;
-            main.post(() -> {
-                if (panel != P_SUBS || panelItem != it) return;
-                subsFound.clear();
-                if (f != null) subsFound.addAll(f);
-                subsState = err != null ? ctx.getString(R.string.subs_error, err)
-                        : subsFound.isEmpty() ? ctx.getString(R.string.subs_none) : null;
-                focusChip = null;   // on the first subtitle found
-                panelScroll = 0;
-                buildSubs();
-                invalidate();
-            });
-        });
-    }
-
-    /** What the film has already, the message or the subtitles found, then Remove, All files access and Done. */
-    private void buildSubs() {
-        Context ctx = getContext();
-        MyMovies.Video v = panelItem.videos.get(0);
-        chips.clear();
-        Tracks.Info info = tracks.get(v.key());
-        String have;
-        if (info == null) have = ctx.getString(R.string.subs_checking);
-        else if (!info.hasSubs) have = ctx.getString(R.string.subs_has_none);
-        else {
-            List<String> names = new ArrayList<>();
-            for (String x : info.subs) names.add(Tracks.name(x));
-            have = ctx.getString(R.string.subs_has, names.isEmpty() ? ctx.getString(R.string.subtitles) : String.join(", ", names));
-        }
-        chips.add(new Chip(S_INFO, "", (info != null && info.hasSubs ? "" : "➖  ") + have, false));
-        if (subsState != null) chips.add(new Chip(S_INFO, "", subsState, false));
-        for (int i = 0; i < subsFound.size(); i++) {
-            OpenSubtitles.Result r = subsFound.get(i);
-            String l = "⬇  " + (r.exact ? "✓ " + ctx.getString(R.string.subs_exact) + "  ·  " : "") + r.release;
-            chips.add(new Chip(S_FOUND, String.valueOf(i), l, false));
-        }
-        if (Tracks.downloaded(ctx, v) != null) {
-            chips.add(new Chip(S_ACT, "remove", "" + ctx.getString(R.string.subs_remove), false));
-        }
-        if (!Tracks.allFiles()) chips.add(new Chip(S_ACT, "access", "" + ctx.getString(R.string.subs_access), false));
-        chips.add(new Chip(S_ACT, "done", "✓  " + ctx.getString(R.string.done), false));
-        layoutChips(true);
-    }
-
     /** Places the chips (in panel coordinates, below the heading), keeping the focus on the same choice. */
     private void layoutChips(boolean rows) {
         String keep = focusChip != null ? focusChip.section + "|" + focusChip.value : null;
@@ -2310,68 +2230,149 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             ch.on = !ch.on;
             layoutChips(false);
             if (!fTags.isEmpty()) filter();
+        } else if (panel == P_FILE) fileSelect(ch);
+    }
+
+    // ---- File: rename, move, copy, delete subtitles, delete ---------------------------------------------
+
+    private void openFile(Item it) {
+        panel = P_FILE;
+        panelItem = it;
+        focusChip = null;
+        panelScroll = 0;
+        fileStep = "main";
+        deleteArmed = false;
+        buildFile();
+    }
+
+    @Nullable
+    private java.io.File fileOf(Item it) {
+        MyMovies.Video v = it.videos.get(0);
+        java.io.File dir = Tracks.folder(getContext(), v);
+        return dir == null ? null : new java.io.File(dir, v.name);
+    }
+
+    private void buildFile() {
+        chips.clear();
+        java.io.File f = fileOf(panelItem);
+        if (f == null || !f.exists()) {
+            chips.add(new Chip(S_INFO, "", L10n.t("To change files, TV Town needs All files access"), false));
+            chips.add(new Chip(S_ACT, "access", L10n.t("Allow All files access"), false));
+        } else if (fileStep.equals("main")) {
+            chips.add(new Chip(S_ACT, "rename", "✎  " + L10n.t("Rename"), false));
+            chips.add(new Chip(S_ACT, "move", "➜  " + L10n.t("Move to…"), false));
+            chips.add(new Chip(S_ACT, "copy", "⧉  " + L10n.t("Copy to…"), false));
+            int subs = FileOps.subtitles(f).size();
+            if (subs > 0) chips.add(new Chip(S_ACT, "subs", "✕  " + L10n.t("Delete subtitles") + " (" + subs + ")", false));
+            chips.add(new Chip(S_ACT, "delete", deleteArmed ? "⚠  " + L10n.t("Press OK again to delete") : "🗑  " + L10n.t("Delete film"), false));
         } else {
-            MyMovies.Video v = panelItem.videos.get(0);
-            switch (ch.value) {
-                case "access": if (listener != null) listener.onAllFilesAccess(); break;
-                case "remove":
-                    Subtitles.remove(ctx, Tracks.downloaded(ctx, v));
-                    Tracks.setDownloaded(ctx, v, null);
-                    reprobe(v);
-                    subsState = ctx.getString(R.string.subs_removed);
-                    buildSubs();
-                    break;
-                default:
-                    if (ch.section.equals(S_FOUND)) download(panelItem, subsFound.get(Integer.parseInt(ch.value)));
-            }
+            java.io.File drive = FileOps.driveOf(getContext(), panelItem.videos.get(0).volume);
+            for (int i = 0; i < fileFolders.size(); i++)
+                chips.add(new Chip(S_FOLDER, String.valueOf(i), "📁  " + (drive != null ? FileOps.shown(drive, fileFolders.get(i)) : fileFolders.get(i).getName()), false));
+            chips.add(new Chip(S_ACT, "back", "‹  " + L10n.t("Back"), false));
         }
+        chips.add(new Chip(S_ACT, "done", "✓  " + getContext().getString(R.string.done), false));
+        layoutChips(false);
+        invalidate();
+    }
+
+    private void fileSelect(Chip ch) {
+        Context ctx = getContext();
+        java.io.File f = fileOf(panelItem);
+        if (ch.value.equals("access")) {
+            try {
+                ctx.startActivity(new android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        android.net.Uri.parse("package:" + ctx.getPackageName())).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK));
+            } catch (Exception e) {
+                say(L10n.t("This TV has no page for that"));
+            }
+            return;
+        }
+        if (f == null) return;
+        switch (ch.value) {
+            case "rename":
+                if (listener != null) listener.onAskName(L10n.t("Rename"), FileOps.base(f.getName()), typed -> {
+                    if (typed == null || typed.trim().isEmpty()) return;
+                    fileJob(() -> {
+                        String[] why = {""};
+                        return FileOps.rename(ctx, f, typed.trim(), why) != null ? L10n.t("Renamed") : why[0];
+                    });
+                });
+                return;
+            case "move":
+            case "copy": {
+                java.io.File drive = FileOps.driveOf(ctx, panelItem.videos.get(0).volume);
+                if (drive == null) return;
+                fileStep = ch.value;
+                fileFolders = FileOps.folders(drive);
+                focusChip = null;
+                buildFile();
+                return;
+            }
+            case "back":
+                fileStep = "main";
+                focusChip = null;
+                buildFile();
+                return;
+            case "subs": {
+                MyMovies.Video v = panelItem.videos.get(0);
+                int n = FileOps.delete(ctx, FileOps.subtitles(f));
+                Tracks.setDownloaded(ctx, v, null);
+                Tracks.forget(ctx, v);
+                say(n + L10n.t(" subtitle files deleted"));
+                buildFile();
+                return;
+            }
+            case "delete":
+                if (!deleteArmed) {
+                    deleteArmed = true;
+                    buildFile();
+                    return;
+                }
+                fileJob(() -> {
+                    List<java.io.File> all = new ArrayList<>(FileOps.sidecars(f));
+                    all.add(0, f);
+                    return FileOps.delete(ctx, all) > 0 ? L10n.t("Deleted") : L10n.t("The drive didn't allow it");
+                });
+                return;
+            default:
+                if (ch.section.equals(S_FOLDER)) {
+                    java.io.File to = fileFolders.get(Integer.parseInt(ch.value));
+                    boolean copy = fileStep.equals("copy");
+                    say(copy ? L10n.t("Copying…") : L10n.t("Moving…"));
+                    fileJob(() -> {
+                        String[] why = {""};
+                        return FileOps.place(ctx, f, to, copy, why) ? (copy ? L10n.t("Copied") : L10n.t("Moved")) : why[0];
+                    });
+                }
+        }
+    }
+
+    /** A file change off the main thread; then its answer, the panel and the film page closed, and the list read again. */
+    private void fileJob(java.util.concurrent.Callable<String> job) {
+        net.execute(() -> {
+            String msg;
+            try {
+                msg = job.call();
+            } catch (Exception e) {
+                msg = L10n.t("The drive didn't allow it");
+            }
+            String m = msg;
+            main.postDelayed(() -> {   // the media list catches up first
+                say(m);
+                closePanel();
+                detailOpen = false;
+                rescan();
+            }, 700);
+        });
+    }
+
+    private void say(String text) {
+        android.widget.Toast.makeText(getContext(), text, android.widget.Toast.LENGTH_SHORT).show();
     }
 
     private static void toggle(java.util.Set<String> set, String v) {
         if (!set.remove(v)) set.add(v);
-    }
-
-    /** Fetches a subtitle and saves it next to the film (or in Downloads/TV Town when the drive can't be written). */
-    private void download(Item it, OpenSubtitles.Result r) {
-        Context ctx = getContext();
-        MyMovies.Video v = it.videos.get(0);
-        subsState = ctx.getString(R.string.subs_downloading);
-        buildSubs();
-        net.execute(() -> {
-            String msg;
-            try {
-                byte[] data = OpenSubtitles.download(r.fileId);
-                String path = Subtitles.save(ctx, v, r.language, data);
-                Tracks.setDownloaded(ctx, v, path);
-                msg = ctx.getString(R.string.subs_saved, Tracks.name(r.language));
-            } catch (Exception e) {
-                msg = ctx.getString(R.string.subs_error, e.getMessage());
-            }
-            String m = msg;
-            main.post(() -> {
-                reprobe(v);
-                if (panel != P_SUBS || panelItem != it) return;
-                subsState = m;
-                buildSubs();
-                invalidate();
-            });
-        });
-    }
-
-    /** Reads a file's languages again (after a subtitle was added or removed). */
-    private void reprobe(MyMovies.Video v) {
-        Tracks.forget(getContext(), v);   // a subtitle was saved or removed: its folder is looked at again
-        int gen = generation;
-        probe.execute(() -> {
-            Tracks.Info info = Tracks.of(getContext(), v);
-            main.post(() -> {
-                if (gen != generation) return;
-                tracks.put(v.key(), info);
-                if (panel == P_SUBS) buildSubs();
-                if (!fLangs.isEmpty()) filter();
-                invalidate();
-            });
-        });
     }
 
     private void closePanel() {
@@ -2440,8 +2441,8 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             for (Item it : all) if (passes(it, view)) n++;
             line = ctx.getString(R.string.filter_count, n, all.size(), VIEWS[view]);
         } else {
-            head = (panel == P_TAGS ? "" : "") + panelItem.name();
-            line = ctx.getString(panel == P_TAGS ? R.string.tags_hint : R.string.subs_hint);
+            head = panelItem.name();
+            line = panel == P_FILE ? L10n.t("Rename, move, copy or delete this film's file") : ctx.getString(R.string.tags_hint);
         }
         big.setAlpha(255);
         c.drawText(ellipsize(head, big, p.width() - 96 * k), p.left + 48 * k, p.top + 76 * k, big);
@@ -2473,7 +2474,7 @@ public class MyMoviesView extends View implements Choreographer.FrameCallback {
             if (focused) kit.focus(c, r, r.height() / 2, 1);
             Paint tp = done ? buttonInk : ch.on || focused ? chipBold : chip;
             tp.setAlpha(255);
-            String l = ellipsize((ch.on && panel != P_SUBS ? "✓ " : "") + ch.label, tp, r.width() - 40 * k);
+            String l = ellipsize((ch.on ? "✓ " : "") + ch.label, tp, r.width() - 40 * k);
             c.drawText(l, r.left + 22 * k, r.centerY() + 9 * k, tp);
         }
         c.restore();

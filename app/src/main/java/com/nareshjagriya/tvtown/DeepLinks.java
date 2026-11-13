@@ -326,8 +326,14 @@ final class DeepLinks {
                 String jw = justWatchLinks(ctx, t).get(s.key);
                 if (directLink(s, jw)) u = Uri.parse(jw);
             }
+            if (u != null) {   // the app's own way in first (Netflix ignores plain links); else the link itself
+                Intent own = AppLinks.own(ctx, s.pkg, u);
+                if (own != null && own.resolveActivity(pm) != null) return new Plan(own, Outcome.TITLE);
+            }
             if (u != null) {
-                Intent i = new Intent(Intent.ACTION_VIEW, u).setPackage(s.pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                // A fresh start of the app's screen: Netflix and others ignore a title link when they are already
+                // open in the background, and just come back where they were (their home page).
+                Intent i = new Intent(Intent.ACTION_VIEW, u).setPackage(s.pkg).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
                 if (i.resolveActivity(pm) != null) return new Plan(i, Outcome.TITLE);
             }
             Intent app = pm.getLeanbackLaunchIntentForPackage(s.pkg);

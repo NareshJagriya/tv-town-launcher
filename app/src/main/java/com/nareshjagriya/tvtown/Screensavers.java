@@ -56,11 +56,17 @@ final class Screensavers {
         List<Saver> out = new ArrayList<>();
         ComponentName mine = new ComponentName(c, TvTownDream.class);
         out.add(new Saver(L10n.t("Film pictures"), mine, 1));
+        out.add(new Saver(L10n.t("Picture of the day (Wikimedia)"), mine, Photos.WORLD));
+        out.add(new Saver(L10n.t("Space and Earth (NASA)"), mine, Photos.SPACE));
         out.add(new Saver(L10n.t("Clock"), mine, 2));
         if (TvTownDream.hasVideos(c)) out.add(new Saver(L10n.t("Your videos"), mine, 0));
+        java.util.Set<String> names = new java.util.HashSet<>();
+        for (Saver s : out) names.add(s.name.toLowerCase(java.util.Locale.ROOT));
         for (ResolveInfo ri : pm.queryIntentServices(new Intent(DreamService.SERVICE_INTERFACE), PackageManager.GET_META_DATA)) {
-            if (ri.serviceInfo.packageName.equals(c.getPackageName())) continue;
-            out.add(new Saver(String.valueOf(ri.loadLabel(pm)), new ComponentName(ri.serviceInfo.packageName, ri.serviceInfo.name), -1));
+            if (ri.serviceInfo.packageName.startsWith("com.nareshjagriya.tvtown")) continue;   // ours (and the other edition's)
+            String name = String.valueOf(ri.loadLabel(pm));
+            if (!names.add(name.toLowerCase(java.util.Locale.ROOT))) continue;   // the TV's own "Clock": TV Town's is already listed
+            out.add(new Saver(name, new ComponentName(ri.serviceInfo.packageName, ri.serviceInfo.name), -1));
         }
         return out;
     }

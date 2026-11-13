@@ -345,6 +345,7 @@ public class MainActivity extends Activity implements HomeView.Listener {
         for (android.content.pm.ResolveInfo ri : getPackageManager().queryIntentActivities(home, 0)) {
             if (ri.activityInfo == null || getPackageName().equals(ri.activityInfo.packageName)) continue;
             if (HomeKeyService.isSafetyNet(ri.activityInfo.packageName, ri.activityInfo.name)) continue;
+            if (ri.activityInfo.packageName.startsWith("com.nareshjagriya.tvtown")) continue;   // the other TV Town edition isn't the TV's own
             Intent i = new Intent(home).setClassName(ri.activityInfo.packageName, ri.activityInfo.name);
             if (open(i, null)) return true;
         }

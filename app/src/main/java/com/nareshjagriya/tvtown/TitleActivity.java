@@ -136,7 +136,9 @@ public class TitleActivity extends Activity {
         private boolean whereKnown;
         private int row = 1, sel, app;   // row 0: the apps; row 1: the buttons
         private boolean rating;
-        private int ratingValue;
+        private int ratingValue, ratingWas;
+        private float rateFrom, rateTo;   // the glider: from one number to the next
+        private long rateAt;
         private StaticLayout story;
         /** Stremio or Nuvio, when chosen in Customize; and the one installed, for titles no streaming app has. */
         private final String chosenIn, alt;
@@ -223,7 +225,6 @@ public class TitleActivity extends Activity {
                 case B_WATCHED:
                     return e != null && e.status == Library.WATCHED ? L10n.t("✓ Watched") : L10n.t("Watched");
                 default:
-                    if (rating) return "‹  ★ " + (ratingValue == 0 ? L10n.t("None") : ratingValue) + "  ›";
                     return e != null && e.rating > 0 ? "★ " + e.rating : L10n.t("Rate");
             }
         }
@@ -292,7 +293,48 @@ public class TitleActivity extends Activity {
                 c.drawText(buttonText(b), tx, r.centerY() + 9 * k, btn);
                 btn.setAlpha(255);
             }
-            if (stage.moving(now) || logoWaiting()) postInvalidateOnAnimation();
+            if (rating) drawRating(c, now);
+            if (stage.moving(now) || logoWaiting() || rating && now - rateAt < 500) postInvalidateOnAnimation();
+        }
+
+        /**
+         * Rating: a small glass bar over the buttons, ✕ and 1 to 10, a lit pill gliding to the chosen number and amber
+         * dots up to it. Left and Right choose, OK keeps it, Back leaves it as it was.
+         */
+        private void drawRating(Canvas c, long now) {
+            float w = 860, h = 150, slots = 11, pad = 34;
+            RectF bar = new RectF((960 - w / 2) * k, (BTN_Y - h - 36) * k, (960 + w / 2) * k, (BTN_Y - 36) * k);
+            Frost.panel(c, bar, h / 2 * k, 1, k);
+            float sw = (w - pad * 2) / slots, x0 = bar.left + pad * k, cy = bar.top + 86 * k;
+            label.setTextAlign(Paint.Align.LEFT);
+            c.drawText(L10n.t("Your rating"), bar.left + 46 * k, bar.top + 40 * k, label);
+            String hint = L10n.t("◄ ►  choose     OK  save");
+            c.drawText(hint, bar.right - 46 * k - label.measureText(hint), bar.top + 40 * k, label);
+            float at = Frost.glide(rateFrom, rateTo, now, rateAt);   // where the glider is now
+            RectF pill = new RectF(x0 + at * sw * k + 6 * k, cy - 30 * k, x0 + (at + 1) * sw * k - 6 * k, cy + 30 * k);
+            Frost.plate(c, pill, 30 * k, k);
+            btn.setTextAlign(Paint.Align.CENTER);
+            Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
+            for (int i = 0; i <= 10; i++) {
+                float mx = x0 + (i + 0.5f) * sw * k;
+                boolean chosen = i == ratingValue;
+                btn.setAlpha(chosen ? 255 : i <= ratingValue && i > 0 ? 220 : 130);
+                c.drawText(i == 0 ? "✕" : String.valueOf(i), mx, cy + 9 * k, btn);
+                if (i > 0) {
+                    dot.setColor(i <= ratingValue ? 0xFFFFC547 : 0x33FFFFFF);
+                    c.drawCircle(mx, cy + 44 * k, (i <= ratingValue ? 4.5f : 3f) * k, dot);
+                }
+            }
+            btn.setAlpha(255);
+            btn.setTextAlign(Paint.Align.LEFT);
+        }
+
+        private void rateTo(int v) {
+            long now = SystemClock.uptimeMillis();
+            rateFrom = Frost.glide(rateFrom, rateTo, now, rateAt);
+            rateTo = v;
+            rateAt = now;
+            ratingValue = v;
         }
 
         private boolean logoWaiting() {
@@ -372,11 +414,16 @@ public class TitleActivity extends Activity {
             boolean left = code == KeyEvent.KEYCODE_DPAD_LEFT, right = code == KeyEvent.KEYCODE_DPAD_RIGHT;
             boolean ok = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER || code == KeyEvent.KEYCODE_NUMPAD_ENTER;
             if (rating) {
-                if (left || right) ratingValue = Math.max(0, Math.min(10, ratingValue + (right ? 1 : -1)));
-                else if (ok || code == KeyEvent.KEYCODE_BACK) {
+                if (left || right) rateTo(Math.max(0, Math.min(10, ratingValue + (right ? 1 : -1))));
+                else if (code >= KeyEvent.KEYCODE_0 && code <= KeyEvent.KEYCODE_9) rateTo(code == KeyEvent.KEYCODE_0 ? 10 : code - KeyEvent.KEYCODE_0);
+                else if (ok) {
                     Library.rate(getContext(), t, ratingValue);
                     rating = false;
-                } else return super.onKeyDown(code, e);
+                } else if (code == KeyEvent.KEYCODE_BACK) {   // as it was
+                    ratingValue = ratingWas;
+                    rating = false;
+                } else if (code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN) return true;
+                else return super.onKeyDown(code, e);
                 invalidate();
                 return true;
             }
@@ -422,7 +469,10 @@ public class TitleActivity extends Activity {
                     break;
                 default:
                     rating = true;
+                    ratingWas = en != null ? en.rating : 0;
                     ratingValue = en != null && en.rating > 0 ? en.rating : 7;
+                    rateFrom = rateTo = ratingValue;
+                    rateAt = 0;
             }
         }
     }

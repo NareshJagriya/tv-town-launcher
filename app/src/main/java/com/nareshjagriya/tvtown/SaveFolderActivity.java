@@ -60,7 +60,7 @@ public class SaveFolderActivity extends Activity {
     static File drive(Context c) {
         StorageManager sm = c.getSystemService(StorageManager.class);
         File best = null;
-        if (sm != null) {
+        if (sm != null && android.os.Build.VERSION.SDK_INT >= 30) {   // drives by folder: Android 11 and newer
             for (StorageVolume v : sm.getStorageVolumes()) {
                 File d = v.getDirectory();
                 if (d != null && v.isRemovable() && (best == null || d.getTotalSpace() > best.getTotalSpace())) best = d;

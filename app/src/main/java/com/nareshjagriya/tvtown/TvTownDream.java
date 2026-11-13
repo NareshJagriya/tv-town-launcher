@@ -43,7 +43,8 @@ public class TvTownDream extends DreamService {
     }
 
     static void setKind(Context c, int k) {
-        store(c).edit().putInt("kind", Math.floorMod(k, 3)).apply();
+        store(c).edit().putInt("kind", Math.floorMod(k, 5)).apply();
+        Photos.refresh(c, k);   // world or space pictures: fetched now, ready when it starts
     }
 
     /** Whether any drive has videos in a "TV Town Screensaver" folder. */
@@ -98,8 +99,11 @@ public class TvTownDream extends DreamService {
         setScreenBright(false);
         readClips();
         clock = new ClockView(this);
-        java.util.List<String[]> art = keptPictures(this);
         int kind = kind(this);
+        java.util.List<String[]> art = kind == Photos.WORLD || kind == Photos.SPACE ? Photos.kept(this, kind) : keptPictures(this);
+        if (art.isEmpty()) art = keptPictures(this);   // not fetched yet: the film pictures meanwhile
+        Photos.refresh(this, kind);
+        if (kind >= 3) kind = 1;   // shown the way film pictures are
         if (kind == 2) clips.clear();
         if (!art.isEmpty() && (kind == 1 || kind == 0 && clips.isEmpty())) {
             clips.clear();

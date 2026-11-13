@@ -204,6 +204,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     private final List<Tmdb.Title> fresh = new ArrayList<>();   // new this week
     private boolean freshLoading, freshFailed;
     private long freshLoadedAt;
+    private volatile String sourceAsked = "";   // what the top picture was loading for
     private final Map<String, Bitmap> freshCards = new HashMap<>();
 
     private Row row = Row.APPS;
@@ -558,6 +559,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         long now = System.currentTimeMillis();
         if (!freshLoading && (force || fresh.isEmpty() || now - freshLoadedAt > 3 * 3600_000L)) {
             freshLoading = true;
+            sourceAsked = topSource(getContext());
             // No streaming apps yet (a new TV): what's new across the popular ones, so Home isn't empty
             List<Services.Service> mine = Services.installedOrPopular(getContext());
             final boolean empty = fresh.isEmpty();
@@ -584,6 +586,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 final List<Tmdb.Title> got = list;
                 main.post(() -> {
                     freshLoading = false;
+                    if (!sourceAsked.equals(topSource(getContext()))) {   // the choice changed while loading: load the new one
+                        refresh(true);
+                        return;
+                    }
                     freshFailed = got == null && fresh.isEmpty();
                     if (got != null) {
                         freshLoadedAt = System.currentTimeMillis();
@@ -596,6 +602,8 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     }
 
     private List<Tmdb.Title> newThisWeek(List<Services.Service> mine) throws java.io.IOException {
+        List<Tmdb.Title> picked = topPicks(mine);   // Customize → Home → Top picture shows
+        if (picked != null) return picked;
         List<Tmdb.Title> list = reallyNew(Catalog.newOn(getContext(), mine, 7));
         if (list.size() < 6) {   // a quiet week: the label says so
             try {
@@ -605,6 +613,106 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             }
         }
         return list;
+    }
+
+    // ---- what the top picture shows (Customize → Home → Top picture shows) ------------------------------------
+    static final String[] TOP_SOURCES = {"new", "popular", "top", "gems", "list", "random", "action", "comedy", "thriller", "romance",
+            "sci-fi", "animation", "family", "documentary", "anime", "k-drama"};
+
+    private static final java.util.Map<String, String> GENRE_NAMES = new java.util.HashMap<>();
+
+    static {
+        String[][] g = {{"action", "Action"}, {"comedy", "Comedy"}, {"thriller", "Thriller"}, {"romance", "Romance"}, {"sci-fi", "Sci-Fi"},
+                {"animation", "Animation"}, {"family", "Family"}, {"documentary", "Documentary"}, {"anime", "Anime"}, {"k-drama", "K-Drama"}};
+        for (String[] x : g) GENRE_NAMES.put(x[0], x[1]);
+    }
+
+    /** Discover's kind for a source (its ids follow the language shown, so genres go by their English name). */
+    @Nullable
+    private static DiscoverKinds.Kind kindFor(String src) {
+        String en = GENRE_NAMES.get(src);
+        return DiscoverKinds.find(en != null ? DiscoverKinds.idOf(L10n.t(en)) : src);
+    }
+
+    static String topSource(Context c) {
+        String s = c.getSharedPreferences("home", Context.MODE_PRIVATE).getString("top_source", "new");
+        return java.util.Arrays.asList(TOP_SOURCES).contains(s) ? s : "new";
+    }
+
+    static String topSourceName(String s) {
+        switch (s) {
+            case "new": return L10n.t("New this week");
+            case "popular": return L10n.t("Popular now");
+            case "top": return L10n.t("Top rated");
+            case "gems": return L10n.t("Hidden gems");
+            case "list": return L10n.t("My Watchlist");
+            case "random": return L10n.t("Something random");
+            default: {
+                DiscoverKinds.Kind k = kindFor(s);
+                return k != null ? k.name : s;
+            }
+        }
+    }
+
+    /** The chosen source's titles on your apps; null for New this week (or when nothing came). */
+    @Nullable
+    private List<Tmdb.Title> topPicks(List<Services.Service> mine) {
+        String src = topSource(getContext());
+        if (src.equals("new")) return null;
+        if (src.equals("list")) {
+            List<Tmdb.Title> l = fromWatchlist();
+            return l.isEmpty() ? null : l;
+        }
+        String id = src.equals("popular") ? DiscoverKinds.TRENDING : src.equals("top") ? DiscoverKinds.TOP_RATED
+                : src.equals("gems") ? DiscoverKinds.HIDDEN_GEMS : src;
+        if (src.equals("random")) id = TOP_SOURCES[6 + new java.util.Random().nextInt(TOP_SOURCES.length - 6)];
+        DiscoverKinds.Kind kd = kindFor(id);
+        Tmdb.Category cat = kd != null ? DiscoverKinds.category(kd) : null;
+        if (cat == null) return null;
+        List<Tmdb.Title> out = fromCategory(mine, cat);
+        if (src.equals("random")) java.util.Collections.shuffle(out);
+        return out.isEmpty() ? null : out;
+    }
+
+    /** A Discover kind on your apps: a few of each app's films and series, in turn. */
+    private List<Tmdb.Title> fromCategory(List<Services.Service> mine, Tmdb.Category cat) {
+        List<Tmdb.Title> out = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Services.Service s : mine) {
+            for (String type : new String[]{"movie", "tv"}) {
+                try {
+                    Tmdb.Page p = Catalog.discover(getContext(), cat, s, type, 1, "");
+                    if (p == null) continue;
+                    int n = 0;
+                    for (Tmdb.Title t : p.titles) {
+                        if (n >= 3 || t.backdropPath == null || !seen.add(t.key())) continue;
+                        if (t.service == null) t.service = s;
+                        out.add(t);
+                        n++;
+                    }
+                } catch (Exception ex) {
+                }
+            }
+        }
+        return out;
+    }
+
+    /** My Watchlist (what you saved with + My List), latest first. */
+    private List<Tmdb.Title> fromWatchlist() {
+        List<Library.Entry> want = new ArrayList<>();
+        for (Library.Entry e : Library.all(getContext())) if (e.status == Library.WANT && e.tmdbId > 0) want.add(e);
+        java.util.Collections.sort(want, (a, b) -> Long.compare(b.time, a.time));
+        List<Tmdb.Title> out = new ArrayList<>();
+        for (Library.Entry e : want) {
+            if (out.size() >= 12) break;
+            try {
+                Tmdb.Title t = Tmdb.byId(getContext(), "tv".equals(e.type) ? "tv" : "movie", e.tmdbId);
+                if (t != null && t.backdropPath != null) out.add(t);
+            } catch (Exception ignored) {
+                // that one: left out
+            }
+        }
+        return out;
     }
 
     private static boolean sameTitles(List<Tmdb.Title> a, List<Tmdb.Title> b) {
@@ -1329,19 +1437,150 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         return out;
     }
 
-    /** Hold OK on a Continue title: Resume, Mark watched, or Remove from Continue watching. */
+    /** OK on a Continue title: its details, and what can be done with it, as labelled buttons. */
     private Cont contOptionsFor;
 
-    private void openContOptions(Cont ct) {
+    private void openContDetails(Cont ct) {
         contOptionsFor = ct;
-        GlassSheet s = new GlassSheet(kit, ct.title, WheelArt.Glyph.PLAY, "contopts", "");
-        s.popupW = 760;
-        s.rows.add(new GlassSheet.Row(GlassSheet.ACTION, L10n.t("Resume"), kit.glyph(WheelArt.Glyph.PLAY, 38), "cont:resume"));
-        s.rows.add(new GlassSheet.Row(GlassSheet.ACTION, L10n.t("Mark watched"), kit.glyph(WheelArt.Glyph.CHECK, 38), "cont:watched"));
-        s.rows.add(new GlassSheet.Row(GlassSheet.ACTION, L10n.t("Remove from Continue watching"), kit.glyph(WheelArt.Glyph.REDO, 38), "cont:hide"));
-        s.layout(getWidth(), getHeight(), 900, 4);
+        GlassSheet s = new GlassSheet(kit, ct.title == null ? "" : ct.title, WheelArt.Glyph.PLAY, "contopts", "");
+        s.solo = new ContPane(ct);
+        s.popupW = 1440;
+        s.soloH = 640;
+        s.layout(getWidth(), getHeight(), 1440, 1);
         sheet = s;
         invalidate();
+    }
+
+    /** The details pop-up: the cover on the left; the name, app, progress and story; then the buttons, three a row. */
+    private final class ContPane implements GlassSheet.Pane {
+        final Cont ct;
+        final List<String[]> buttons = new ArrayList<>();   // tag, label
+        final List<WheelArt.Glyph> glyphs = new ArrayList<>();
+        int sel;
+
+        ContPane(Cont ct) {
+            this.ct = ct;
+            add("resume", ct.frac > 0.01f || ct.from > 0 ? L10n.t("Resume") : L10n.t("Play"), WheelArt.Glyph.PLAY);
+            if (ct.video != null && (ct.from > 0 || ct.frac > 0.01f)) add("start", L10n.t("Start over"), WheelArt.Glyph.REDO);
+            if (ct.title != null && !ct.title.isEmpty()) add("info", L10n.t("More info"), WheelArt.Glyph.INFO);
+            add("watched", L10n.t("Mark watched"), WheelArt.Glyph.CHECK);
+            add("hide", L10n.t("Remove from row"), WheelArt.Glyph.EYE);
+            if (ct.title != null && ct.video == null) add("fix", L10n.t("Fix picture"), WheelArt.Glyph.PENCIL);
+        }
+
+        private void add(String tag, String label, WheelArt.Glyph g) {
+            buttons.add(new String[]{tag, label});
+            glyphs.add(g);
+        }
+
+        @Override
+        public boolean key(int code) {
+            int cols = 3, n = buttons.size();
+            switch (code) {
+                case KeyEvent.KEYCODE_DPAD_LEFT: if (sel % cols > 0) sel--; break;
+                case KeyEvent.KEYCODE_DPAD_RIGHT: if (sel % cols < cols - 1 && sel + 1 < n) sel++; break;
+                case KeyEvent.KEYCODE_DPAD_UP: if (sel >= cols) sel -= cols; break;
+                case KeyEvent.KEYCODE_DPAD_DOWN: sel = Math.min(n - 1, sel + cols >= n && sel / cols == (n - 1) / cols ? sel : sel + cols); break;
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    contOption(buttons.get(sel)[0]);
+                    return true;
+                default: return false;
+            }
+            invalidate();
+            return true;
+        }
+
+        @Override
+        public void draw(Canvas c, RectF area, float e, boolean focused) {
+            int a = Math.round(255 * e);
+            float pad = 48 * k;
+            // the cover: its tall poster, else the wide picture cropped, else a card in the app's colours
+            float ch = area.height() - 2 * pad, cw = ch * 2 / 3f;
+            RectF cover = new RectF(area.left + pad, area.top + pad, area.left + pad + cw, area.top + pad + ch);
+            shelfPoster(c, cover, ct);
+            float x = cover.right + 56 * k, right = area.right - pad, room = right - x;
+            float y = area.top + pad + 46 * k;
+            Paint tp = nk.inter(46, 800, -0.015f, Color.WHITE);
+            tp.setAlpha(a);
+            for (String l : wrapLines(ct.title == null ? "" : ct.title, tp, room, 2)) {
+                c.drawText(l, x, y, tp);
+                y += 56 * k;
+            }
+            // the app it is on (in its colour), and where you are
+            String app = source(ct);
+            int tint = tintFor(ct.pkg != null && ct.video == null ? ct.pkg + " " + app : app);
+            Paint ap = nk.inter(24, 700, 0.01f, Color.WHITE);
+            float aw = ap.measureText(app) + 36 * k, ah = 40 * k, ay = y - 18 * k;
+            RectF tag = new RectF(x, ay, x + aw, ay + ah);
+            gFill.setShader(null);
+            gFill.setColor((tint & 0x00FFFFFF) | 0xCC000000);
+            c.drawRoundRect(tag, ah / 2, ah / 2, gFill);
+            c.drawText(app, x + 18 * k, ay + ah / 2 + 8 * k, ap);
+            String line = ct.line != null ? ct.line.replace(" · " + app, "").replace(app, "").trim() : "";
+            if (line.startsWith("·")) line = line.substring(1).trim();
+            if (line.endsWith("·")) line = line.substring(0, line.length() - 1).trim();
+            Paint mp = nk.inter(24, 500, 0, 0xCCFFFFFF);
+            if (!line.isEmpty()) c.drawText(fit(line, mp, room - aw - 24 * k), tag.right + 20 * k, ay + ah / 2 + 8 * k, mp);
+            y = tag.bottom + 30 * k;
+            if (ct.frac > 0) {   // how far in
+                float bw = Math.min(room, 520 * k), bh = 8 * k;
+                RectF bar = new RectF(x, y, x + bw, y + bh);
+                gFill.setColor(0x33FFFFFF);
+                c.drawRoundRect(bar, bh / 2, bh / 2, gFill);
+                gFill.setColor(Color.WHITE);
+                gFill.setShader(new LinearGradient(x, 0, x + bw * Math.min(1, ct.frac), 0, 0xFF8A6BFF, 0xFFD9468F, Shader.TileMode.CLAMP));
+                c.drawRoundRect(new RectF(x, y, x + Math.max(bh, bw * Math.min(1, ct.frac)), y + bh), bh / 2, bh / 2, gFill);
+                gFill.setShader(null);
+                Paint pp = nk.inter(21, 600, 0, Frost.MUTE);
+                c.drawText(String.format(L10n.t("%d%% watched"), Math.round(100 * Math.min(1, ct.frac))), bar.right + 18 * k, y + 9 * k, pp);
+                y += 40 * k;
+            }
+            // the story: the app's own, else the one found with the cover
+            String story = ct.overview != null && !ct.overview.isEmpty() ? ct.overview : "";
+            if (story.isEmpty() && ct.title != null) {
+                String[] art = artByName(ct.title);
+                if (art != null && art.length > 1 && art[1] != null) story = art[1];
+            }
+            int rowsN = (buttons.size() + 2) / 3;
+            float bh = 78 * k, gap = 18 * k, gridTop = area.bottom - pad - rowsN * bh - (rowsN - 1) * gap;
+            Paint sp = nk.inter(25, 400, 0, 0xD9FFFFFF);
+            int maxLines = Math.max(1, (int) ((gridTop - 28 * k - y) / (36 * k)));
+            if (!story.isEmpty()) {
+                float sy = y + 22 * k;
+                for (String l : wrapLines(story, sp, room, Math.min(5, maxLines))) {
+                    c.drawText(l, x, sy, sp);
+                    sy += 36 * k;
+                }
+            }
+            // the buttons: words with a small icon, the first a bright one
+            float bw = (room - 2 * gap) / 3;
+            Paint lp = nk.inter(25, 700, 0, Color.WHITE), dp = nk.inter(25, 700, 0, 0xFF101218);
+            for (int i = 0; i < buttons.size(); i++) {
+                float bx = x + (i % 3) * (bw + gap), by = gridTop + (i / 3) * (bh + gap);
+                RectF b = new RectF(bx, by, bx + bw, by + bh);
+                boolean main = i == 0, on = i == sel;
+                if (main) {
+                    gFill.setColor(0xF2FFFFFF);
+                    if (on) kit.focus(c, b, bh / 2, e);
+                    c.drawRoundRect(b, bh / 2, bh / 2, gFill);
+                } else {
+                    kit.pill(c, b, bh / 2, e);
+                    if (on) kit.focus(c, b, bh / 2, e);
+                }
+                Paint p = main ? dp : lp;
+                String label = fit(buttons.get(i)[1], p, bw - 96 * k);
+                float iconS = 30 * k, tw = iconS + 14 * k + p.measureText(label), sx = b.centerX() - tw / 2;
+                Bitmap g = kit.glyph(glyphs.get(i), 30);
+                if (g != null) {
+                    gFill.setColor(Color.WHITE);
+                    if (main) gFill.setColorFilter(new android.graphics.PorterDuffColorFilter(0xFF101218, android.graphics.PorterDuff.Mode.SRC_IN));
+                    c.drawBitmap(g, null, new RectF(sx, b.centerY() - iconS / 2, sx + iconS, b.centerY() + iconS / 2), gFill);
+                    gFill.setColorFilter(null);
+                }
+                c.drawText(label, sx + iconS + 14 * k, b.centerY() + 9 * k, p);
+            }
+        }
     }
 
     private void contOption(String what) {
@@ -1350,6 +1589,18 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         if (ct == null) return;
         if (what.equals("resume")) {
             openContinue(ct);
+            return;
+        }
+        if (what.equals("start") && ct.video != null) {
+            listener.onResumeFilm(ct.video, 0, ct.title);
+            return;
+        }
+        if (what.equals("info")) {
+            moreInfo(ct);
+            return;
+        }
+        if (what.equals("fix")) {
+            fixTitle(ct.title);
             return;
         }
         if (what.equals("watched") && ct.title != null) {
@@ -1364,6 +1615,30 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         if (conts.isEmpty()) setRow(watchlist().isEmpty() ? Row.NOTHING : Row.LIST);
         message(L10n.t(what.equals("watched") ? "Marked watched" : "Removed from Continue watching"));
         invalidate();
+    }
+
+    /** More info: the title's own page (story, cast, where to watch), found by its name. */
+    private void moreInfo(Cont ct) {
+        Context ctx = getContext().getApplicationContext();
+        message(L10n.t("Looking it up\u2026"));
+        new Thread(() -> {
+            Tmdb.Title best = null;
+            try {
+                MyMovies.Parsed p = MyMovies.parse(ct.title.replaceAll("\\((\\d{4})\\)", "$1"), "", "");
+                String name = p.title.isEmpty() ? ct.title : p.title, want = SearchMatch.plain(name);
+                List<Tmdb.Title> found = Catalog.search(ctx, name, 1).titles;
+                for (Tmdb.Title t : found) if (SearchMatch.plain(t.title).equals(want)) { best = t; break; }
+                if (best == null) for (Tmdb.Title t : found) if (sharedWords(SearchMatch.plain(t.title), want) >= 0.75f) { best = t; break; }
+                if (best == null && !found.isEmpty()) best = found.get(0);
+            } catch (java.io.IOException | RuntimeException ignored) {
+                // nothing found
+            }
+            final Tmdb.Title t = best;
+            post(() -> {
+                if (t != null) TitleActivity.open(getContext(), t);
+                else message(L10n.t("Nothing found for ") + ct.title);
+            });
+        }, "cont-info").start();
     }
 
     private void openContinue(int i) {
@@ -1794,7 +2069,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         c.drawColor(Frost.base());
         MusicPlayer mp = MusicPlayer.get(getContext());
         MyMusic.Song cur = mp.current();
-        String common = "|" + live + "," + imgEpoch + "," + getWidth() + Frost.lighter + Lite.on;
+        String common = "|" + live + "," + imgEpoch + "," + getWidth() + Frost.lighter + Lite.on + "," + packGen;
         String ft = feat == null ? "" : feat.title;
         String pic = homeArtFor + "," + getWidth() + Frost.lighter + (homeFrost != null);
         // Pale picture: deeper smoke on the bars (they went milky grey on cream and snow)
@@ -1946,6 +2221,9 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     /** What the label over a title may honestly say. */
     private static String newLabel(Tmdb.Title t) {
+        String src = topSource(TvTownApp.context());
+        if (!src.equals("new") && !src.equals("random")) return topSourceName(src);
+        if (src.equals("random")) return L10n.t("Picked for you");
         return isThisWeek(t) ? L10n.t("New this week") : daysOld(t) >= 0 ? L10n.t("New this month") : L10n.t("New this year");
     }
 
@@ -2500,8 +2778,70 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
      * The fallback for a title an app gave no picture for (VLC's films, a Netflix picture that can't be read): its
      * name looked up in the film catalogue, once; the best match's wide picture and story. Null while looking.
      */
+    // ---- a wrong picture put right: the title you picked is remembered for that name ------------------------
+
+    @Nullable
+    private String[] fixedArt(String title) {
+        String v = prefs.getString("fix:" + title.toLowerCase(Locale.ROOT), null);
+        if (v == null) return null;
+        String[] p = v.split("\u0001", -1);
+        return p.length == 3 ? new String[]{p[0].isEmpty() ? null : p[0], p[1], p[2].isEmpty() ? null : p[2]} : null;
+    }
+
+    private String fixingTitle;
+    private final List<Tmdb.Title> fixFound = new ArrayList<>();
+
+    /** Asks for the right name, then shows what TMDB has for it to pick from. */
+    private void fixTitle(String title) {
+        fixingTitle = title;
+        listener.onAskText(L10n.t("The right title for ") + title, L10n.t("Its name, as on the app"), typed -> {
+            if (typed == null || typed.trim().isEmpty()) return;
+            Context ctx = getContext().getApplicationContext();
+            new Thread(() -> {
+                List<Tmdb.Title> got = new ArrayList<>();
+                try {
+                    for (Tmdb.Title t : Catalog.search(ctx, typed.trim(), 1).titles) if (got.size() < 8 && (t.poster() != null || t.backdropLarge() != null)) got.add(t);
+                } catch (Exception ignored) {
+                    // nothing found
+                }
+                post(() -> {
+                    fixFound.clear();
+                    fixFound.addAll(got);
+                    if (got.isEmpty()) {
+                        message(L10n.t("Nothing found. Try another name"));
+                        return;
+                    }
+                    GlassSheet s = new GlassSheet(kit, L10n.t("Which one is it?"), WheelArt.Glyph.SEARCH, "fixpick", "");
+                    s.popupW = 1000;
+                    for (int i = 0; i < got.size(); i++) {
+                        Tmdb.Title t = got.get(i);
+                        String line = t.title + (t.year > 0 ? "  (" + t.year + ")" : "") + "  ·  " + (t.isSeries() ? L10n.t("Series") : L10n.t("Film"));
+                        s.rows.add(new GlassSheet.Row(GlassSheet.ACTION, line, kit.glyph(t.isSeries() ? WheelArt.Glyph.TV : WheelArt.Glyph.FILM, 38), "fixpick:" + i));
+                    }
+                    s.layout(getWidth(), getHeight(), 1000, Math.min(8, got.size()));
+                    sheet = s;
+                    invalidate();
+                });
+            }, "fix-search").start();
+        });
+    }
+
+    private void fixPicked(int i) {
+        if (fixingTitle == null || i < 0 || i >= fixFound.size()) return;
+        Tmdb.Title t = fixFound.get(i);
+        String b = t.backdropLarge() != null ? t.backdropLarge() : "", p = t.poster() != null ? t.poster() : "";
+        prefs.edit().putString("fix:" + fixingTitle.toLowerCase(Locale.ROOT), b + "\u0001" + (t.overview == null ? "" : t.overview) + "\u0001" + p).apply();
+        shelfArt.remove("name:" + fixingTitle.toLowerCase(Locale.ROOT));
+        shelfAsked.remove("name:" + fixingTitle.toLowerCase(Locale.ROOT));
+        sheet = null;
+        message(L10n.t("Fixed: ") + t.title);
+        invalidate();
+    }
+
     @Nullable
     private String[] artByName(String title) {
+        String[] fixedNow = fixedArt(title);
+        if (fixedNow != null) return fixedNow;
         String key = "name:" + title.toLowerCase(Locale.ROOT);
         String[] have = shelfArt.get(key);
         if (have != null || !shelfAsked.add(key)) return have;
@@ -2509,16 +2849,8 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         new Thread(() -> {
             String[] got = null;
             try {
-                MyMovies.Parsed p = MyMovies.parse(title.replaceAll("\\((\\d{4})\\)", "$1"), "", "");
-                String name = p.title.isEmpty() ? title : p.title;
-                Tmdb.Page page = Catalog.search(ctx, name, 1);
-                for (Tmdb.Title t : page.titles) {   // the first with the same name (and year, when known)
-                    boolean sameName = SearchMatch.plain(t.title).equals(SearchMatch.plain(name));
-                    if (!sameName || p.year > 0 && t.year > 0 && Math.abs(t.year - p.year) > 1) continue;
-                    if (t.backdropLarge() != null || t.poster() != null) got = new String[]{t.backdropLarge(), t.overview == null ? "" : t.overview, t.poster()};
-                    break;
-                }
-            } catch (java.io.IOException | RuntimeException ignored) {
+                got = findArt(ctx, title);
+            } catch (RuntimeException ignored) {
                 // nothing found: the card keeps its plain look
             }
             final String[] found = got != null ? got : new String[]{null, "", null};
@@ -2529,6 +2861,73 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             });
         }, "name-art").start();
         return null;
+    }
+
+    /**
+     * A cover for a name an app gave: TMDB with the same name, then a close one, then the name without what apps add
+     * (": Episode 3", "Season 2", " - Part 1") and by shared words; then JustWatch. {wide, story, tall}, or null.
+     */
+    @Nullable
+    static String[] findArt(Context ctx, String title) {
+        MyMovies.Parsed p = MyMovies.parse(title.replaceAll("\\((\\d{4})\\)", "$1"), "", "");
+        String name = p.title.isEmpty() ? title : p.title;
+        List<String> tries = new ArrayList<>();
+        tries.add(name);
+        String shorter = name.replaceAll("(?i)\\s*[:|\\-\u2013\u2014]\\s*(season|series|episode|ep\\.?|chapter|part|s\\d).*$", "")
+                .replaceAll("(?i)\\s+(season|series)\\s*\\d+.*$", "").replaceAll("(?i)\\s+s\\d{1,2}\\s*e\\d{1,3}.*$", "").trim();
+        if (!shorter.isEmpty() && !shorter.equalsIgnoreCase(name)) tries.add(shorter);
+        int cut = name.indexOf(':');
+        if (cut > 2 && !tries.contains(name.substring(0, cut).trim())) tries.add(name.substring(0, cut).trim());
+        for (String n : tries) {
+            try {
+                Tmdb.Title best = null;
+                String want = SearchMatch.plain(n);
+                List<Tmdb.Title> found = Catalog.search(ctx, n, 1).titles;
+                for (int pass = 0; pass < 3 && best == null; pass++) {   // the same name; a close one; most words shared
+                    for (Tmdb.Title t : found) {
+                        String its = SearchMatch.plain(t.title);
+                        boolean ok = pass == 0 ? its.equals(want)
+                                : pass == 1 ? !want.isEmpty() && (its.startsWith(want) || want.startsWith(its)) && Math.min(its.length(), want.length()) >= 4
+                                : sharedWords(its, want) >= 0.75f;
+                        if (!ok || p.year > 0 && t.year > 0 && Math.abs(t.year - p.year) > 1) continue;
+                        if (t.backdropLarge() == null && t.poster() == null) continue;
+                        best = t;
+                        break;
+                    }
+                }
+                if (best != null) return new String[]{best.backdropLarge(), best.overview == null ? "" : best.overview, best.poster()};
+            } catch (java.io.IOException | RuntimeException ignored) {
+                // the next name, or JustWatch
+            }
+        }
+        for (String n : tries) {   // JustWatch knows the streaming apps' own names
+            try {
+                String want = SearchMatch.plain(n);
+                for (JustWatch.Title j : JustWatch.search(n, null, 0, 6)) {
+                    String its = SearchMatch.plain(j.title);
+                    if (!its.equals(want) && sharedWords(its, want) < 0.75f) continue;
+                    if (j.poster == null && j.backdrop == null) continue;
+                    return new String[]{j.backdrop, j.description == null ? "" : j.description, j.poster};
+                }
+            } catch (Exception ignored) {
+                // no cover: the card is drawn in the app's colours
+            }
+        }
+        return null;
+    }
+
+    /** How many of the shorter name's words the other has (0..1); one-word names must match whole. */
+    static float sharedWords(String a, String b) {
+        java.util.Set<String> x = new java.util.HashSet<>(java.util.Arrays.asList(a.split(" "))), y = new java.util.HashSet<>(java.util.Arrays.asList(b.split(" ")));
+        x.remove("");
+        y.remove("");
+        x.removeAll(java.util.Arrays.asList("the", "a", "an", "of", "and"));
+        y.removeAll(java.util.Arrays.asList("the", "a", "an", "of", "and"));
+        java.util.Set<String> small = x.size() <= y.size() ? x : y, big = small == x ? y : x;
+        if (small.size() < 2) return 0;
+        int n = 0;
+        for (String w : small) if (big.contains(w)) n++;
+        return n / (float) small.size();
     }
 
     /** A My Watchlist title as a wide card, like Continue's: its wide picture (else its poster, cropped wide). */
@@ -3136,9 +3535,85 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         float cy = (TOP_Y + TOP_H / 2f) * k;
         RectF sf = gr(SEARCH_X, TOP_Y, SEARCH_W, TOP_H);   // the search bar: a black box to type in
         Frost.searchBar(c, sf, k, live && row == Row.TOP && navSel == 0, L10n.t("Search films and apps"), true, nk.inter(23, 500, 0, Color.WHITE));
-        for (int i : new int[]{1, 2, 3}) icon(c, TOP_GLYPHS[i], 34, (topIconX(i) + TOP_ICON / 2f) * k, cy, 255);
+        for (int i : new int[]{1, 3}) {   // your two buttons, Customize between them
+            Bitmap b = LineIcon.icon(topIcon(topButton(i)), 34 * k);
+            c.drawBitmap(b, (topIconX(i) + TOP_ICON / 2f) * k - b.getWidth() / 2f, cy - b.getHeight() / 2f, nImg);
+        }
+        icon(c, TOP_GLYPHS[2], 34, (topIconX(2) + TOP_ICON / 2f) * k, cy, 255);
         if (Updater.available != null)   // a new version: a dot on Customize, where Updates is
             Frost.dot(c, (topIconX(2) + TOP_ICON / 2f + 16) * k, cy - 15 * k, k);
+    }
+
+    // ---- the top bar's two buttons of your choice (Customize → Home) -------------------------------------
+
+    static final String[] TOP_CHOICES = {"inputs", "settings", "phone", "bluetooth", "wifi", "screensaver", "memory", "control", "sports"};
+
+    static String topName(String id) {
+        switch (id) {
+            case "inputs": return L10n.t("Inputs");
+            case "settings": return L10n.t("TV settings");
+            case "phone": return L10n.t("Phone remote");
+            case "bluetooth": return L10n.t("Bluetooth");
+            case "wifi": return L10n.t("Wi-Fi");
+            case "screensaver": return L10n.t("Screensaver");
+            case "memory": return L10n.t("Free up memory");
+            case "control": return L10n.t("Control Center");
+            default: return L10n.t("Sports");
+        }
+    }
+
+    private static String topIcon(String id) {
+        switch (id) {
+            case "inputs": return "tv";
+            case "settings": return "gear";
+            case "phone": return "phone";
+            case "bluetooth": return "bt";
+            case "wifi": return "wifi";
+            case "screensaver": return "moon";
+            case "memory": return "chip";
+            case "control": return "pulse";
+            default: return "trophy";
+        }
+    }
+
+    /** Slot 1 (left of Customize) or 3 (right of it). */
+    private String topButton(int slot) {
+        String v = prefs.getString(slot == 1 ? "top_left" : "top_right", slot == 1 ? "inputs" : "settings");
+        return java.util.Arrays.asList(TOP_CHOICES).contains(v) ? v : slot == 1 ? "inputs" : "settings";
+    }
+
+    private void topAction(String id) {
+        Context c = getContext();
+        switch (id) {
+            case "inputs": openInputs(); break;
+            case "settings": listener.onSystemSettings(); break;
+            case "phone": openPhonePopup(null); break;
+            case "bluetooth": openBluetooth(null); invalidate(); break;
+            case "wifi":
+                try {
+                    c.startActivity(new Intent(android.provider.Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                } catch (Exception e) {
+                    listener.onSystemSettings();
+                }
+                break;
+            case "screensaver":
+                if (!Screensavers.tryNow(c)) message(L10n.t("This TV can't start it from here: it starts on its own when the TV is idle"));
+                break;
+            case "memory": c.startActivity(new Intent(c, CleanupActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); break;
+            case "control": openControlCenter(); break;
+            default: openCricket();
+        }
+    }
+
+    /** The phone remote: how to connect, and its QR code, in a pop-up of its own. */
+    private void openPhonePopup(@Nullable GlassSheet from) {
+        GlassSheet p = new GlassSheet(kit, L10n.t("Phone remote"), WheelArt.Glyph.TV, "phonepop", "");
+        p.solo = new PhonePane(getContext());
+        p.popupW = 1120;
+        p.parent = from;
+        p.layout(getWidth(), getHeight(), 1120, 1);
+        sheet = p;
+        invalidate();
     }
 
     private final RectF wholeScreenRect = new RectF();
@@ -3530,6 +4005,62 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         c.drawText(fit(line, hSub, room), p.left, p.bottom - 8 * k, hSub);
     }
 
+    /**
+     * No cover anywhere (not from the app, TMDB or JustWatch): a card of its own in the app's colour, so it never
+     * looks empty. The name large; on a tall card it sits in the middle, on a wide one its words are drawn over it.
+     */
+    private void blankCover(Canvas c, RectF p, float rad, Cont ct, boolean wide) {
+        String app = source(ct);
+        int tint = tintFor(ct.pkg != null && ct.video == null ? ct.pkg + " " + app : app);
+        int deep = Color.rgb(Color.red(tint) / 4 + 8, Color.green(tint) / 4 + 8, Color.blue(tint) / 4 + 12);
+        gFill.setColor(Color.WHITE);
+        gFill.setShader(new LinearGradient(p.left, p.top, p.right, p.bottom, (tint & 0x00FFFFFF) | 0xB0000000, deep | 0xFF000000, Shader.TileMode.CLAMP));
+        c.drawRoundRect(p, rad, rad, gFill);
+        gFill.setShader(new android.graphics.RadialGradient(p.left + p.width() * 0.25f, p.top + p.height() * 0.2f, Math.max(p.width(), p.height()) * 0.7f,
+                0x33FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));   // a soft light from the top corner
+        c.drawRoundRect(p, rad, rad, gFill);
+        gFill.setShader(null);
+        if (wide) return;   // the wide card's own name and app are drawn over it
+        Paint np = nk.inter(p.width() > 260 * k ? 30 : 25, 800, -0.01f, Color.WHITE);
+        np.setTextAlign(Paint.Align.CENTER);
+        List<String> lines = wrapLines(ct.title == null ? "" : ct.title, np, p.width() - 36 * k, 4);
+        float lh = np.getTextSize() * 1.18f, y = p.centerY() - (lines.size() - 1) * lh / 2 + np.getTextSize() * 0.35f;
+        for (String l : lines) {
+            c.drawText(l, p.centerX(), y, np);
+            y += lh;
+        }
+        Paint ap = nk.inter(19, 600, 0.02f, 0xCCFFFFFF);
+        ap.setTextAlign(Paint.Align.CENTER);
+        c.drawText(fit(app, ap, p.width() - 32 * k), p.centerX(), p.bottom - 26 * k, ap);
+    }
+
+    /** Words over at most `max` lines of `width`, the last cut short with an ellipsis. */
+    static List<String> wrapLines(String text, Paint paint, float width, int max) {
+        List<String> out = new ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        String[] words = text.trim().split("\\s+");
+        for (int i = 0; i < words.length; i++) {
+            String tryLine = line.length() == 0 ? words[i] : line + " " + words[i];
+            if (paint.measureText(tryLine) <= width || line.length() == 0) {
+                line.setLength(0);
+                line.append(tryLine);
+                continue;
+            }
+            out.add(line.toString());
+            line.setLength(0);
+            line.append(words[i]);
+            if (out.size() == max - 1) {   // the rest on the last line
+                StringBuilder rest = new StringBuilder(line);
+                for (int j = i + 1; j < words.length; j++) rest.append(' ').append(words[j]);
+                line.setLength(0);
+                line.append(android.text.TextUtils.ellipsize(rest, new android.text.TextPaint(paint), width, android.text.TextUtils.TruncateAt.END));
+                break;
+            }
+        }
+        if (line.length() > 0) out.add(line.toString());
+        return out;
+    }
+
     /** A Continue card: a wide picture with its progress along the foot, then the name and the time left. */
     /** A shelf cover: the title's tall poster (found by name when the app gave only a wide picture), and how far in. */
     private void shelfPoster(Canvas c, RectF p, Cont ct) {
@@ -3542,13 +4073,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         Bitmap img = url != null ? ImageCache.get(url, this::imageArrived, null, Math.round(p.width())) : null;
         if (img == null && ct.image != null && ImageCache.canShow(ct.image)) img = ImageCache.get(ct.image, this::imageArrived, null, 640);
         if (img != null) coverImage(c, img, p, rad, 255, 0.2f);   // a wide picture is cropped to the middle
-        else {
-            Frost.smoked(c, p, rad, k);
-            icon(c, WheelArt.Glyph.FILM, 48, p.centerX(), p.top + p.height() * 0.4f, 200);
-            Paint np = nk.inter(22, 600, 0, Color.WHITE);
-            np.setTextAlign(Paint.Align.CENTER);
-            c.drawText(fit(ct.title == null ? "" : ct.title, np, p.width() - 24 * k), p.centerX(), p.top + p.height() * 0.62f, np);
-        }
+        else blankCover(c, p, rad, ct, false);
         if (ct.frac > 0) {   // how far in: a thin violet-to-pink line along the foot
             c.save();
             android.graphics.Path round = new android.graphics.Path();
@@ -3574,12 +4099,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             if (art != null && art[0] != null) img = ImageCache.get(art[0], this::imageArrived, null, 640);
         }
         if (img != null) coverImage(c, img, p, rad, 255, 0.2f);
-        else {
-            gFill.setShader(null);
-            gFill.setColor(0x26FFFFFF);
-            c.drawRoundRect(p, rad, rad, gFill);
-            icon(c, WheelArt.Glyph.FILM, 56, p.centerX(), p.top + p.height() * 0.38f, 200);
-        }
+        else blankCover(c, p, rad, ct, true);
         c.save();   // a dark fade up from the foot, so the words read on any picture
         android.graphics.Path round = new android.graphics.Path();
         round.addRoundRect(p, rad, rad, android.graphics.Path.Direction.CW);
@@ -3667,6 +4187,29 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         for (int j = 0; j < slots.length; j++) appTile(c, items.get(slots[j]), dockCell(j), inRow && j == at);
     }
 
+    // The icon pack's picture per app (Customize → Home → Icon pack), loaded once off the main thread.
+    private final java.util.Map<String, Bitmap> packIcons = new java.util.HashMap<>();
+    private volatile int packGen;
+
+    @Nullable
+    private Bitmap packIcon(Apps.App a) {
+        Context c = getContext().getApplicationContext();
+        if (IconPacks.chosen(c).isEmpty()) return null;
+        synchronized (packIcons) {
+            if (packIcons.containsKey(a.pkg)) return packIcons.get(a.pkg);
+            packIcons.put(a.pkg, null);
+        }
+        new Thread(() -> {
+            Bitmap b = IconPacks.picture(c, a.pkg, a.component.getClassName());
+            synchronized (packIcons) {
+                packIcons.put(a.pkg, b);
+            }
+            packGen++;
+            postInvalidate();
+        }, "iconpack").start();
+        return null;
+    }
+
     /** One place in the dock: the app's mark, all at the same visual size, and its name below. */
     private void appTile(Canvas c, Item it, RectF r, boolean f) {
         c.save();
@@ -3674,6 +4217,11 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         float cx = r.centerX(), cy = r.top + 52 * k;
         if (it.kind == ALL_APPS) {
             icon(c, WheelArt.Glyph.GRID, 50, cx, cy, 255);
+        } else if (it.app != null && packIcon(it.app) != null) {   // the icon pack's picture, at the marks' size
+            Bitmap pi = packIcon(it.app);
+            float ph = 64 * k, pw = Math.min(150 * k, ph * pi.getWidth() / (float) pi.getHeight());
+            if (pw >= 150 * k) ph = pw * pi.getHeight() / (float) pi.getWidth();
+            c.drawBitmap(pi, null, new RectF(cx - pw / 2, cy - ph / 2, cx + pw / 2, cy + ph / 2), nImg);
         } else if (it.app != null) {
             Bitmap mark = LineIcon.appMark(it.app.pkg, it.name, 124 * k, 60 * k, hAppName.getTypeface());
             float sc = Math.min(1, (float) Math.sqrt(2600 * k * k / (mark.getWidth() * (float) mark.getHeight())));
@@ -3815,9 +4363,8 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                     if (cricketBar != null) openCricket();
                     else navSel = 0;
                 } else if (navSel == 0) askSearch();
-                else if (navSel == 1) openInputs();
                 else if (navSel == 2) openSettings();   // Customize TV Town
-                else listener.onSystemSettings();        // the gear: the TV's own settings
+                else topAction(topButton(navSel));       // your buttons: Inputs and the TV's settings unless changed
                 return true;
             case ACTIONS:
                 if (t != null) {
@@ -3829,7 +4376,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 if (t != null) listener.onPlay(t);
                 return true;
             case CONT:
-                if (contAt < contRow().size()) openContinue(contAt);
+                if (contAt < contRow().size()) openContDetails(contRow().get(contAt));
                 else if (conts.isEmpty() && !Perms.tvListings(getContext()) && getContext() instanceof android.app.Activity)
                     Perms.askTvListings((android.app.Activity) getContext(), true);
                 return true;
@@ -4146,7 +4693,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         }
         listAll = 0;
         if (which == 1) {
-            if (at < items.size()) openContinue(items.get(at));
+            if (at < items.size()) openContDetails(items.get(at));
             return;
         }
         List<MyMusic.Song> l = listenList();
@@ -4806,6 +5353,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         s.addSection(L10n.t("Control Center"), kit.glyph(WheelArt.Glyph.PULSE, 34)).pane(new ControlCenter.Pane(c, this::invalidate, controlActions(false)));
         s.addSection(L10n.t("Home"), kit.glyph(WheelArt.Glyph.FILM, 34));
         s.add(GlassSheet.VALUE, L10n.t("Top picture"), kit.glyph(WheelArt.Glyph.FILM, 38), "appearance");
+        s.add(GlassSheet.VALUE, L10n.t("Top picture shows"), kit.glyph(WheelArt.Glyph.STAR, 38), "topsource");
+        s.add(GlassSheet.VALUE, L10n.t("Top bar: left button"), kit.glyph(WheelArt.Glyph.GRID, 38), "topleft");
+        s.add(GlassSheet.VALUE, L10n.t("Top bar: right button"), kit.glyph(WheelArt.Glyph.GRID, 38), "topright");
+        s.add(GlassSheet.VALUE, L10n.t("Icon pack"), kit.glyph(WheelArt.Glyph.STAR, 38), "iconpack");
         s.add(GlassSheet.ACTION, L10n.t("Apps on Home"), kit.glyph(WheelArt.Glyph.GRID, 38), "apps");
         s.add(GlassSheet.ACTION, c.getString(R.string.weather_row), kit.glyph(WheelArt.Glyph.SUN, 38), "weather");
         s.addSection(L10n.t("Features"), kit.glyph(WheelArt.Glyph.SLIDERS, 34));
@@ -4813,11 +5364,9 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         s.add(GlassSheet.VALUE, L10n.t("My Movies"), kit.glyph(WheelArt.Glyph.FILM, 38), "f:" + Features.MOVIES);
         s.add(GlassSheet.VALUE, L10n.t("My Music"), kit.glyph(WheelArt.Glyph.NOTE, 38), "f:" + Features.MUSIC);
         s.add(GlassSheet.VALUE, L10n.t("Live scores"), kit.glyph(WheelArt.Glyph.PULSE, 38), "cricketon");
-        s.add(GlassSheet.NOTE, L10n.t("Off: its button leaves the dock, and its results leave Search"), null, null);
         s.add(GlassSheet.VALUE, L10n.t("Phone remote"), kit.glyph(WheelArt.Glyph.KEY, 38), "f:" + Features.PHONE);
         s.add(GlassSheet.VALUE, L10n.t("Continue watching from apps"), kit.glyph(WheelArt.Glyph.PLAY, 38), "f:" + Features.APPS);
         s.add(GlassSheet.VALUE, L10n.t("Save from YouTube (OK twice)"), kit.glyph(WheelArt.Glyph.DOWN, 38), "f:" + Features.YT_SAVE);
-        s.add(GlassSheet.NOTE, L10n.t("These three keep running while you're in other apps. Switch off what you don't use"), null, null);
         s.addSection(L10n.t("Screensaver"), kit.glyph(WheelArt.Glyph.TV, 34));
         s.add(GlassSheet.ACTION, L10n.t("Screensaver"), kit.glyph(WheelArt.Glyph.TV, 38), "dreamapp");
         if (!Screensavers.installed(c, Screensavers.AERIAL))
@@ -4833,6 +5382,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         if (OpenIn.choices(c).size() > 1) s.add(GlassSheet.VALUE, L10n.t("Play films in"), kit.glyph(WheelArt.Glyph.PLAY, 38), "openin");
         s.addSection(L10n.t("Phone and downloads"), kit.glyph(WheelArt.Glyph.DRIVE, 34));
         s.add(GlassSheet.ACTION, L10n.t("Connect my phone"), kit.glyph(WheelArt.Glyph.KEY, 38), "savephone");
+        s.add(GlassSheet.ACTION, L10n.t("Receive files (LocalSend)"), kit.glyph(WheelArt.Glyph.DOWN, 38), "receive");
         s.add(GlassSheet.VALUE, L10n.t("Save songs to"), kit.glyph(WheelArt.Glyph.NOTE, 38), "saveaudio");
         s.add(GlassSheet.VALUE, L10n.t("Save videos to"), kit.glyph(WheelArt.Glyph.FILM, 38), "savevideo");
         s.add(GlassSheet.ACTION, c.getString(R.string.storage), kit.glyph(WheelArt.Glyph.DRIVE, 38), "storage");
@@ -4843,9 +5393,8 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         s.add(GlassSheet.ACTION, c.getString(R.string.backup_row), kit.glyph(WheelArt.Glyph.UPLOAD, 38), "backup");
         s.add(GlassSheet.ACTION, c.getString(R.string.restore_row), kit.glyph(WheelArt.Glyph.DOWN, 38), "restore");
         s.add(GlassSheet.ACTION, c.getString(R.string.tmdb_key_row), kit.glyph(WheelArt.Glyph.KEY, 38), "tmdbkey");
-        s.add(GlassSheet.ACTION, c.getString(R.string.subs_key_row), kit.glyph(WheelArt.Glyph.SUBS, 38), "subskey");
         s.addSection(L10n.t(Treat.TITLE), kit.glyph(WheelArt.Glyph.HEART, 34)).pane(new Treat(c));   // its own place, last on the left
-        s.markMore("apps", "weather", "interval", "dreamapp", "style", "country", "mylangs", "savephone", "saver", "wifi", "bluetooth", "storage", "restore", "tmdbkey", "subskey");
+        s.markMore("apps", "weather", "interval", "dreamapp", "style", "country", "mylangs", "savephone", "saver", "wifi", "bluetooth", "storage", "restore", "tmdbkey");
         s.layoutPage(getWidth(), getHeight(), 1);
         sheet = s;
     }
@@ -4909,20 +5458,21 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         android.os.Process.killProcess(android.os.Process.myPid());
     }
 
-    /** Adding a free OpenSubtitles key (subtitle downloads in My Movies), typed or pasted on a phone. */
-    void openSubsKeySetup() {
+    /** Receive files: LocalSend on a phone finds this TV while this is open; songs and videos land on the drive. */
+    private void openReceive(@Nullable GlassSheet from) {
         Context c = getContext();
-        PhoneKeyboard.note = "<p><b>Get a free OpenSubtitles key</b> (takes two minutes):</p><ol>"
-                + "<li>Sign up at <a href='https://www.opensubtitles.com/en/users/sign_up'>opensubtitles.com</a> (free).</li>"
-                + "<li>Open <a href='https://www.opensubtitles.com/en/consumers'>API consumers</a>, create one (any name, e.g. "
-                + "<i>TV Town</i>) and copy its <b>API key</b>.</li>"
-                + "<li>Paste it below, then tap Send.</li></ol>";
-        listener.onAskText(c.getString(R.string.subs_key_title), c.getString(R.string.tmdb_key_hint), typed -> {
-            PhoneKeyboard.note = null;
-            String key = typed == null ? "" : typed.trim().replaceAll("[^A-Za-z0-9._-]", "");
-            if (key.isEmpty()) return;
-            Keys.set(Keys.OPENSUBTITLES, key);
-            android.widget.Toast.makeText(c, R.string.subs_key_ok, android.widget.Toast.LENGTH_LONG).show();
+        GlassSheet s = new GlassSheet(kit, L10n.t("Receive files"), WheelArt.Glyph.DOWN, "localsend", "");
+        s.add(GlassSheet.NOTE, L10n.t("On your phone: open LocalSend, tap Send, pick songs or videos, then choose"), null, null);
+        s.add(GlassSheet.ACTION, LocalSend.alias(), kit.glyph(WheelArt.Glyph.TV, 38), "lsname");
+        s.add(GlassSheet.NOTE, L10n.t("Same Wi-Fi as the TV. Saved on the USB drive: songs in Music, videos in Movies"), null, null);
+        s.add(GlassSheet.NOTE, L10n.t("Findable only while this is open. LocalSend is free in your phone's app store"), null, null);
+        s.popupW = 1240;
+        s.parent = from;
+        s.layout(getWidth(), getHeight(), 1240, 5);
+        sheet = s;
+        invalidate();
+        LocalSend.start(c, text -> {
+            s.say(text);
             invalidate();
         });
     }
@@ -4946,17 +5496,31 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     @Nullable
     private android.bluetooth.BluetoothDevice btDevice(String address) {
-        for (android.bluetooth.BluetoothDevice d : TvTools.speakers(getContext())) if (d.getAddress().equals(address)) return d;
+        for (android.bluetooth.BluetoothDevice d : TvTools.paired(getContext())) if (d.getAddress().equals(address)) return d;
         return null;
     }
 
-    /** Bluetooth: the paired speakers and headphones; OK connects or disconnects one. */
+    /**
+     * Bluetooth: where the sound goes (the TV's speakers, or paired headphones and speakers: OK moves it there), then
+     * the game controllers, remotes and keyboards, each with its battery when it says, and pairing a new one.
+     */
     private void openBluetooth(GlassSheet from) {
         Context c = getContext();
-        GlassSheet s = newSheet(R.string.bluetooth, WheelArt.Glyph.NOTE, "bluetooth");
-        List<android.bluetooth.BluetoothDevice> list = TvTools.speakers(c);
+        GlassSheet s = newSheet(R.string.bluetooth, WheelArt.Glyph.BT, "bluetooth");
+        List<android.bluetooth.BluetoothDevice> list = TvTools.paired(c);
+        s.add(GlassSheet.NOTE, L10n.t("Sound plays on"), null, null);
+        s.add(GlassSheet.ACTION, L10n.t("TV speakers"), kit.glyph(WheelArt.Glyph.TV, 38), "bttv");
+        int was = -1;
+        for (android.bluetooth.BluetoothDevice d : list) {
+            int kind = TvTools.kind(d);
+            boolean sound = kind <= TvTools.BT_SPEAKER;
+            if (!sound && was <= TvTools.BT_SPEAKER) s.add(GlassSheet.NOTE, L10n.t("Controllers, remotes and more"), null, null);
+            was = Math.max(was, sound ? kind : TvTools.BT_CONTROLLER);
+            WheelArt.Glyph g = kind == TvTools.BT_HEADPHONES ? WheelArt.Glyph.NOTE : kind == TvTools.BT_SPEAKER ? WheelArt.Glyph.NOTE
+                    : kind == TvTools.BT_CONTROLLER ? WheelArt.Glyph.DICE : WheelArt.Glyph.BT;
+            s.add(GlassSheet.ACTION, TvTools.name(d), kit.glyph(g, 38), "bt:" + d.getAddress());
+        }
         if (list.isEmpty()) s.add(GlassSheet.NOTE, c.getString(R.string.bt_none_paired), null, null);
-        for (android.bluetooth.BluetoothDevice d : list) s.add(GlassSheet.ACTION, TvTools.name(d), kit.glyph(WheelArt.Glyph.NOTE, 38), "bt:" + d.getAddress());
         s.add(GlassSheet.ACTION, c.getString(R.string.bt_pair_new), kit.glyph(WheelArt.Glyph.GEAR, 38), "btsettings");
         s.layout(getWidth(), getHeight(), 900, 9);
         s.parent = from;
@@ -5288,6 +5852,24 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             String[] names = new String[Lang.CODES.length];
             for (int i = 0; i < names.length; i++) names[i] = Lang.name(Lang.CODES[i]);
             openPicker(s, c.getString(R.string.app_language), "applang", Lang.CODES, names, java.util.Collections.singletonList(Lang.chosen()));
+        } else if (tag.equals("topleft") || tag.equals("topright")) {
+            String[] names = new String[TOP_CHOICES.length];
+            for (int i = 0; i < names.length; i++) names[i] = topName(TOP_CHOICES[i]);
+            openPicker(s, L10n.t(tag.equals("topleft") ? "Top bar: left button" : "Top bar: right button"), tag, TOP_CHOICES, names,
+                    java.util.Collections.singletonList(topButton(tag.equals("topleft") ? 1 : 3)));
+        } else if (tag.equals("topsource")) {
+            String[] names = new String[TOP_SOURCES.length];
+            for (int i = 0; i < names.length; i++) names[i] = topSourceName(TOP_SOURCES[i]);
+            openPicker(s, L10n.t("Top picture shows"), "topsource", TOP_SOURCES, names, java.util.Collections.singletonList(topSource(c)));
+        } else if (tag.equals("iconpack")) {
+            List<String[]> ch = IconPacks.choices(c);
+            String[] ids = new String[ch.size()], names = new String[ch.size()];
+            for (int i = 0; i < ch.size(); i++) {
+                ids[i] = ch.get(i)[0].isEmpty() ? "none" : ch.get(i)[0];
+                names[i] = ch.get(i)[1];
+            }
+            String now = IconPacks.chosen(c);
+            openPicker(s, L10n.t("Icon pack"), "iconpack", ids, names, java.util.Collections.singletonList(now.isEmpty() ? "none" : now));
         } else if (tag.equals("openin")) {
             List<String> ch = OpenIn.choices(c);
             String[] ids = ch.toArray(new String[0]), names = new String[ids.length];
@@ -5335,6 +5917,21 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 langChanged = true;   // TV Town opens again in it when Customize closes
             }
         } else if (p[1].equals("openin")) OpenIn.choose(c, p[2]);
+        else if (p[1].equals("topleft")) prefs.edit().putString("top_left", p[2]).apply();
+        else if (p[1].equals("topright")) prefs.edit().putString("top_right", p[2]).apply();
+        else if (p[1].equals("topsource")) {
+            prefs.edit().putString("top_source", p[2]).apply();
+            freshLoadedAt = 0;   // the top picture: the new choice
+            fresh.clear();
+            refresh(true);
+        } else if (p[1].equals("iconpack") && p[2].equals("get")) IconPacks.getMore(c);   // the Play Store's icon packs
+        else if (p[1].equals("iconpack")) {
+            IconPacks.choose(c, p[2].equals("none") ? "" : p[2]);
+            synchronized (packIcons) {
+                packIcons.clear();
+            }
+            packGen++;
+        }
         else if (p[1].equals("interval")) prefs.edit().putInt("scene_seconds", Integer.parseInt(p[2])).apply();
         else if (p[1].equals("saver")) {
             List<Screensavers.Saver> all = Screensavers.all(c);
@@ -5392,6 +5989,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
 
     private void closeSheet() {
         if (sheet == null) return;
+        if ("localsend".equals(sheet.id)) LocalSend.stop();   // not found any more once this closes
         if (sheet.parent != null) {
             sheet = sheet.parent;
             return;
@@ -5426,7 +6024,16 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         String tag = String.valueOf(r.tag);
         if (tag.startsWith("bt:")) {
             android.bluetooth.BluetoothDevice d = btDevice(tag.substring(3));
-            return d == null ? null : c.getString(TvTools.connected(btProxy, d) ? R.string.bt_connected : R.string.bt_connect);
+            if (d == null) return null;
+            int battery = TvTools.battery(d);
+            String b = battery >= 0 ? "  ·  " + battery + "%" : "";
+            if (TvTools.kind(d) <= TvTools.BT_SPEAKER)
+                return TvTools.connected(btProxy, d) ? L10n.t("Playing here") + b : L10n.t("Tap to play here");
+            return (TvTools.linked(d) ? c.getString(R.string.bt_connected) : L10n.t("Not connected")) + b;
+        }
+        if (tag.equals("bttv")) {
+            for (android.bluetooth.BluetoothDevice d : TvTools.speakers(c)) if (TvTools.connected(btProxy, d)) return L10n.t("Tap to play here");
+            return L10n.t("Playing here");
         }
         switch (tag) {
             case "nowplaying": {
@@ -5439,8 +6046,6 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 return c.getString(R.string.mb_free, TvTools.freeMemoryMb(c));
             case "tmdbkey":
                 return c.getString(Tmdb.available() ? R.string.key_added : R.string.key_missing);
-            case "subskey":
-                return c.getString(OpenSubtitles.available() ? R.string.key_added : R.string.key_optional);
             case "weather":
                 return Weather.place(c).isEmpty() ? c.getString(R.string.weather_off) : Weather.place(c);
             case "update": {
@@ -5485,6 +6090,16 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 return Frost.lighter ? L10n.t("In a card") : L10n.t("Full screen");
             case "openin":
                 return OpenIn.name(OpenIn.chosen(c));
+            case "topsource":
+                return topSourceName(topSource(c));
+            case "topleft":
+                return topName(topButton(1));
+            case "topright":
+                return topName(topButton(3));
+            case "iconpack": {
+                String pk = IconPacks.chosen(c);
+                return pk.isEmpty() ? L10n.t("None") : IconPacks.installed(c).containsKey(pk) ? IconPacks.installed(c).get(pk) : L10n.t("None");
+            }
             case "applang":
                 return Lang.name(Lang.chosen());
             case "style":
@@ -5628,7 +6243,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             return;
         }
         if (tag.equals("style") || tag.equals("country") || tag.equals("mylangs") || tag.equals("interval") || tag.equals("dreamapp")
-                || tag.equals("applang") || tag.equals("openin") && OpenIn.choices(getContext()).size() > 2) {
+                || tag.equals("applang") || tag.equals("iconpack") || tag.equals("topsource") || tag.equals("topleft") || tag.equals("topright") || tag.equals("openin") && OpenIn.choices(getContext()).size() > 2) {
             pickerFor(s, tag);
             return;
         }
@@ -5636,6 +6251,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             Updater.Release u = Updater.available;
             if (tag.equals("upd:install") && u != null) Updater.install(getContext(), u, msg -> s.say(msg));
             else closeSheet();
+            return;
+        }
+        if (tag.startsWith("fixpick:")) {
+            fixPicked(Integer.parseInt(tag.substring(8)));
             return;
         }
         if (tag.startsWith("cont:")) {
@@ -5666,6 +6285,10 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             Screensavers.openTvSettings(getContext());
             return;
         }
+        if (tag.equals("receive")) {
+            openReceive(s);
+            return;
+        }
         if (tag.equals("savephone")) {
             HomeKeyService.pasteLink();
             return;
@@ -5674,9 +6297,20 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
             change(s, r, 1, true);
             return;
         }
-        if (tag.startsWith("bt:")) {   // connect or disconnect a speaker
+        if (tag.equals("bttv")) {   // sound back on the TV: every Bluetooth speaker let go
+            boolean any = false;
+            for (android.bluetooth.BluetoothDevice d : TvTools.speakers(getContext()))
+                if (TvTools.connected(btProxy, d)) any |= TvTools.connect(btProxy, d, false);
+            s.say(any ? L10n.t("Sound back on the TV") : L10n.t("Sound is on the TV"));
+            return;
+        }
+        if (tag.startsWith("bt:")) {   // sound to this speaker (the one playing now lets go); others: Android's own page
             android.bluetooth.BluetoothDevice d = btDevice(tag.substring(3));
             if (d == null) return;
+            if (TvTools.kind(d) > TvTools.BT_SPEAKER) {
+                s.say(TvTools.linked(d) ? L10n.t("Connected. To change it, open Pair a new device") : L10n.t("Turn it on to connect it"));
+                return;
+            }
             boolean on = TvTools.connected(btProxy, d);
             s.say(getContext().getString(TvTools.connect(btProxy, d, !on) ? (on ? R.string.bt_disconnecting : R.string.bt_connecting) : R.string.bt_failed));
             return;
@@ -5700,9 +6334,6 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 return;
             case "tmdbkey":
                 openKeySetup();
-                return;
-            case "subskey":
-                openSubsKeySetup();
                 return;
             case "weather":
                 openWeatherSetup(s);
@@ -6044,8 +6675,8 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
     public boolean onKeyLongPress(int keyCode, KeyEvent event) {
         if (!isSelect(keyCode)) return super.onKeyLongPress(keyCode, event);
         longPressed = true;
-        if (noOverlay() && row == Row.CONT && contAt < contRow().size()) {   // hold OK on a Continue title: its options
-            openContOptions(contRow().get(contAt));
+        if (noOverlay() && row == Row.CONT && contAt < contRow().size()) {   // held: the same details pop-up as a press
+            openContDetails(contRow().get(contAt));
             return true;
         }
         Apps.App app = null;
@@ -6081,7 +6712,9 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
         if (listener == null) return;
         if (sheet != null && sheet.open) {
             if (sheet.sectionRows != null && sheet.inRail) sheet.railOk(this);
-            else if (sheet.hasPane()) sheet.key(KeyEvent.KEYCODE_DPAD_CENTER, this);
+            else if (sheet.solo != null) {
+                if (!sheet.solo.key(KeyEvent.KEYCODE_DPAD_CENTER)) closeSheet();
+            } else if (sheet.hasPane()) sheet.key(KeyEvent.KEYCODE_DPAD_CENTER, this);
             else activate(sheet, sheet.rows.get(sheet.sel));
             return;
         }
@@ -6141,7 +6774,7 @@ public class HomeView extends View implements Choreographer.FrameCallback, Glass
                 if (contSel < 0) {
                     listAll = 1;
                     listSel = 0;
-                } else if (contSel < contRow().size()) openContinue(contSel);
+                } else if (contSel < contRow().size()) openContDetails(contRow().get(contSel));
                 return;
             case NEW: {
                 {

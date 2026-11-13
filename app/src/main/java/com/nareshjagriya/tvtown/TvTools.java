@@ -125,6 +125,59 @@ final class TvTools {
         if (!waiting) done.accept(null);
     }
 
+    /** What a paired device is, for the Bluetooth panel's groups. */
+    static final int BT_HEADPHONES = 0, BT_SPEAKER = 1, BT_CONTROLLER = 2, BT_REMOTE = 3, BT_OTHER = 4;
+
+    static int kind(BluetoothDevice d) {
+        BluetoothClass k;
+        try {
+            k = d.getBluetoothClass();
+        } catch (SecurityException e) {
+            return BT_OTHER;
+        }
+        if (k == null) return BT_OTHER;
+        int dc = k.getDeviceClass();
+        if (dc == BluetoothClass.Device.AUDIO_VIDEO_HEADPHONES || dc == BluetoothClass.Device.AUDIO_VIDEO_WEARABLE_HEADSET
+                || dc == BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE) return BT_HEADPHONES;
+        if (k.getMajorDeviceClass() == BluetoothClass.Device.Major.AUDIO_VIDEO || k.hasService(BluetoothClass.Service.AUDIO)) return BT_SPEAKER;
+        if (k.getMajorDeviceClass() == BluetoothClass.Device.Major.PERIPHERAL) return (dc & 0x3C) == 0x08 ? BT_CONTROLLER : BT_REMOTE;
+        return BT_OTHER;
+    }
+
+    /** Every paired device: sound first (headphones, then speakers), then controllers, remotes and the rest. */
+    static List<BluetoothDevice> paired(Context c) {
+        List<BluetoothDevice> out = new ArrayList<>();
+        BluetoothAdapter radio = adapter(c);
+        if (radio == null) return out;
+        try {
+            out.addAll(radio.getBondedDevices());
+        } catch (SecurityException notAllowed) {
+            return out;
+        }
+        java.util.Collections.sort(out, (a, b) -> kind(a) != kind(b) ? kind(a) - kind(b) : name(a).compareToIgnoreCase(name(b)));
+        return out;
+    }
+
+    /** Its battery, 0 to 100, or -1 when it doesn't say (Android has the call, though not in its public list). */
+    static int battery(BluetoothDevice d) {
+        try {
+            Object v = BluetoothDevice.class.getMethod("getBatteryLevel").invoke(d);
+            return v instanceof Integer ? (Integer) v : -1;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return -1;
+        }
+    }
+
+    /** Connected right now (any kind of link). */
+    static boolean linked(BluetoothDevice d) {
+        try {
+            Object v = BluetoothDevice.class.getMethod("isConnected").invoke(d);
+            return Boolean.TRUE.equals(v);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return false;
+        }
+    }
+
     /** Paired devices that play sound; the remote and game controllers aren't speakers. */
     static List<BluetoothDevice> speakers(Context c) {
         List<BluetoothDevice> sound = new ArrayList<>();
@@ -334,6 +387,7 @@ final class TvTools {
             while (row != null && out.size() < max && row.moveToNext()) {
                 String[] in = rows.get(number(row, TvContract.PreviewPrograms.COLUMN_CHANNEL_ID, -1));
                 if (in == null || number(row, TvContract.PreviewPrograms.COLUMN_BROWSABLE, 1) == 0) continue;
+                if (AppLinks.PKG.equals(in[0])) AppLinks.remember(c, field(row, TvContract.PreviewPrograms.COLUMN_INTENT_URI));
                 long pos = number(row, TvContract.PreviewPrograms.COLUMN_LAST_PLAYBACK_POSITION_MILLIS, 0);
                 if (android.util.Log.isLoggable("TVTown", android.util.Log.DEBUG))
                     android.util.Log.d("TVTown", "row item: " + in[0] + " | " + field(row, TvContract.PreviewPrograms.COLUMN_TITLE)
@@ -342,7 +396,8 @@ final class TvTools {
                             + " watchNextType=" + number(row, TvContract.PreviewPrograms.COLUMN_INTERACTION_TYPE, -1)
                             + L10n.t(" weight=") + number(row, TvContract.PreviewPrograms.COLUMN_WEIGHT, -1)
                             + L10n.t(" internal=") + field(row, TvContract.PreviewPrograms.COLUMN_INTERNAL_PROVIDER_ID)
-                            + L10n.t(" desc=") + field(row, TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION));
+                            + L10n.t(" desc=") + field(row, TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION)
+                            + " intent=" + field(row, TvContract.PreviewPrograms.COLUMN_INTENT_URI));
                 String says = field(row, TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION);
                 boolean marked = markedToContinue(says);   // Netflix: L10n.t("Continue Watching Episode 1")
                 if (!continueRow(in[1]) && pos <= 0 && !marked) continue;   // a row of picks, not of what you're watching

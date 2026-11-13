@@ -1169,11 +1169,10 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 case KeyEvent.KEYCODE_DPAD_LEFT: player.previous(); return true;
                 case KeyEvent.KEYCODE_DPAD_RIGHT: player.next(); return true;
                 case KeyEvent.KEYCODE_DPAD_UP:
+                    return true;   // nothing above the song
+                case KeyEvent.KEYCODE_DPAD_DOWN:   // down to the buttons; ⋯ More is at their end
                     controls = true;
                     ctrlSel = C_PLAY;
-                    return true;
-                case KeyEvent.KEYCODE_DPAD_DOWN:   // straight to the settings panel
-                    openPanel(pref("music_show") == SHOW_VIDEOS ? 1 : pref("music_show") == SHOW_EFFECTS ? 0 : 2);
                     return true;
                 case KeyEvent.KEYCODE_MEDIA_FAST_FORWARD: player.seekTo(player.position() + 15_000); return true;
                 case KeyEvent.KEYCODE_MEDIA_REWIND: player.seekTo(player.position() - 15_000); return true;
@@ -1253,7 +1252,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
 
     // What's behind the player, and everything else you can set, in one side panel with four tabs.
     private static final int SHOW_VIDEOS = 0, SHOW_RECORD = 1, SHOW_EFFECTS = 2;
-    private static final String[] TABS = {L10n.t("Effects"), L10n.t("Videos"), L10n.t("Cover"), L10n.t("Controls")};
+    private static final String[] TABS = {L10n.t("Lyrics"), L10n.t("Look"), L10n.t("Song")};
     private static final String[] CHANGE_NAMES = {L10n.t("Stay on this one"), L10n.t("Every 30 seconds"), L10n.t("With each song")};
     private final MusicEffects effects = new MusicEffects();
     private int moreTab;
@@ -1285,10 +1284,21 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
     private String[] panelRows() {
         boolean fx = pref("music_show") == SHOW_EFFECTS, vid = pref("music_show") == SHOW_VIDEOS;
         switch (moreTab) {
-            case 0: return fx ? new String[]{"fx", "effect", "change"} : new String[]{"fx", "line"};
-            case 1: return vid ? new String[]{"videos", "scene"} : new String[]{"videos"};
-            case 2: return pref("music_style") == 1 ? new String[]{"style"} : new String[]{"style", "spin", "arm"};
-            default: return new String[]{"lyrics", "timing", "script", "find", "sleep", "off", "fix", "stop"};
+            case 0: {   // Lyrics
+                List<String> l = new ArrayList<>(java.util.Arrays.asList("lyrics", "timing", "script", "find"));
+                if (!lyrics.isEmpty()) l.add("unlyric");   // wrong lyrics: away, so they can be found again
+                return l.toArray(new String[0]);
+            }
+            case 1: {   // Look: what plays behind the song
+                List<String> l = new ArrayList<>();
+                l.add("fx");
+                if (fx) l.addAll(java.util.Arrays.asList("effect", "change"));
+                else l.add("line");
+                l.add("videos");
+                l.add("style");
+                return l.toArray(new String[0]);
+            }
+            default: return new String[]{"sleep", "fix", "rename", "moveto", "copyto", "delsong"};   // Song
         }
     }
 
@@ -1316,6 +1326,11 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             case "sleep": return L10n.t("Sleep timer");
             case "off": return L10n.t("Turn screen off");
             case "fix": return L10n.t("Fix song details");
+            case "unlyric": return L10n.t("Remove these lyrics");
+            case "rename": return L10n.t("Rename song");
+            case "moveto": return L10n.t("Move to");
+            case "copyto": return L10n.t("Copy to");
+            case "delsong": return songDeleteArmed ? L10n.t("Press OK again to delete") : L10n.t("Delete song");
             default: return L10n.t("Stop music");
         }
     }
@@ -1338,6 +1353,11 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             case "timing": return String.format(Locale.US, "%+.1f s", (s != null ? MyMusic.lyricsOffset(getContext(), s) : 0) / 1000f);
             case "script": return Lyrics.SCRIPT_HINDI.equals(script) ? L10n.t("Hindi") : L10n.t("English");
             case "sleep": return z == 0 ? L10n.t("Off") : z < 0 ? L10n.t("End of song") : z + L10n.t(" min");
+            case "moveto": case "copyto": {   // the folder Left and Right choose
+                List<java.io.File> f = songFolders(s);
+                java.io.File drive = s != null ? DriveStore.volumeOf(s.path) : null;
+                return f.isEmpty() || drive == null ? null : FileOps.shown(drive, f.get(Math.floorMod(folderPick, f.size())));
+            }
             default: return null;
         }
     }
@@ -1404,6 +1424,13 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                     moreOpen = false;
                     player.stop();
                     return true;
+                case "unlyric":
+                case "rename":
+                case "moveto":
+                case "copyto":
+                case "delsong":
+                    if (s != null) songFile(id, s);
+                    return true;
                 default:
                     rowStep(id, 1);
                     return true;
@@ -1416,6 +1443,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
                 int dir = key == KeyEvent.KEYCODE_DPAD_RIGHT ? 1 : -1;
                 if (moreSel < 0) moreTab = Math.floorMod(moreTab + dir, TABS.length);
                 else if (java.util.Arrays.asList("effect", "change", "style", "timing").contains(rows[moreSel])) rowStep(rows[moreSel], dir);
+                else if (rows[moreSel].equals("moveto") || rows[moreSel].equals("copyto")) folderPick += dir;
                 return true;
             }
             default: return false;
@@ -1607,6 +1635,85 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
         }
     }
 
+    // ---- a song's file: lyrics away, rename, move, copy, delete --------------------------------------------
+
+    private boolean songDeleteArmed;
+    private int folderPick;
+    private List<java.io.File> folderList = new ArrayList<>();
+    private String folderFor = "";
+
+    private List<java.io.File> songFolders(@Nullable MyMusic.Song s) {
+        java.io.File drive = s != null && s.path != null ? DriveStore.volumeOf(s.path) : null;
+        if (drive == null) return new ArrayList<>();
+        if (!drive.getPath().equals(folderFor)) {
+            folderList = FileOps.folders(drive);
+            folderFor = drive.getPath();
+        }
+        return folderList;
+    }
+
+    private void songFile(String what, MyMusic.Song s) {
+        if (s.path == null) return;
+        java.io.File f = new java.io.File(s.path);
+        Context ctx = getContext();
+        switch (what) {
+            case "unlyric": {
+                int dot = s.path.lastIndexOf('.');
+                java.io.File lrc = new java.io.File((dot > 0 ? s.path.substring(0, dot) : s.path) + ".lrc");
+                FileOps.delete(ctx, java.util.Collections.singletonList(lrc));
+                java.io.File vol = DriveStore.volumeOf(s.path);
+                try {   // not searched for again on their own: Find lyrics picks others
+                    DriveStore.map(vol, "lyrics").put(s.key(), new org.json.JSONObject().put("removed", true));
+                } catch (org.json.JSONException ignored) {
+                    // left as it was
+                }
+                DriveStore.save(vol, "lyrics");
+                lyrics = new ArrayList<>();
+                lyricsSource = new ArrayList<>();
+                lyricsApprox = false;
+                say(L10n.t("Lyrics removed. Find lyrics to choose others"));
+                return;
+            }
+            case "rename":
+                moreOpen = false;
+                if (listener != null) listener.onType(L10n.t("Rename song"), FileOps.base(f.getName()), typed -> {
+                    if (typed == null || typed.trim().isEmpty()) return;
+                    String[] why = {""};
+                    boolean ok = FileOps.rename(ctx, f, typed.trim(), why) != null;
+                    say(ok ? L10n.t("Renamed") : why[0]);
+                    if (ok) postDelayed(this::rescan, 800);
+                });
+                return;
+            case "moveto":
+            case "copyto": {
+                List<java.io.File> l = songFolders(s);
+                if (l.isEmpty()) return;
+                java.io.File to = l.get(Math.floorMod(folderPick, l.size()));
+                boolean copy = what.equals("copyto");
+                String[] why = {""};
+                if (!copy) player.stop();
+                boolean ok = FileOps.place(ctx, f, to, copy, why);
+                say(ok ? (copy ? L10n.t("Copied") : L10n.t("Moved")) : why[0]);
+                if (ok) postDelayed(this::rescan, 800);
+                return;
+            }
+            case "delsong":
+                if (!songDeleteArmed) {
+                    songDeleteArmed = true;
+                    return;
+                }
+                songDeleteArmed = false;
+                moreOpen = false;
+                player.stop();
+                List<java.io.File> all = new ArrayList<>(FileOps.sidecars(f));
+                all.add(0, f);
+                say(FileOps.delete(ctx, all) > 0 ? L10n.t("Deleted") : L10n.t("The drive didn't allow it"));
+                postDelayed(this::rescan, 800);
+                return;
+            default:
+        }
+    }
+
     private void say(String s) {
         toast = s;
         toastAt = SystemClock.uptimeMillis();
@@ -1793,6 +1900,7 @@ public class MyMusicView extends View implements Choreographer.FrameCallback, Mu
             MyMusic.Song cur = player.current();
             label = cur != null ? cur.title : label;
             if (label.length() > 18) label = label.substring(0, 17) + "…";
+            label = (player.playing() ? "♫  " : "❚❚  ") + label;   // plainly what is playing, as on Home
         }
         return label;
     }
