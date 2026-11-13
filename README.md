@@ -1,6 +1,6 @@
 # TV Town Launcher
 
-**Clear the clutter and give your Android TV a premium, cinema-like home screen.**
+**Everything your TV forgot to come with.** A cinematic home screen for Android TV and Google TV.
 
 Version 1.3 · Android TV and Google TV 9 and later · runs well on a 1 GB TV
 
