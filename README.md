@@ -2,7 +2,7 @@
 
 **A glass home screen for Android TV and Google TV: what to watch, from every app you have, without the ads.**
 
-Version 1.2 · Android TV and Google TV 9 and later · runs well on a 1 GB TV · free and open source
+Version 1.3 · Android TV and Google TV 9 and later · runs well on a 1 GB TV · free and open source
 
 **Install it in a minute:** on your TV, get **Downloader** from the Play Store and enter the code **9356599**. [Step-by-step guide →](INSTALL.md) Updates come from inside TV Town.
 
